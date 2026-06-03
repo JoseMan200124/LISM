@@ -1,0 +1,12 @@
+-- OPTIONAL HARDENING TEMPLATE
+-- Do not apply until every application transaction sets app.organization_id and app.laboratory_id.
+-- This file documents the recommended row-level security direction for a later production phase.
+
+-- Example for specimens:
+-- ALTER TABLE specimens ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY specimens_lab_isolation ON specimens
+--   USING (laboratory_id = nullif(current_setting('app.laboratory_id', true), '')::uuid)
+--   WITH CHECK (laboratory_id = nullif(current_setting('app.laboratory_id', true), '')::uuid);
+--
+-- Repeat the same policy for each tenant-scoped table. Keep migrations and operational jobs
+-- on a separate database role with explicitly reviewed privileges.
