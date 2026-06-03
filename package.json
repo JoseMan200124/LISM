@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=20.9.0"
+    "node": "22.x"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -29,5 +29,6 @@
   },
   "overrides": {
     "postcss": "8.5.15"
-  }
+  },
+  "packageManager": "npm@10.9.4"
 }
