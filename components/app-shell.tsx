@@ -13,6 +13,8 @@ import {
   Plus,
   Search,
   Settings,
+  FlaskConical,
+  Microscope,
   X,
 } from "lucide-react";
 import { navigation } from "@/lib/navigation";
@@ -35,7 +37,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
       <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
         <div className="sidebar-header">
           <Link href="/app" className="brand-lockup">
-            <span className="brand-symbol">N</span>
+            <span className="brand-symbol" aria-hidden="true"><FlaskConical /></span>
             <div>
               <strong>NexaLab</strong>
               <span>Laboratory OS</span>
@@ -45,7 +47,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         </div>
 
         <div className="laboratory-switcher">
-          <div className="laboratory-mark">LC</div>
+          <div className="laboratory-mark" aria-hidden="true"><Microscope /></div>
           <div>
             <span>Laboratorio activo</span>
             <strong>{session.laboratoryName}</strong>

@@ -264,6 +264,8 @@ export function ModuleView({ module }: { module: Exclude<ModuleKey, "dashboard">
 }
 
 function ReportsView() {
+  const reportIcons = [CalendarClock, BarChart3, ShieldCheck, Boxes, GitBranch, UserRoundCheck];
+
   return (
     <div className="page-stack">
       <header className="page-header">
@@ -276,7 +278,10 @@ function ReportsView() {
         <article className="module-stat"><span><CalendarClock size={17} /></span><div><p>Programados</p><strong>4</strong><small>Próxima ejecución 18:00</small></div></article>
       </section>
       <section className="report-grid">
-        {reportCards.map((report) => <article className="report-card" key={report.title}><div><span>{report.badge}</span><BarChart3 size={18} /></div><h2>{report.title}</h2><p>{report.detail}</p><button>Abrir reporte <ArrowUpRight size={14} /></button></article>)}
+        {reportCards.map((report, index) => {
+          const ReportIcon = reportIcons[index] ?? BarChart3;
+          return <article className="report-card" key={report.title}><div><span>{report.badge}</span><ReportIcon size={18} strokeWidth={1.8} /></div><h2>{report.title}</h2><p>{report.detail}</p><button>Abrir reporte <ArrowUpRight size={14} /></button></article>;
+        })}
       </section>
       <article className="panel report-schedule-panel"><div><PackageCheck size={18} /><p><strong>Entrega automatizada</strong><span>Configura reportes periódicos para responsables, instituciones o entidades de salud pública.</span></p></div><button className="secondary-button">Administrar programaciones</button></article>
     </div>

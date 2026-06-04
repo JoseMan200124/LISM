@@ -4,7 +4,7 @@ MVP funcional y escalable de un **Laboratory Information System (LIS)** para lab
 
 El proyecto incluye:
 
-- Interfaz profesional, minimalista y responsiva.
+- Interfaz profesional, minimalista y responsiva con paleta clínica de blanco, verde mineral y estados semánticos discretos.
 - Navegación por flujo preanalítico, analítico y postanalítico.
 - Dashboard operativo, mesa de trabajo, muestras, órdenes, resultados, pacientes, solicitantes, catálogo, inventario, equipos, calidad, alertas, reportes, integraciones, auditoría y administración.
 - Inicio de sesión de demostración con cookie firmada.
@@ -25,7 +25,7 @@ Contraseña: Demo1234!
 
 ## Ejecutar localmente
 
-Requisitos: Node.js 20.9 o superior.
+Requisitos: Node.js 22.x.
 
 ```bash
 cp .env.example .env.local

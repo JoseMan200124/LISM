@@ -2,10 +2,10 @@ export type Severity = "Crítica" | "Alta" | "Media" | "Baja";
 export type SpecimenStatus = "Recibida" | "En preparación" | "En análisis" | "Por validar" | "Liberada" | "Rechazada";
 
 export const overviewKpis = [
-  { label: "Muestras activas", value: "184", delta: "+12 hoy", tone: "indigo" },
-  { label: "TAT mediano", value: "3 h 24 m", delta: "−18 min vs. semana", tone: "emerald" },
+  { label: "Muestras activas", value: "184", delta: "+12 hoy", tone: "primary" },
+  { label: "TAT mediano", value: "3 h 24 m", delta: "−18 min vs. semana", tone: "sage" },
   { label: "Resultados por validar", value: "26", delta: "8 prioritarios", tone: "amber" },
-  { label: "Cumplimiento QC", value: "98.6%", delta: "+0.9% este mes", tone: "emerald" },
+  { label: "Cumplimiento QC", value: "98.6%", delta: "+0.9% este mes", tone: "sage" },
 ];
 
 export const workflowStages = [

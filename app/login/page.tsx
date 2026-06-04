@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { FlaskConical } from "lucide-react";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "@/components/login-form";
 
@@ -10,7 +11,7 @@ export default async function LoginPage() {
     <main className="login-page">
       <section className="login-side-panel">
         <div className="brand-lockup brand-lockup-light">
-          <span className="brand-symbol">N</span>
+          <span className="brand-symbol" aria-hidden="true"><FlaskConical /></span>
           <div>
             <strong>NexaLab</strong>
             <span>Laboratory Information System</span>
