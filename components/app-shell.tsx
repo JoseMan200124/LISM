@@ -13,13 +13,13 @@ import {
   Plus,
   Search,
   Settings,
-  FlaskConical,
   Microscope,
   X,
 } from "lucide-react";
 import { navigation } from "@/lib/navigation";
 import type { UserSession } from "@/lib/session";
 import { NewAccessionModal } from "@/components/new-accession-modal";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function AppShell({ session, children }: Readonly<{ session: UserSession; children: React.ReactNode }>) {
   const pathname = usePathname();
@@ -36,12 +36,8 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
     <div className="app-layout">
       <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
         <div className="sidebar-header">
-          <Link href="/app" className="brand-lockup">
-            <span className="brand-symbol" aria-hidden="true"><FlaskConical /></span>
-            <div>
-              <strong>NexaLab</strong>
-              <span>Laboratory OS</span>
-            </div>
+          <Link href="/app" className="brand-home-link" aria-label="Ir al resumen de NexaLab">
+            <BrandLogo compact subtitle="Laboratory OS" priority />
           </Link>
           <button className="icon-button sidebar-close" aria-label="Cerrar menú" onClick={() => setMobileOpen(false)}><X size={18} /></button>
         </div>

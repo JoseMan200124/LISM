@@ -5,6 +5,7 @@ MVP funcional y escalable de un **Laboratory Information System (LIS)** para lab
 El proyecto incluye:
 
 - Interfaz profesional, minimalista y responsiva con paleta clínica de blanco, verde mineral y estados semánticos discretos.
+- Identidad visual de NexaLab integrada en login, navegación lateral, favicon y accesos directos.
 - Navegación por flujo preanalítico, analítico y postanalítico.
 - Dashboard operativo, mesa de trabajo, muestras, órdenes, resultados, pacientes, solicitantes, catálogo, inventario, equipos, calidad, alertas, reportes, integraciones, auditoría y administración.
 - Inicio de sesión de demostración con cookie firmada.
@@ -73,5 +74,5 @@ app/                 Next.js App Router, pantallas y API route handlers
 components/          Componentes de interfaz
 lib/                 Datos demo, sesión, navegación y conexión Neon
 database/            Migraciones SQL y datos semilla
-docs/                Arquitectura, UI/UX, módulos, investigación, roadmap, despliegue, pricing, validación y hardening
+docs/                Arquitectura, UI/UX, branding, módulos, investigación, roadmap, despliegue, pricing, validación y hardening
 ```

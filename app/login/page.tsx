@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { FlaskConical } from "lucide-react";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "@/components/login-form";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default async function LoginPage() {
   const session = await getSession();
@@ -10,13 +10,7 @@ export default async function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-side-panel">
-        <div className="brand-lockup brand-lockup-light">
-          <span className="brand-symbol" aria-hidden="true"><FlaskConical /></span>
-          <div>
-            <strong>NexaLab</strong>
-            <span>Laboratory Information System</span>
-          </div>
-        </div>
+        <BrandLogo className="brand-lockup-light" subtitle="Laboratory Information System" priority />
         <div className="login-side-content">
           <p className="eyebrow eyebrow-light">OPERACIÓN TRAZABLE</p>
           <h1>Del ingreso de la muestra a un resultado confiable.</h1>

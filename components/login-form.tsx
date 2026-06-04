@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ArrowRight, Eye, EyeOff, FlaskConical, LockKeyhole, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function LoginForm() {
   const [email, setEmail] = useState("admin@nexalab.local");
@@ -36,8 +37,7 @@ export function LoginForm() {
   return (
     <div className="login-card">
       <div className="login-mobile-brand">
-        <span className="brand-symbol" aria-hidden="true"><FlaskConical /></span>
-        <div><strong>NexaLab</strong><span>LIS</span></div>
+        <BrandLogo compact subtitle="Laboratory Information System" priority />
       </div>
       <p className="eyebrow">ACCESO SEGURO</p>
       <h2>Bienvenido de nuevo</h2>
