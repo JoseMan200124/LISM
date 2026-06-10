@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm ci --no-audit --no-fund"
+  "installCommand": "node scripts/check-public-lockfile.mjs && npm ci --registry=https://registry.npmjs.org/ --no-audit --no-fund --prefer-online"
 }

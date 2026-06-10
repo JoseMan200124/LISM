@@ -2,29 +2,41 @@
 
 ## Problema detectado
 
-El `package-lock.json` inicial contenía URLs `resolved` de un registro interno usado durante la generación del proyecto. Esas URLs no son accesibles desde Vercel y la instalación se quedaba esperando hasta terminar con `npm error Exit handler never called!`.
-
-Además, `package.json` declaraba `node >=20.9.0`. En Vercel, un rango abierto puede resolverse automáticamente al Node.js disponible más reciente. Se cambió a `22.x` para usar una versión principal estable y soportada.
-
-## Archivos modificados
-
-- `package.json`
-- `package-lock.json`
-- `.npmrc`
-- `vercel.json`
-
-## Pasos
-
-Sube estos archivos al repositorio y vuelve a desplegar. No debes configurar un Install Command manual en el panel de Vercel porque `vercel.json` ya usa:
+El despliegue quedaba detenido durante varios minutos en:
 
 ```bash
 npm ci --no-audit --no-fund
 ```
 
-Para verificar antes de subir:
+Finalmente terminaba con:
+
+```text
+npm error Exit handler never called!
+```
+
+La causa encontrada en el proyecto era que `package-lock.json` todavía contenía varias URLs `resolved` de un registro interno de generación. Ese host no es accesible desde Vercel. Aunque parte del lockfile ya apuntaba a `registry.npmjs.org`, quedaban dependencias transitivas con URLs internas.
+
+## Corrección aplicada
+
+- Todas las URLs `resolved` del lockfile apuntan ahora a `https://registry.npmjs.org/`.
+- Se añadió `.npmrc` para declarar explícitamente el registro público.
+- Se añadió `scripts/check-public-lockfile.mjs` para detectar futuros lockfiles contaminados antes de instalar dependencias.
+- `vercel.json` valida el lockfile y ejecuta una instalación reproducible con `npm ci`.
+
+## Archivos modificados
+
+- `.npmrc`
+- `package-lock.json`
+- `vercel.json`
+- `scripts/check-public-lockfile.mjs`
+- `docs/VERCEL_INSTALL_FIX.md`
+
+## Validación local
 
 ```bash
-npm ci
+node scripts/check-public-lockfile.mjs
+rm -rf node_modules .next
+npm ci --registry=https://registry.npmjs.org/ --no-audit --no-fund --prefer-online
 npm run typecheck
 npm run build
 ```
