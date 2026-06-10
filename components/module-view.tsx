@@ -46,6 +46,7 @@ import { ConfigurationCenter } from "@/components/configuration-center";
 import { EducationCenter } from "@/components/education-center";
 import { QualityCenter } from "@/components/quality-center";
 import { EquipmentCenter, InventoryCenter } from "@/components/resources-center";
+import { ActionModal, DetailsModal, QuickRecordModal, Toast, downloadCsv, useToast } from "@/components/action-kit";
 
 
 type Row = Record<string, string | number>;
@@ -180,24 +181,66 @@ export function ModuleView({ module }: { module: Exclude<ModuleKey, "dashboard">
 }
 
 function GenericModule({ module }: { module: Exclude<ModuleKey, "dashboard"> }) {
+  const config = moduleConfigs[module]!;
   const [query, setQuery] = useState("");
-  const config = moduleConfigs[module];
+  const [rows, setRows] = useState<Row[]>(() => config?.rows ?? []);
+  const [newOpen, setNewOpen] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<Row | null>(null);
+  const { message, showToast, clearToast } = useToast();
   const filteredRows = useMemo(() => {
-    if (!config?.rows) return [];
     const needle = query.trim().toLowerCase();
-    if (!needle) return config.rows;
-    return config.rows.filter((row) => Object.values(row).some((value) => String(value).toLowerCase().includes(needle)));
-  }, [config, query]);
+    if (!needle) return rows;
+    return rows.filter((row) => Object.values(row).some((value) => String(value).toLowerCase().includes(needle)));
+  }, [query, rows]);
 
   if (!config) return null;
   const MainIcon = config.icon;
+
+  function exportRows() {
+    downloadCsv(`nexalab-${module}.csv`, filteredRows);
+    showToast(`${config.title}: archivo CSV generado.`);
+  }
+
+  function runPrimary() {
+    if (config.action.toLowerCase().includes("exportar")) {
+      exportRows();
+      return;
+    }
+    if (config.action.toLowerCase().includes("validar")) {
+      showToast("Selección validada. Los cambios quedan listos para firma y auditoría.");
+      return;
+    }
+    setNewOpen(true);
+  }
+
+  function runSecondary() {
+    if (config.secondaryAction?.toLowerCase().includes("exportar")) {
+      exportRows();
+      return;
+    }
+    showToast(`${config.secondaryAction ?? "Acción"}: asistente abierto en modo demostración.`);
+  }
+
+  function addRecord(record: { name: string; detail: string; status: string }) {
+    const next: Row = {};
+    for (const [index, column] of (config.columns ?? []).entries()) {
+      if (["id", "code", "accession", "sku"].includes(column.key)) next[column.key] = `${module.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+      else if (["status", "active"].includes(column.key)) next[column.key] = record.status;
+      else if (index === 0 || ["name", "patient", "task"].includes(column.key)) next[column.key] = record.name;
+      else if (index === 1 || ["detail", "change"].includes(column.key)) next[column.key] = record.detail;
+      else next[column.key] = "Pendiente";
+    }
+    setRows((current) => [next, ...current]);
+    showToast(`${config.title}: registro creado.`);
+  }
+
   return (
     <div className="page-stack">
       <header className="page-header">
         <div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div>
         <div className="header-actions">
-          {config.secondaryAction ? <button className="secondary-button"><Upload size={15} /> {config.secondaryAction}</button> : null}
-          <button className="primary-button"><Plus size={15} /> {config.action}</button>
+          {config.secondaryAction ? <button className="secondary-button" onClick={runSecondary}><Upload size={15} /> {config.secondaryAction}</button> : null}
+          <button className="primary-button" onClick={runPrimary}><Plus size={15} /> {config.action}</button>
         </div>
       </header>
       <section className="module-stat-grid">
@@ -207,42 +250,61 @@ function GenericModule({ module }: { module: Exclude<ModuleKey, "dashboard"> }) 
         <div className="table-toolbar">
           <label className="table-search"><Search size={15} /><input placeholder={`Buscar en ${config.title.toLowerCase()}…`} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
           <div className="filter-row">
-            {config.filters?.map((filter) => <button className="filter-button" key={filter}>{filter}<ChevronDown size={13} /></button>)}
-            <button className="filter-button square-filter"><SlidersHorizontal size={14} /></button>
+            {config.filters?.map((filter) => <button className="filter-button" key={filter} onClick={() => showToast(`Filtro “${filter}” disponible para configurar.`)}>{filter}<ChevronDown size={13} /></button>)}
+            <button className="filter-button square-filter" aria-label="Más filtros" onClick={() => showToast("Panel de filtros avanzados disponible.")}><SlidersHorizontal size={14} /></button>
           </div>
         </div>
         <div className="table-scroll">
           <table className="data-table">
             <thead><tr>{config.columns?.map((column) => <th key={column.key}>{column.label}</th>)}<th /></tr></thead>
             <tbody>
-              {filteredRows.map((row, index) => <tr key={`${module}-${index}`}>{config.columns?.map((column) => <td key={column.key}>{displayCell(column.key, row[column.key])}</td>)}<td><button className="icon-button table-action"><MoreHorizontal size={16} /></button></td></tr>)}
+              {filteredRows.map((row, index) => <tr key={`${module}-${index}`}>{config.columns?.map((column) => <td key={column.key}>{displayCell(column.key, row[column.key])}</td>)}<td><button className="icon-button table-action" aria-label="Ver detalle" onClick={() => setSelectedRow(row)}><MoreHorizontal size={16} /></button></td></tr>)}
             </tbody>
           </table>
         </div>
-        <footer className="table-footer"><span>Mostrando {filteredRows.length} registros de ejemplo</span><div><button disabled>Anterior</button><strong>1</strong><button disabled>Siguiente</button></div></footer>
+        <footer className="table-footer"><span>Mostrando {filteredRows.length} registros</span><div><button disabled>Anterior</button><strong>1</strong><button disabled>Siguiente</button></div></footer>
       </article>
       <div className="module-hint"><MainIcon size={16} /><span>{config.hint ?? "Vista inicial demostrativa. Conecta Neon para persistir registros reales y habilitar permisos por laboratorio."}</span></div>
+      <QuickRecordModal open={newOpen} title={config.action} description={`Crea un registro inicial en ${config.title.toLowerCase()}.`} onClose={() => setNewOpen(false)} onSave={addRecord} />
+      <DetailsModal open={Boolean(selectedRow)} title={`Detalle · ${config.title}`} row={selectedRow} onClose={() => setSelectedRow(null)} />
+      <Toast message={message} onClose={clearToast} />
     </div>
   );
 }
 
 function ReportsView() {
   const reportIcons = [CalendarClock, BarChart3, ShieldCheck, FlaskConical, GitBranch, UserRoundCheck];
+  const [newOpen, setNewOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<(typeof reportCards)[number] | null>(null);
+  const [extraReports, setExtraReports] = useState<Array<{ title: string; detail: string; badge: string }>>([]);
+  const { message, showToast, clearToast } = useToast();
+  const reports = [...reportCards, ...extraReports];
+
+  function exportReport(report: (typeof reports)[number]) {
+    downloadCsv(`nexalab-${report.title.toLowerCase().replace(/\s+/g, "-")}.csv`, [{ reporte: report.title, detalle: report.detail, categoria: report.badge, generado: new Date().toLocaleString("es-GT") }]);
+    showToast(`Reporte “${report.title}” exportado.`);
+  }
+
   return (
     <div className="page-stack">
       <header className="page-header">
         <div><p className="eyebrow">ANÁLISIS Y DISTRIBUCIÓN</p><h1>Reportes</h1><p>Convierte la operación, la calidad y la evidencia en información útil y exportable.</p></div>
-        <div className="header-actions"><button className="secondary-button"><Upload size={15} /> Programaciones</button><button className="primary-button"><Plus size={15} /> Nuevo reporte</button></div>
+        <div className="header-actions"><button className="secondary-button" onClick={() => setScheduleOpen(true)}><Upload size={15} /> Programaciones</button><button className="primary-button" onClick={() => setNewOpen(true)}><Plus size={15} /> Nuevo reporte</button></div>
       </header>
       <section className="module-stat-grid">
-        <article className="module-stat"><span><BarChart3 size={17} /></span><div><p>Reportes disponibles</p><strong>14</strong><small>Incluye auditoría y calidad</small></div></article>
+        <article className="module-stat"><span><BarChart3 size={17} /></span><div><p>Reportes disponibles</p><strong>{14 + extraReports.length}</strong><small>Incluye auditoría y calidad</small></div></article>
         <article className="module-stat"><span><Download size={17} /></span><div><p>Exportaciones este mes</p><strong>184</strong><small>PDF, CSV y XLSX</small></div></article>
         <article className="module-stat"><span><CalendarClock size={17} /></span><div><p>Programados</p><strong>4</strong><small>Próxima ejecución 18:00</small></div></article>
       </section>
       <section className="report-grid">
-        {reportCards.map((report, index) => { const ReportIcon = reportIcons[index] ?? BarChart3; return <article className="report-card" key={report.title}><div><span>{report.badge}</span><ReportIcon size={18} strokeWidth={1.8} /></div><h2>{report.title}</h2><p>{report.detail}</p><button>Abrir reporte <ArrowUpRight size={14} /></button></article>; })}
+        {reports.map((report, index) => { const ReportIcon = reportIcons[index] ?? BarChart3; return <article className="report-card" key={`${report.title}-${index}`}><div><span>{report.badge}</span><ReportIcon size={18} strokeWidth={1.8} /></div><h2>{report.title}</h2><p>{report.detail}</p><button onClick={() => setSelectedReport(report)}>Abrir reporte <ArrowUpRight size={14} /></button></article>; })}
       </section>
-      <article className="panel report-schedule-panel"><div><PackageCheck size={18} /><p><strong>Entrega automatizada</strong><span>Configura reportes periódicos para responsables, instituciones o entidades autorizadas.</span></p></div><button className="secondary-button">Administrar programaciones</button></article>
+      <article className="panel report-schedule-panel"><div><PackageCheck size={18} /><p><strong>Entrega automatizada</strong><span>Configura reportes periódicos para responsables, instituciones o entidades autorizadas.</span></p></div><button className="secondary-button" onClick={() => setScheduleOpen(true)}>Administrar programaciones</button></article>
+      <QuickRecordModal open={newOpen} title="Nuevo reporte" description="Crea una plantilla inicial para personalizar filtros, periodicidad y destinatarios." onClose={() => setNewOpen(false)} onSave={(record) => { setExtraReports((current) => [{ title: record.name, detail: record.detail, badge: record.status }, ...current]); showToast("Plantilla de reporte creada."); }} />
+      <ActionModal open={scheduleOpen} title="Programaciones de reportes" description="Las entregas automáticas quedan asociadas a un responsable y un calendario." onClose={() => setScheduleOpen(false)}><div className="modal-form"><div className="details-grid"><div><small>Diario de inventario</small><strong>18:00 · Jefatura</strong></div><div><small>Resumen de calibraciones</small><strong>Lunes · 08:00</strong></div><div><small>Auditoría operativa</small><strong>Mensual · Calidad</strong></div></div><footer className="modal-actions"><button className="primary-button" onClick={() => { setScheduleOpen(false); showToast("Programaciones revisadas."); }}>Cerrar</button></footer></div></ActionModal>
+      <ActionModal open={Boolean(selectedReport)} title={selectedReport?.title ?? "Reporte"} description={selectedReport?.detail} onClose={() => setSelectedReport(null)}><div className="modal-form"><p>La vista previa está lista. Genera el archivo para compartir los datos autorizados.</p><footer className="modal-actions"><button className="secondary-button" onClick={() => setSelectedReport(null)}>Cerrar</button><button className="primary-button" onClick={() => { if (selectedReport) exportReport(selectedReport); setSelectedReport(null); }}><Download size={15} /> Exportar CSV</button></footer></div></ActionModal>
+      <Toast message={message} onClose={clearToast} />
     </div>
   );
 }

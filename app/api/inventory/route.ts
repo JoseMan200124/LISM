@@ -6,18 +6,38 @@ import { inventoryRows } from "@/lib/demo-data";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { createDemoQrLabel, createOpaqueToken } from "@/lib/qr-security";
 
 const inventorySchema = z.object({
   sku: z.string().min(2).max(80),
   name: z.string().min(2).max(180),
-  categoryId: databaseIdSchema,
+  categoryId: databaseIdSchema.optional(),
+  categoryName: z.string().min(2).max(120).optional(),
   storageLocationId: databaseIdSchema.optional().nullable(),
+  storageLocationName: z.string().min(2).max(160).optional(),
   lotNumber: z.string().max(100).optional().default(""),
   quantity: z.coerce.number().nonnegative(),
   reorderPoint: z.coerce.number().nonnegative().default(0),
   unit: z.string().min(1).max(40),
   expiresAt: z.string().date().optional().nullable(),
+  receivedAt: z.string().date().optional().nullable(),
+  vendor: z.string().max(180).optional().default(""),
+  internalFormula: z.string().max(220).optional().default(""),
+  safetySheetUrl: z.string().url().optional().or(z.literal("")),
+  requiresUsageLog: z.boolean().optional().default(true),
+}).refine((value) => value.categoryId || value.categoryName, {
+  message: "Debes indicar la categoría mediante categoryId o categoryName.",
+  path: ["categoryId"],
 });
+
+function catalogCode(prefix: string, value: string, maximumLength: number) {
+  const simplified = value.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${prefix}-${simplified || "GENERAL"}`.slice(0, maximumLength);
+}
 
 export async function GET() {
   const session = await getSession();
@@ -61,31 +81,85 @@ export async function POST(request: Request) {
 
   const parsed = inventorySchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ message: "Datos de inventario inválidos.", issues: parsed.error.issues }, { status: 400 });
+  const payload = parsed.data;
 
-  if (!hasDatabase()) return NextResponse.json({ data: { id: crypto.randomUUID(), ...parsed.data, mode: "demo" } }, { status: 201 });
+  if (!hasDatabase()) {
+    const id = crypto.randomUUID();
+    const location = payload.storageLocationName || "Sin ubicación";
+    const label = createDemoQrLabel({
+      entityType: "INVENTORY_ITEM",
+      entityId: id,
+      labelCode: payload.sku,
+      displayName: payload.name,
+      location,
+      status: payload.quantity <= payload.reorderPoint ? "Reponer" : "Disponible",
+      summary: [
+        { label: "Categoría", value: payload.categoryName || "Inventario" },
+        { label: "Fórmula", value: payload.internalFormula || "No registrada" },
+        { label: "Lote", value: payload.lotNumber || "Sin lote" },
+        { label: "Existencia", value: `${payload.quantity} ${payload.unit}` },
+        { label: "Stock mínimo", value: `${payload.reorderPoint} ${payload.unit}` },
+        { label: "Vencimiento", value: payload.expiresAt || "Sin vencimiento" },
+      ],
+    });
+    return NextResponse.json({ data: { id, ...payload, qrIdentifierId: label.id, qrToken: label.opaqueToken, mode: "demo" } }, { status: 201 });
+  }
 
   const sql = getSql();
-  const payload = parsed.data;
+  let categoryId = payload.categoryId;
+  if (!categoryId && payload.categoryName) {
+    const categories = await sql`
+      INSERT INTO inventory_categories (laboratory_id, code, name)
+      VALUES (${session.laboratoryId}, ${catalogCode("CAT", payload.categoryName, 50)}, ${payload.categoryName})
+      ON CONFLICT (laboratory_id, code)
+      DO UPDATE SET name = EXCLUDED.name, status = 'ACTIVE'
+      RETURNING id
+    `;
+    categoryId = String(categories[0].id);
+  }
+
+  let storageLocationId = payload.storageLocationId;
+  if (!storageLocationId && payload.storageLocationName) {
+    const locations = await sql`
+      INSERT INTO storage_locations (laboratory_id, code, name)
+      VALUES (${session.laboratoryId}, ${catalogCode("UBI", payload.storageLocationName, 60)}, ${payload.storageLocationName})
+      ON CONFLICT (laboratory_id, code)
+      DO UPDATE SET name = EXCLUDED.name, status = 'ACTIVE'
+      RETURNING id
+    `;
+    storageLocationId = String(locations[0].id);
+  }
+
   const rows = await sql`
     INSERT INTO inventory_items (
-      laboratory_id, category_id, storage_location_id, sku, name, lot_number,
-      quantity, reorder_point, unit, expires_at, created_by
+      laboratory_id, category_id, storage_location_id, sku, name, vendor, lot_number,
+      quantity, reorder_point, unit, expires_at, received_at, safety_sheet_url, internal_formula,
+      requires_usage_log, created_by
     ) VALUES (
-      ${session.laboratoryId}, ${payload.categoryId}, ${payload.storageLocationId ?? null}, ${payload.sku}, ${payload.name}, ${payload.lotNumber},
-      ${payload.quantity}, ${payload.reorderPoint}, ${payload.unit}, ${payload.expiresAt ?? null}, ${session.userId}
+      ${session.laboratoryId}, ${categoryId}, ${storageLocationId ?? null}, ${payload.sku}, ${payload.name}, ${payload.vendor || null}, ${payload.lotNumber},
+      ${payload.quantity}, ${payload.reorderPoint}, ${payload.unit}, ${payload.expiresAt ?? null}, ${payload.receivedAt ?? null}, ${payload.safetySheetUrl || null}, ${payload.internalFormula || null},
+      ${payload.requiresUsageLog}, ${session.userId}
     )
     RETURNING id, sku, name, quantity, reorder_point, unit, status
+  `;
+
+  const qrRows = await sql`
+    INSERT INTO qr_identifiers (laboratory_id, entity_type, entity_id, opaque_token, label_code)
+    VALUES (${session.laboratoryId}, 'INVENTORY_ITEM', ${String(rows[0].id)}, ${createOpaqueToken()}, ${payload.sku})
+    ON CONFLICT (laboratory_id, entity_type, entity_id)
+    DO UPDATE SET status = 'ACTIVE'
+    RETURNING id, opaque_token, label_code
   `;
 
   await writeAuditEvent(session, {
     action: "INVENTORY_ITEM_CREATED",
     entityType: "inventory_item",
     entityId: String(rows[0].id),
-    newValue: rows[0],
-    reason: "Alta de lote de inventario",
-    metadata: { sku: payload.sku },
+    newValue: { ...rows[0], qrIdentifierId: qrRows[0].id },
+    reason: "Alta de lote de inventario con etiqueta QR segura",
+    metadata: { sku: payload.sku, qrIdentifierId: qrRows[0].id },
     request,
   });
 
-  return NextResponse.json({ data: rows[0] }, { status: 201 });
+  return NextResponse.json({ data: { ...rows[0], qrIdentifierId: qrRows[0].id, qrToken: qrRows[0].opaque_token } }, { status: 201 });
 }

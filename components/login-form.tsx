@@ -10,11 +10,14 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [help, setHelp] = useState("");
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setHelp("");
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -26,6 +29,8 @@ export function LoginForm() {
       const payload = (await response.json()) as { message?: string };
       if (!response.ok) throw new Error(payload.message || "No fue posible iniciar sesión.");
 
+      if (rememberDevice) window.localStorage.setItem("nexalab.remember-device", "true");
+      else window.localStorage.removeItem("nexalab.remember-device");
       window.location.href = "/app";
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No fue posible iniciar sesión.");
@@ -61,10 +66,11 @@ export function LoginForm() {
           </div>
         </label>
         <div className="login-form-row">
-          <label className="checkbox-line"><input type="checkbox" /> <span>Recordar dispositivo</span></label>
-          <button type="button" className="text-button">Recuperar acceso</button>
+          <label className="checkbox-line"><input type="checkbox" checked={rememberDevice} onChange={(event) => setRememberDevice(event.target.checked)} /> <span>Recordar dispositivo</span></label>
+          <button type="button" className="text-button" onClick={() => { setError(""); setHelp("Solicita al administrador del laboratorio el restablecimiento. El evento quedará registrado en auditoría."); }}>Recuperar acceso</button>
         </div>
         {error ? <p className="form-error">{error}</p> : null}
+        {help ? <p className="form-help">{help}</p> : null}
         <button className="primary-button login-button" type="submit" disabled={loading}>
           {loading ? "Ingresando…" : "Ingresar"}<ArrowRight size={16} />
         </button>

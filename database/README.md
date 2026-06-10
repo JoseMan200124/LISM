@@ -9,6 +9,7 @@
 | `0003_optional_rls.sql` | Patrón de RLS para endurecimiento posterior. No se aplica automáticamente. |
 | `0004_configurable_compliance_core.sql` | Configuración versionada, roles granulares, alertas, flujos, QR, calidad, documentos, firmas, evidencia y protección append-only. |
 | `0005_seed_configurable_demo.sql` | Plantillas y datos demostrativos para la ampliación configurable. |
+| `0006_secure_qr_labels.sql` | Códigos temporales de un solo uso, bitácora de escaneos y etiquetas QR para recursos existentes. |
 
 ## Instalación nueva
 
@@ -17,6 +18,7 @@ psql "$DIRECT_URL" -f database/0001_init.sql
 psql "$DIRECT_URL" -f database/0002_seed_demo.sql
 psql "$DIRECT_URL" -f database/0004_configurable_compliance_core.sql
 psql "$DIRECT_URL" -f database/0005_seed_configurable_demo.sql
+psql "$DIRECT_URL" -f database/0006_secure_qr_labels.sql
 ```
 
 ## Actualizar una base creada con la versión anterior
@@ -24,6 +26,7 @@ psql "$DIRECT_URL" -f database/0005_seed_configurable_demo.sql
 ```bash
 psql "$DIRECT_URL" -f database/0004_configurable_compliance_core.sql
 psql "$DIRECT_URL" -f database/0005_seed_configurable_demo.sql
+psql "$DIRECT_URL" -f database/0006_secure_qr_labels.sql
 ```
 
 ## Decisiones importantes
@@ -33,3 +36,4 @@ psql "$DIRECT_URL" -f database/0005_seed_configurable_demo.sql
 - Los archivos grandes no se almacenan en PostgreSQL. La tabla `attachments` conserva metadatos, versión y hash del archivo guardado en object storage.
 - La personalización usa campos adicionales y versiones de configuración; los registros históricos no se reinterpretan silenciosamente.
 - Antes de aplicar RLS, todas las transacciones deben establecer correctamente el tenant activo.
+- Los QR físicos contienen solamente un token opaco. La consulta externa requiere un código temporal de un solo uso; el código se almacena como HMAC y los intentos quedan trazados.

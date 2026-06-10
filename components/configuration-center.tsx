@@ -26,6 +26,7 @@ import {
   type LaboratoryProfileKey,
 } from "@/lib/compliance-data";
 import { InlineNotice, PageIntro, StatGrid, Tabs } from "@/components/lims-ui";
+import { ActionModal, Toast, useToast } from "@/components/action-kit";
 
 const storageKeys = {
   profile: "nexalab.demo.profile",
@@ -47,6 +48,8 @@ export function ConfigurationCenter() {
   const [fields, setFields] = useState<CustomFieldDefinition[]>(defaultCustomFields);
   const [rules, setRules] = useState<AlertRule[]>(defaultAlertRules);
   const [message, setMessage] = useState("Configuración vigente: versión 3 · aprobada por Calidad");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { message: toastMessage, showToast, clearToast } = useToast();
 
   useEffect(() => {
     const savedProfile = window.localStorage.getItem(storageKeys.profile) as LaboratoryProfileKey | null;
@@ -62,6 +65,7 @@ export function ConfigurationCenter() {
     window.localStorage.setItem(storageKeys.fields, JSON.stringify(nextFields));
     window.localStorage.setItem(storageKeys.rules, JSON.stringify(nextRules));
     setMessage(`Cambios guardados como borrador · ${new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}`);
+    showToast("Borrador de configuración guardado en este navegador.");
   }
 
   const selectedProfile = laboratoryProfiles.find((item) => item.key === profile) ?? laboratoryProfiles[0];
@@ -69,7 +73,7 @@ export function ConfigurationCenter() {
   return (
     <div className="page-stack">
       <PageIntro eyebrow="CONFIGURACIÓN SIN PROGRAMACIÓN" title="Centro de configuración" description="Adapta NexaLab a cada laboratorio sin perder trazabilidad ni control de versiones.">
-        <button className="secondary-button"><FileCog size={15} /> Ver historial</button>
+        <button className="secondary-button" onClick={() => setHistoryOpen(true)}><FileCog size={15} /> Ver historial</button>
         <button className="primary-button" onClick={() => persist()}><Save size={15} /> Guardar borrador</button>
       </PageIntro>
 
@@ -87,10 +91,14 @@ export function ConfigurationCenter() {
           {activeTab === "profile" ? <ProfileTab value={profile} onChange={(value) => { setProfile(value); persist(value, fields, rules); }} /> : null}
           {activeTab === "fields" ? <FieldsTab fields={fields} onChange={(next) => { setFields(next); persist(profile, next, rules); }} /> : null}
           {activeTab === "alerts" ? <AlertsTab rules={rules} onChange={(next) => { setRules(next); persist(profile, fields, next); }} /> : null}
-          {activeTab === "workflows" ? <WorkflowTab /> : null}
-          {activeTab === "roles" ? <RolesTab /> : null}
+          {activeTab === "workflows" ? <WorkflowTab onCreate={() => showToast("Nuevo flujo creado como borrador para configurar sus etapas.")} /> : null}
+          {activeTab === "roles" ? <RolesTab onCreate={() => showToast("Nuevo rol creado como borrador con permisos mínimos.")} /> : null}
         </div>
       </article>
+      <ActionModal open={historyOpen} title="Historial de configuración" description="Cada publicación conserva su versión y responsable." onClose={() => setHistoryOpen(false)}>
+        <div className="modal-form"><div className="definition-list"><article className="definition-row"><span className="definition-icon"><FileCog size={16} /></span><div><strong>Versión 3 · vigente</strong><p>Aprobada por Calidad · perfil farmacéutico y reglas activas</p></div><small>Hoy</small><em>Publicada</em></article><article className="definition-row"><span className="definition-icon"><FileCog size={16} /></span><div><strong>Versión 2</strong><p>Ajuste de alertas de vencimiento y calibración</p></div><small>02/06/2026</small><em>Histórica</em></article></div><footer className="modal-actions"><button className="primary-button" onClick={() => setHistoryOpen(false)}>Cerrar</button></footer></div>
+      </ActionModal>
+      <Toast message={toastMessage} onClose={clearToast} />
     </div>
   );
 }
@@ -200,12 +208,12 @@ function AlertsTab({ rules, onChange }: Readonly<{ rules: AlertRule[]; onChange:
   );
 }
 
-function WorkflowTab() {
+function WorkflowTab({ onCreate }: Readonly<{ onCreate: () => void }>) {
   const [selected, setSelected] = useState(workflowTemplates[0].id);
   const workflow = workflowTemplates.find((item) => item.id === selected) ?? workflowTemplates[0];
   return (
     <div>
-      <div className="section-heading"><div><h2>Flujos continuos y entendibles</h2><p>Cada cambio de estado tiene responsables, requisitos y trazabilidad. Los flujos publicados se versionan.</p></div><button className="secondary-button"><Plus size={15} /> Nuevo flujo</button></div>
+      <div className="section-heading"><div><h2>Flujos continuos y entendibles</h2><p>Cada cambio de estado tiene responsables, requisitos y trazabilidad. Los flujos publicados se versionan.</p></div><button className="secondary-button" onClick={onCreate}><Plus size={15} /> Nuevo flujo</button></div>
       <div className="workflow-selector">
         {workflowTemplates.map((item) => <button key={item.id} className={selected === item.id ? "workflow-selector-active" : ""} onClick={() => setSelected(item.id)}><GitBranch size={15} /><span><strong>{item.name}</strong><small>{item.appliesTo} · {item.version}</small></span></button>)}
       </div>
@@ -222,10 +230,10 @@ function WorkflowTab() {
   );
 }
 
-function RolesTab() {
+function RolesTab({ onCreate }: Readonly<{ onCreate: () => void }>) {
   return (
     <div>
-      <div className="section-heading"><div><h2>Roles sugeridos y editables</h2><p>Usa permisos mínimos por función. Un rol define qué puede ver, registrar, revisar, aprobar o configurar.</p></div><button className="secondary-button"><Plus size={15} /> Nuevo rol</button></div>
+      <div className="section-heading"><div><h2>Roles sugeridos y editables</h2><p>Usa permisos mínimos por función. Un rol define qué puede ver, registrar, revisar, aprobar o configurar.</p></div><button className="secondary-button" onClick={onCreate}><Plus size={15} /> Nuevo rol</button></div>
       <div className="role-grid">
         {roleTemplates.map((role) => (
           <article key={role.key} className="role-card">

@@ -127,8 +127,8 @@ export function RuleState({ state }: Readonly<{ state: "IMPLEMENTED" | "CONFIGUR
   return <span className="compliance-state state-procedure"><CircleDashed size={14} /> Procedimiento</span>;
 }
 
-export function EmptyAction({ label }: Readonly<{ label: string }>) {
-  return <button className="primary-button" type="button"><Plus size={15} /> {label}</button>;
+export function EmptyAction({ label, onClick }: Readonly<{ label: string; onClick?: () => void }>) {
+  return <button className="primary-button" type="button" onClick={onClick} disabled={!onClick}><Plus size={15} /> {label}</button>;
 }
 
 export function InlineNotice({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {

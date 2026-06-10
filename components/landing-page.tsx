@@ -153,7 +153,7 @@ export function LandingPage() {
                     <small>OPERACIÓN DIARIA</small>
                     <strong>Resumen del laboratorio</strong>
                   </div>
-                  <button type="button">+ Nueva muestra</button>
+                  <button type="button" disabled aria-label="Vista previa de nueva muestra">+ Nueva muestra</button>
                 </div>
                 <div className="landing-preview-kpis">
                   <article>

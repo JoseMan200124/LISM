@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Bell,
   ChevronDown,
@@ -22,21 +22,52 @@ import { NewAccessionModal } from "@/components/new-accession-modal";
 import { BrandLogo } from "@/components/brand-logo";
 import { roleLabels } from "@/lib/permissions";
 import { canAccessModule, hasPermission } from "@/lib/authorization";
+import { ActionModal, Toast, useToast } from "@/components/action-kit";
+
+type DialogKey = "laboratory" | "help" | "preferences" | null;
 
 export function AppShell({ session, children }: Readonly<{ session: UserSession; children: React.ReactNode }>) {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchRef = useRef<HTMLInputElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [newSpecimenOpen, setNewSpecimenOpen] = useState(false);
+  const [dialog, setDialog] = useState<DialogKey>(null);
+  const [query, setQuery] = useState("");
+  const { message, showToast, clearToast } = useToast();
 
   const visibleNavigation = navigation
     .map((group) => ({ ...group, items: group.items.filter((item) => canAccessModule(session, item.key)) }))
     .filter((group) => group.items.length > 0);
   const canReceiveSpecimens = hasPermission(session, "specimens.receive");
 
+  useEffect(() => {
+    function focusSearch(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, []);
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
+  }
+
+  function search(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalized = query.trim();
+    if (!normalized) {
+      searchRef.current?.focus();
+      return;
+    }
+    router.push(`/app/accessioning?search=${encodeURIComponent(normalized)}`);
+    showToast(`Búsqueda abierta para “${normalized}”.`);
   }
 
   return (
@@ -49,14 +80,14 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
           <button className="icon-button sidebar-close" aria-label="Cerrar menú" onClick={() => setMobileOpen(false)}><X size={18} /></button>
         </div>
 
-        <div className="laboratory-switcher">
+        <button className="laboratory-switcher" onClick={() => setDialog("laboratory")}>
           <div className="laboratory-mark" aria-hidden="true"><Microscope /></div>
           <div>
             <span>Laboratorio activo</span>
             <strong>{session.laboratoryName}</strong>
           </div>
           <ChevronDown size={15} />
-        </div>
+        </button>
 
         <nav className="side-navigation" aria-label="Navegación principal">
           {visibleNavigation.map((group) => (
@@ -78,8 +109,8 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         </nav>
 
         <div className="sidebar-footer">
-          <button className="sidebar-link"><CircleHelp size={17} /><span>Centro de ayuda</span></button>
-          <button className="sidebar-link"><Settings size={17} /><span>Preferencias</span></button>
+          <button className="sidebar-link" onClick={() => setDialog("help")}><CircleHelp size={17} /><span>Centro de ayuda</span></button>
+          <button className="sidebar-link" onClick={() => setDialog("preferences")}><Settings size={17} /><span>Preferencias</span></button>
         </div>
       </aside>
 
@@ -88,14 +119,24 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
       <div className="workspace">
         <header className="topbar">
           <button className="icon-button mobile-menu" aria-label="Abrir menú" onClick={() => setMobileOpen(true)}><Menu size={19} /></button>
-          <label className="global-search">
+          <form className="global-search" onSubmit={search}>
             <Search size={16} />
-            <input placeholder="Buscar muestra, paciente, orden o lote…" />
+            <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar muestra, paciente, orden o lote…" />
             <kbd><Command size={11} /> K</kbd>
-          </label>
+          </form>
           <div className="topbar-actions">
             {canReceiveSpecimens ? <button className="primary-button compact-button" onClick={() => setNewSpecimenOpen(true)}><Plus size={16} /> Nueva muestra</button> : null}
-            <button className="icon-button notification-button" aria-label="Notificaciones"><Bell size={18} /><span /></button>
+            <div className="relative-menu-wrap">
+              <button className="icon-button notification-button" aria-label="Notificaciones" onClick={() => setNotificationsOpen((open) => !open)}><Bell size={18} /><span /></button>
+              {notificationsOpen ? (
+                <div className="compact-popover notification-popover">
+                  <strong>Alertas recientes</strong>
+                  <Link href="/app/alerts" onClick={() => setNotificationsOpen(false)}>Reactivo próximo a vencer</Link>
+                  <Link href="/app/alerts" onClick={() => setNotificationsOpen(false)}>Calibración pendiente</Link>
+                  <Link href="/app/alerts" onClick={() => setNotificationsOpen(false)}>Reserva educativa por preparar</Link>
+                </div>
+              ) : null}
+            </div>
             <div className="profile-menu-wrap">
               <button className="profile-button" onClick={() => setProfileOpen((open) => !open)}>
                 <span className="avatar">JA</span>
@@ -114,6 +155,16 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         <main className="main-content">{children}</main>
       </div>
       <NewAccessionModal open={newSpecimenOpen} onClose={() => setNewSpecimenOpen(false)} />
+      <ActionModal open={dialog === "laboratory"} title="Laboratorio activo" description="La versión inicial mantiene una sede activa por sesión. El selector ya está preparado para habilitar sedes adicionales." onClose={() => setDialog(null)}>
+        <div className="modal-form"><div className="details-grid"><div><small>Sede actual</small><strong>{session.laboratoryName}</strong></div><div><small>Perfil</small><strong>{roleLabels[session.role]}</strong></div></div><footer className="modal-actions"><button className="primary-button" onClick={() => setDialog(null)}>Continuar en esta sede</button></footer></div>
+      </ActionModal>
+      <ActionModal open={dialog === "help"} title="Centro de ayuda" description="Accesos rápidos para resolver dudas operativas." onClose={() => setDialog(null)}>
+        <div className="modal-form"><p>Consulta el flujo correspondiente desde cada módulo. Para soporte interno, registra una incidencia desde Alertas e incluye el módulo, el registro y la acción realizada.</p><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cerrar</button><button className="primary-button" onClick={() => { setDialog(null); router.push("/app/alerts"); }}>Abrir alertas</button></footer></div>
+      </ActionModal>
+      <ActionModal open={dialog === "preferences"} title="Preferencias" description="Estas preferencias se guardan únicamente en este navegador." onClose={() => setDialog(null)}>
+        <div className="modal-form"><label className="check-line"><input type="checkbox" defaultChecked /> <span>Mostrar alertas operativas en la barra superior</span></label><label className="check-line"><input type="checkbox" defaultChecked /> <span>Usar tablas compactas</span></label><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cancelar</button><button className="primary-button" onClick={() => { window.localStorage.setItem("nexalab.preferences.saved", "true"); setDialog(null); showToast("Preferencias guardadas en este navegador."); }}>Guardar</button></footer></div>
+      </ActionModal>
+      <Toast message={message} onClose={clearToast} />
     </div>
   );
 }

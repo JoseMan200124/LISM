@@ -4,11 +4,13 @@ import { useMemo, useState } from "react";
 import { BookCheck, CheckCircle2, CircleAlert, CircleDashed, FileCheck2, ShieldCheck } from "lucide-react";
 import { complianceControls } from "@/lib/compliance-data";
 import { InlineNotice, PageIntro, RuleState, StatGrid } from "@/components/lims-ui";
+import { Toast, downloadCsv, useToast } from "@/components/action-kit";
 
 const standards = ["Todos", ...Array.from(new Set(complianceControls.map((item) => item.standard)))];
 
 export function ComplianceCenter() {
   const [selected, setSelected] = useState("Todos");
+  const { message, showToast, clearToast } = useToast();
   const filtered = useMemo(() => selected === "Todos" ? complianceControls : complianceControls.filter((item) => item.standard === selected), [selected]);
   const implemented = complianceControls.filter((item) => item.state === "IMPLEMENTED").length;
   const configure = complianceControls.filter((item) => item.state === "CONFIGURE").length;
@@ -17,7 +19,7 @@ export function ComplianceCenter() {
   return (
     <div className="page-stack">
       <PageIntro eyebrow="CALIDAD Y CUMPLIMIENTO" title="Centro de cumplimiento" description="Consulta cómo cada control del sistema apoya los requisitos aplicables y qué debe completar el laboratorio.">
-        <button className="secondary-button"><FileCheck2 size={15} /> Exportar matriz</button>
+        <button className="secondary-button" onClick={() => { downloadCsv("nexalab-matriz-cumplimiento.csv", filtered); showToast("Matriz de cumplimiento exportada en CSV."); }}><FileCheck2 size={15} /> Exportar matriz</button>
       </PageIntro>
 
       <StatGrid items={[
@@ -48,6 +50,7 @@ export function ComplianceCenter() {
           ))}
         </div>
       </article>
+      <Toast message={message} onClose={clearToast} />
     </div>
   );
 }
