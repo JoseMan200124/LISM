@@ -7,10 +7,11 @@ export type UserSession = {
   userId: string;
   name: string;
   email: string;
-  role: "OWNER" | "LAB_ADMIN" | "SCIENTIST" | "TECHNICIAN" | "REVIEWER" | "VIEWER";
+  role: "OWNER" | "LAB_ADMIN" | "SCIENTIST" | "TECHNICIAN" | "REVIEWER" | "VIEWER" | "HEAD_OF_LAB" | "ANALYST" | "ASSISTANT" | "AUDITOR" | "CONSULTATION" | "PROFESSOR" | "STUDENT";
   organizationId: string;
   laboratoryId: string;
   laboratoryName: string;
+  sessionMode?: "demo" | "database";
 };
 
 function secret(): Uint8Array {

@@ -1,79 +1,120 @@
-# NexaLab LIS
+# NexaLab LIMS configurable
 
-MVP funcional y escalable de un **Laboratory Information System (LIS)** para laboratorios universitarios, de investigación y laboratorios operativos que necesitan trazabilidad desde la recepción de muestras hasta la liberación de resultados.
+NexaLab es una base funcional de **Laboratory Information Management System (LIMS)** orientada a laboratorios universitarios, farmacéuticos, clínicos, industriales, de alimentos, agua y calibración. La interfaz prioriza simplicidad, trazabilidad y configuración sin programación.
 
-El proyecto incluye:
+Esta versión amplía el proyecto inicial con:
 
-- Interfaz profesional, minimalista y responsiva con paleta clínica de blanco, verde mineral y estados semánticos discretos.
-- Identidad visual de NexaLab integrada en landing page, login, navegación lateral, favicon y accesos directos.
-- Landing page pública minimalista con propuesta de valor, flujo LIS, capacidades esenciales y acceso al modo demostración.
-- Navegación por flujo preanalítico, analítico y postanalítico.
-- Dashboard operativo, mesa de trabajo, muestras, órdenes, resultados, pacientes, solicitantes, catálogo, inventario, equipos, calidad, alertas, reportes, integraciones, auditoría y administración.
-- Inicio de sesión de demostración con cookie firmada.
-- Modo demo sin base de datos para presentar el producto de inmediato.
-- Esquema PostgreSQL para Neon con entidades multiempresa y multilaboratorio.
-- API inicial para autenticación, salud del sistema, muestras e inventario.
-- Datos semilla para levantar una instancia conectada a Neon.
-- Documentación de arquitectura, UI/UX, despliegue, módulos, trazabilidad de investigación, roadmap, precios, validación técnica y endurecimiento antes de producción.
+- Perfil configurable por tipo de laboratorio.
+- Inventario por lotes con movimientos, FEFO, ubicaciones jerárquicas y QR.
+- Equipos con planes periódicos, certificados y bloqueo preventivo configurable.
+- Ciclo continuo de muestras y transición de estados configurable por versión y trazable.
+- Campos personalizados versionados.
+- Alertas personalizables, reconocimiento y escalamiento.
+- Roles sugeridos: administrador, jefe de laboratorio, analista, auxiliar, inspector/auditor, consulta, profesor y estudiante, con navegación y APIs restringidas por permiso.
+- Calidad integrada: OOS, OOT, CAPA, documentos controlados, monitoreo ambiental, bitácoras, competencia y firmas electrónicas.
+- Centro de cumplimiento simplificado para ISO/IEC 17025, ISO 15189, BPM/BPL, 21 CFR Part 11, ISO/IEC 27001, ISO/IEC 25010 e ISO 9001.
+- Migración PostgreSQL adicional con estructuras para trazabilidad, evidencia y configuración.
+- APIs iniciales para configuración, movimientos, planes de equipo, resultados, OOS, firmas, QR y transiciones de muestra.
 
-## Vista rápida
+## Importante
 
-Credenciales del modo demo:
+El software incorpora controles que **apoyan** el cumplimiento normativo, pero instalarlo no acredita automáticamente a un laboratorio. Una operación regulada requiere validación formal, procedimientos internos, capacitación, aprobación del laboratorio, controles de seguridad, respaldo probado y revisión de las normas licenciadas aplicables.
+
+## Modo demostración
+
+Credenciales:
 
 ```text
 Correo: admin@nexalab.local
 Contraseña: Demo1234!
 ```
 
-## Ejecutar localmente
-
-Requisitos: Node.js 22.x.
+Ejecutar:
 
 ```bash
 cp .env.example .env.local
-npm install
+npm ci
 npm run dev
 ```
 
-Abre `http://localhost:3000`. El archivo `.env.example` tiene `DEMO_MODE="true"`, por lo que la interfaz funciona incluso sin Neon.
+Abrir `http://localhost:3000`.
 
-## Conectar Neon
-
-1. Crea un proyecto en Neon.
-2. Copia la URL **pooled** en `DATABASE_URL` y la URL directa en `DIRECT_URL`.
-3. Define un `SESSION_SECRET` aleatorio y largo.
-4. Ejecuta las migraciones:
-
-```bash
-psql "$DIRECT_URL" -f database/0001_init.sql
-psql "$DIRECT_URL" -f database/0002_seed_demo.sql
-```
-
-5. Cambia `DEMO_MODE="false"`.
-6. Ejecuta la app e inicia sesión con las mismas credenciales demo.
-
-## Compilar
+## Compilar y verificar
 
 ```bash
 npm run typecheck
 npm run build
-npm run start
 ```
 
-## Desplegar en Vercel
+También puedes ejecutar:
 
-Consulta [docs/DEPLOY_VERCEL_NEON.md](docs/DEPLOY_VERCEL_NEON.md).
+```bash
+bash scripts/verify.sh
+```
 
-## Alcance responsable
+## Base de datos Neon/PostgreSQL
 
-Esta entrega es una base de producto y un MVP comercial demostrable. **No debe usarse todavía para emitir resultados clínicos reales** sin completar validación funcional, pruebas de aceptación, controles regulatorios aplicables, seguridad, privacidad, respaldo, recuperación, observabilidad y procedimientos operativos del laboratorio. El documento [docs/PRODUCTION_HARDENING.md](docs/PRODUCTION_HARDENING.md) separa claramente lo demostrable de lo necesario antes de operar con datos sensibles.
+Para una instalación nueva:
+
+```bash
+psql "$DIRECT_URL" -f database/0001_init.sql
+psql "$DIRECT_URL" -f database/0002_seed_demo.sql
+psql "$DIRECT_URL" -f database/0004_configurable_compliance_core.sql
+psql "$DIRECT_URL" -f database/0005_seed_configurable_demo.sql
+```
+
+`database/0003_optional_rls.sql` documenta el patrón de Row-Level Security para endurecimiento posterior. No se ejecuta automáticamente porque debe aplicarse después de verificar que todas las operaciones establezcan correctamente el contexto del tenant.
+
+## Rutas principales
+
+| Ruta | Objetivo |
+| --- | --- |
+| `/app` | Dashboard operativo |
+| `/app/inventory` | Lotes, movimientos, ubicaciones y QR |
+| `/app/equipment` | Equipos, planes, certificados y QR |
+| `/app/education` | Prácticas y reservas educativas |
+| `/app/quality` | OOS, OOT y CAPA |
+| `/app/documents` | Documentos controlados |
+| `/app/logbooks` | Bitácoras electrónicas |
+| `/app/training` | Capacitación y competencia |
+| `/app/alerts` | Alertas, reglas y escalamiento |
+| `/app/compliance` | Matriz simplificada de controles |
+| `/app/configuration` | Perfil, campos, alertas, flujos y roles |
+| `/app/administration` | Usuarios, permisos, competencia y sesiones |
+| `/app/audit` | Audit trail append-only |
+
+## APIs añadidas
+
+| Endpoint | Uso |
+| --- | --- |
+| `GET /api/configuration` | Consultar configuración activa |
+| `POST /api/configuration` | Crear campo personalizado o regla de alerta |
+| `GET/POST /api/inventory/movements` | Registrar movimientos con balance calculado |
+| `GET/POST /api/equipment/plans` | Gestionar planes periódicos |
+| `GET/POST /api/results` | Registrar resultados y abrir OOS automático |
+| `GET/PATCH /api/alerts` | Consultar, reconocer, asignar y resolver alertas |
+| `GET/POST /api/education/practices` | Consultar y programar prácticas educativas |
+| `POST /api/specimens/:id/transitions` | Aplicar transiciones válidas de muestra |
+| `GET /api/quality/oos` | Consultar investigaciones OOS |
+| `POST /api/signatures` | Registrar firma con reautenticación |
+| `GET /api/qr/:token` | Resolver QR opaco después de autenticar |
+| `GET /api/compliance` | Consultar controles normativos configurados |
+
+## Documentación agregada
+
+- [`docs/IMPLEMENTED_CONFIGURABLE_LIMS.md`](docs/IMPLEMENTED_CONFIGURABLE_LIMS.md)
+- [`docs/COMPLIANCE_BOUNDARIES.md`](docs/COMPLIANCE_BOUNDARIES.md)
+- [`docs/ACCEPTANCE_TESTS_CONFIGURABLE_LIMS.md`](docs/ACCEPTANCE_TESTS_CONFIGURABLE_LIMS.md)
+- [`docs/MIGRATION_0004.md`](docs/MIGRATION_0004.md)
 
 ## Estructura
 
 ```text
-app/                 Next.js App Router, pantallas y API route handlers
-components/          Componentes de interfaz
-lib/                 Datos demo, sesión, navegación y conexión Neon
-database/            Migraciones SQL y datos semilla
-docs/                Arquitectura, UI/UX, landing page, branding, módulos, investigación, roadmap, despliegue, pricing, validación y hardening
+app/                 Next.js App Router, UI y endpoints
+components/          Pantallas y componentes reutilizables
+lib/                 Datos demo, sesión, permisos, auditoría y conexión Neon
+database/            Esquema, migraciones y semillas
+docs/                Arquitectura, cumplimiento, despliegue y validación
+scripts/             Verificación local
+public/              Identidad visual
 ```

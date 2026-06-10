@@ -1,56 +1,54 @@
 # Roadmap de producto
 
-## Objetivo
+## Estado entregado
 
-Convertir el MVP demostrable en un SaaS vendible primero para universidades y laboratorios de investigación, y después en una plataforma apta para pilotos operativos controlados. La operación clínica exige una fase adicional de validación, seguridad y cumplimiento.
+La versión incluida ya supera un prototipo visual. Incorpora un núcleo LIMS configurable, esquema PostgreSQL ampliado, modo demostración, autorización por roles, rutas operativas y APIs iniciales para los flujos prioritarios.
 
-## Fase 0 — Entrega actual
+### Implementado en esta entrega
 
-Incluye diseño profesional responsivo, modo demo, navegación integral, sesión firmada, esquema Neon multiempresa y multilaboratorio, SQL semilla, APIs iniciales de muestras e inventario, auditoría inicial y documentación de despliegue.
+- Perfiles por tipo de laboratorio.
+- Campos personalizados y configuración versionable.
+- Roles sugeridos y permisos por acción.
+- Navegación restringida según rol.
+- Inventario por lote y movimientos con saldo calculado.
+- Reactivos controlados con registro obligatorio de uso.
+- Equipos, planes periódicos, certificados y opción de bloqueo.
+- QR opaco con verificación posterior al inicio de sesión.
+- Muestras, cadena de custodia y transiciones configurables.
+- Métodos y especificaciones versionadas en base de datos.
+- Resultados con detección OOS inicial.
+- OOS, OOT, CAPA, documentos, bitácoras, ambiental y competencia.
+- Alertas con reconocimiento, asignación y resolución.
+- Prácticas y reservas educativas.
+- Audit trail append-only, inicio y cierre de sesión auditables y firmas vinculadas.
+- Matriz de controles y evidencia regulatoria.
 
-## Fase 1 — Producto comercial para universidades e investigación
+## Próxima etapa: piloto controlado
 
-Duración orientativa: 4 a 8 semanas.
+Antes de utilizar datos reales sensibles o regulados:
 
-- CRUD persistente para pacientes, solicitantes, órdenes, muestras, catálogo, inventario y equipos.
-- Etiquetas con código de barras o QR.
-- Movimientos de inventario con responsable y motivo.
-- Adjuntos en object storage.
-- Exportación CSV y PDF de reportes no clínicos.
-- Administración de usuarios, laboratorios y membresías.
-- Emails transaccionales para alertas básicas.
-- Pruebas end-to-end de los flujos principales.
+1. Aplicar migraciones en un entorno PostgreSQL de pruebas y ejecutar UAT con usuarios del laboratorio.
+2. Configurar object storage versionado para fichas, certificados, POE y evidencia.
+3. Implementar jobs programados para fechas de vencimiento, calibraciones, omisiones y escalamiento.
+4. Activar correo transaccional y definir plantillas de notificación.
+5. Completar administración persistente de roles personalizados y aprobación de versiones de configuración.
+6. Probar aislamiento de tenants y habilitar RLS únicamente cuando cada operación establezca el contexto correcto.
+7. Añadir exportaciones controladas y reportes PDF versionados.
+8. Ejecutar pruebas de respaldo y restauración documentadas.
 
-## Fase 2 — Pilotos operativos controlados
+## Etapa regulada
 
-Duración orientativa: 6 a 12 semanas.
+La salida regulada requiere validación formal, no únicamente desarrollo:
 
-- Captura y revisión de resultados con historial.
-- Firma explícita para validación y liberación.
-- Reglas de valores críticos y SLA de TAT.
-- QC completo con acciones correctivas.
-- Bitácora de mantenimiento y calibración.
-- Control de cambios de datos maestros.
-- Permisos por acción y pruebas de acceso cruzado.
-- RLS o estrategia reforzada de aislamiento por tenant.
-- Backups, restauración probada, observabilidad y respuesta ante incidentes.
+- matriz URS → riesgo → prueba → evidencia;
+- SOP de operación y soporte;
+- control de cambios;
+- capacitación;
+- MFA y políticas de identidad según riesgo;
+- retención y continuidad;
+- revisión legal y normativa según sector y país;
+- aprobación del laboratorio.
 
-## Fase 3 — Integraciones y operación regulada
+## Vertical clínico
 
-Duración orientativa: depende del mercado, equipos y requerimientos contractuales.
-
-- Adaptadores de analizadores por fabricante y protocolo.
-- Integraciones HIS mediante HL7/FHIR o formatos acordados.
-- Portal seguro para distribución de resultados.
-- SSO, MFA y políticas de identidad.
-- Retención, privacidad y acuerdos de procesamiento de datos.
-- Validación formal, UAT documentada, SOPs, continuidad y SLA.
-- Revisión legal y regulatoria por país y tipo de laboratorio.
-
-## Orden comercial recomendado
-
-1. Presentar la interfaz actual como prototipo funcional.
-2. Vender pilotos pagados de investigación o gestión de inventario.
-3. Medir qué módulos generan mayor valor y soporte.
-4. Financiar integraciones y validación mediante onboarding y servicios profesionales.
-5. No prometer operación clínica hasta completar la fase de endurecimiento correspondiente.
+Para operación clínica real deben completarse privacidad, valores críticos con comunicación trazable, remisiones, POCT, interoperabilidad y reglas específicas del alcance del laboratorio.

@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { databaseIdSchema } from "@/lib/validation";
 import { getSql, hasDatabase } from "@/lib/db";
 import { inventoryRows } from "@/lib/demo-data";
 import { getSession } from "@/lib/session";
+import { writeAuditEvent } from "@/lib/audit";
+import { hasPermission } from "@/lib/authorization";
 
 const inventorySchema = z.object({
   sku: z.string().min(2).max(80),
   name: z.string().min(2).max(180),
-  categoryId: z.string().uuid(),
-  storageLocationId: z.string().uuid().optional().nullable(),
+  categoryId: databaseIdSchema,
+  storageLocationId: databaseIdSchema.optional().nullable(),
   lotNumber: z.string().max(100).optional().default(""),
   quantity: z.coerce.number().nonnegative(),
   reorderPoint: z.coerce.number().nonnegative().default(0),
@@ -19,6 +22,7 @@ const inventorySchema = z.object({
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+  if (!hasPermission(session, "inventory.view")) return NextResponse.json({ message: "No tienes permiso para consultar inventario." }, { status: 403 });
 
   if (!hasDatabase()) return NextResponse.json({ data: inventoryRows, mode: "demo" });
 
@@ -53,6 +57,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+  if (!hasPermission(session, "inventory.manage")) return NextResponse.json({ message: "No tienes permiso para crear lotes de inventario." }, { status: 403 });
 
   const parsed = inventorySchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ message: "Datos de inventario inválidos.", issues: parsed.error.issues }, { status: 400 });
@@ -72,10 +77,15 @@ export async function POST(request: Request) {
     RETURNING id, sku, name, quantity, reorder_point, unit, status
   `;
 
-  await sql`
-    INSERT INTO audit_logs (organization_id, laboratory_id, actor_user_id, action, entity_type, entity_id, metadata)
-    VALUES (${session.organizationId}, ${session.laboratoryId}, ${session.userId}, 'INVENTORY_ITEM_CREATED', 'inventory_item', ${rows[0].id}, ${JSON.stringify({ sku: payload.sku })}::jsonb)
-  `;
+  await writeAuditEvent(session, {
+    action: "INVENTORY_ITEM_CREATED",
+    entityType: "inventory_item",
+    entityId: String(rows[0].id),
+    newValue: rows[0],
+    reason: "Alta de lote de inventario",
+    metadata: { sku: payload.sku },
+    request,
+  });
 
   return NextResponse.json({ data: rows[0] }, { status: 201 });
 }

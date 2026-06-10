@@ -20,12 +20,19 @@ import { navigation } from "@/lib/navigation";
 import type { UserSession } from "@/lib/session";
 import { NewAccessionModal } from "@/components/new-accession-modal";
 import { BrandLogo } from "@/components/brand-logo";
+import { roleLabels } from "@/lib/permissions";
+import { canAccessModule, hasPermission } from "@/lib/authorization";
 
 export function AppShell({ session, children }: Readonly<{ session: UserSession; children: React.ReactNode }>) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [newSpecimenOpen, setNewSpecimenOpen] = useState(false);
+
+  const visibleNavigation = navigation
+    .map((group) => ({ ...group, items: group.items.filter((item) => canAccessModule(session, item.key)) }))
+    .filter((group) => group.items.length > 0);
+  const canReceiveSpecimens = hasPermission(session, "specimens.receive");
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -52,7 +59,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         </div>
 
         <nav className="side-navigation" aria-label="Navegación principal">
-          {navigation.map((group) => (
+          {visibleNavigation.map((group) => (
             <section key={group.title} className="nav-group">
               <h2>{group.title}</h2>
               {group.items.map((item) => {
@@ -87,12 +94,12 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
             <kbd><Command size={11} /> K</kbd>
           </label>
           <div className="topbar-actions">
-            <button className="primary-button compact-button" onClick={() => setNewSpecimenOpen(true)}><Plus size={16} /> Nueva muestra</button>
+            {canReceiveSpecimens ? <button className="primary-button compact-button" onClick={() => setNewSpecimenOpen(true)}><Plus size={16} /> Nueva muestra</button> : null}
             <button className="icon-button notification-button" aria-label="Notificaciones"><Bell size={18} /><span /></button>
             <div className="profile-menu-wrap">
               <button className="profile-button" onClick={() => setProfileOpen((open) => !open)}>
                 <span className="avatar">JA</span>
-                <span className="profile-copy"><strong>{session.name}</strong><small>Administrador</small></span>
+                <span className="profile-copy"><strong>{session.name}</strong><small>{roleLabels[session.role]}</small></span>
                 <ChevronDown size={14} />
               </button>
               {profileOpen ? (

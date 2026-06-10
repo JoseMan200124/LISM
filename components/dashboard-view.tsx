@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowUpRight,
   Boxes,
@@ -15,6 +16,9 @@ import {
   ShieldCheck,
   TestTube2,
   TriangleAlert,
+  FileCog,
+  GraduationCap,
+  BookOpenCheck,
 } from "lucide-react";
 import {
   alerts,
@@ -117,6 +121,14 @@ export function DashboardView() {
             <div><span className="metric-mark"><Boxes size={16} /></span><p><strong>3</strong><small>insumos cerca del mínimo</small></p><em className="metric-warning">Reponer</em></div>
           </div>
         </article>
+      </section>
+
+
+      <section className="dashboard-governance-grid">
+        <Link href="/app/configuration" className="governance-card"><FileCog size={18} /><div><h2>Configuración adaptable</h2><p>Campos, alertas, perfiles y flujos sin cambios de código.</p></div><ChevronRight size={15} /></Link>
+        <Link href="/app/compliance" className="governance-card"><ShieldCheck size={18} /><div><h2>Cumplimiento guiado</h2><p>Matriz simplificada de controles, evidencia y responsables.</p></div><ChevronRight size={15} /></Link>
+        <Link href="/app/education" className="governance-card"><GraduationCap size={18} /><div><h2>Perfil educativo</h2><p>Prácticas, reservas y acceso seguro para estudiantes.</p></div><ChevronRight size={15} /></Link>
+        <Link href="/app/logbooks" className="governance-card"><BookOpenCheck size={18} /><div><h2>Bitácoras electrónicas</h2><p>Registros sencillos con frecuencia, alertas y firma.</p></div><ChevronRight size={15} /></Link>
       </section>
 
       <article className="panel table-panel">

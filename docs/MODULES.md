@@ -2,64 +2,91 @@
 
 ## 1. Principio rector
 
-La experiencia se organiza alrededor del ciclo de la muestra. El usuario no tiene que navegar por pantallas aisladas para entender qué ocurre: el dashboard muestra el estado operativo y cada módulo profundiza únicamente cuando es necesario.
+NexaLab se organiza alrededor de trazabilidad continua: cada recepción, movimiento, transición, resultado, alerta, firma y cambio de configuración conserva actor, fecha, laboratorio y evidencia asociada. La interfaz mantiene formularios simples, pero el núcleo evita sobrescribir el historial.
 
-## 2. Capas funcionales
+## 2. Núcleo configurable entregado
 
-### Preanalítica
+### Administración y gobernanza
 
-- **Recepción de muestras:** ingreso, identificación única, etiqueta o código de barras, tipo de muestra, paciente, prioridad, rechazo y observaciones.
-- **Órdenes:** solicitud de pruebas, médico o institución solicitante, estado y prioridad.
-- **Pacientes:** perfil único, búsqueda y futura detección de duplicados.
-- **Solicitantes:** médicos, instituciones y canales de entrega.
-- **Catálogo de pruebas:** datos maestros, área analítica, tipo de muestra, TAT, unidad y código LOINC.
+- Organizaciones, sedes y laboratorios.
+- Usuarios y roles sugeridos: administrador, jefe de laboratorio, analista, auxiliar, auditor, consulta, profesor y estudiante.
+- Permisos por acción y navegación filtrada según rol.
+- Centro de configuración con perfiles, campos personalizados, alertas y flujos versionables.
+- Centro de cumplimiento con controles, evidencia esperada, responsable y estado.
+- Audit trail append-only y firmas electrónicas separadas del registro operativo.
 
-### Analítica
+### Recursos
 
-- **Mesa de trabajo:** cola por estación, asignación, prioridad y vencimiento del SLA.
-- **Resultados:** captura, revisión, banderas, validación y liberación.
-- **Control de calidad:** corridas QC, desviaciones y acciones correctivas.
-- **Equipos:** inventario de instrumentos, calibración, mantenimiento y estándares de interfaz.
-- **Integraciones:** analizadores, HIS, portal seguro y exportaciones normalizadas.
+- Inventario por artículo, lote, ubicación y vencimiento.
+- Saldo calculado mediante movimientos; no se edita silenciosamente desde formularios.
+- Registro obligatorio de uso para reactivos controlados.
+- Ubicaciones jerárquicas.
+- Equipos, criticidad, planes periódicos, certificados y opción de bloqueo por vencimiento.
+- QR opaco: la etiqueta no expone información sensible y aplica permisos después de iniciar sesión.
 
-### Postanalítica
+### Operación
 
-- **Reportes:** operación, TAT, calidad, inventario, vigilancia y auditoría.
-- **Alertas e incidencias:** reglas operativas, clasificación, asignación y seguimiento.
-- **Auditoría:** actor, acción, entidad, origen y momento exacto.
+- Registro y consulta de muestras.
+- Flujo de muestra configurable por versión mediante estados y transiciones autorizadas.
+- Cadena de custodia y transferencias de ubicación.
+- Órdenes, catálogo y resultados.
+- Resultados vinculables a método y especificación vigentes.
+- Apertura automática de investigación OOS cuando un resultado numérico queda fuera de límites.
+- Revisión, firma y liberación preparadas como acciones separadas.
 
-### Transversales
+### Calidad
 
-- **Inventario:** artículos, lotes, ubicaciones, mínimos, vencimientos y movimientos.
-- **Administración:** organizaciones, laboratorios, usuarios, membresías y roles.
-- **Continuidad:** se documenta la ruta para respaldo, recuperación y observabilidad antes de producción.
+- OOS, OOT y CAPA.
+- Documentos controlados con versiones históricas.
+- Monitoreo ambiental por punto y límites configurables.
+- Bitácoras electrónicas con frecuencia y firma opcional.
+- Capacitación, competencia y vigencia de autorizaciones.
+- Alertas con acuse, asignación, resolución y escalamiento configurable.
 
-## 3. Lo que ya está en el código
+### Perfil educativo
 
-| Área | UI demo | Tablas PostgreSQL | API inicial |
-| --- | --- | --- | --- |
-| Autenticación y roles | Sí | Sí | Sí |
-| Dashboard | Sí | Derivable | Salud del sistema |
-| Muestras | Sí | Sí | GET / POST |
-| Órdenes | Sí | Sí | Preparado en esquema |
-| Resultados | Sí | Sí | Preparado en esquema |
-| Pacientes y solicitantes | Sí | Sí | Preparado en esquema |
-| Catálogo | Sí | Sí | Preparado en esquema |
-| Inventario | Sí | Sí | GET / POST |
-| Equipos | Sí | Sí | Preparado en esquema |
-| Calidad | Sí | Sí | Preparado en esquema |
-| Alertas | Sí | Sí | Preparado en esquema |
-| Integraciones | Sí | Sí | Preparado en esquema |
-| Auditoría | Sí | Sí | Escritura inicial desde API |
-| Reportes | Sí | Sí | Preparado en esquema |
+- Cronograma de prácticas.
+- Reservas de materiales o equipos.
+- Avisos previos.
+- Consulta limitada para estudiantes.
+- Programación de prácticas mediante API para docentes o administradores autorizados.
 
-## 4. Próximas historias prioritarias
+## 3. Rutas de interfaz
 
-1. Persistir formularios completos de pacientes, órdenes y resultados.
-2. Agregar impresión de etiquetas y lectura de código de barras.
-3. Implementar firma de validación y liberación de resultados.
-4. Añadir movimientos de inventario y reglas automáticas de reposición.
-5. Crear bitácoras de mantenimiento y calibración.
-6. Definir adaptadores de integración por analizador y por HIS.
-7. Añadir almacenamiento de documentos en un servicio de objetos, nunca en la base de datos.
-8. Incorporar permisos por acción y aislamiento reforzado por laboratorio.
+| Ruta | Objetivo |
+| --- | --- |
+| `/app` | Resumen operativo |
+| `/app/inventory` | Inventario, movimientos, ubicaciones y QR |
+| `/app/equipment` | Equipos, planes y certificados |
+| `/app/education` | Prácticas, reservas y accesos educativos |
+| `/app/quality` | OOS, OOT y CAPA |
+| `/app/documents` | Documentos controlados |
+| `/app/logbooks` | Bitácoras electrónicas |
+| `/app/training` | Competencia del personal |
+| `/app/alerts` | Alertas, reglas y escalamiento |
+| `/app/compliance` | Matriz simplificada de controles |
+| `/app/configuration` | Perfiles, campos, reglas, flujos y roles |
+| `/app/administration` | Usuarios y sesiones |
+| `/app/audit` | Historial de cambios |
+
+## 4. APIs funcionales incluidas
+
+| Endpoint | Uso |
+| --- | --- |
+| `GET/POST /api/specimens` | Consultar y registrar muestras |
+| `POST /api/specimens/:id/transitions` | Ejecutar transición válida del flujo vigente |
+| `GET/POST /api/inventory` | Consultar y crear lotes autorizados |
+| `GET/POST /api/inventory/movements` | Registrar entradas, consumos, ajustes, transferencias y descartes |
+| `GET/POST /api/equipment/plans` | Consultar y crear planes periódicos |
+| `GET/POST /api/results` | Registrar resultados y abrir OOS automático |
+| `GET/PATCH /api/alerts` | Consultar, reconocer, asignar y resolver alertas |
+| `GET/POST /api/education/practices` | Consultar y programar prácticas |
+| `POST /api/signatures` | Firmar con reautenticación |
+| `GET /api/qr/:token` | Resolver una etiqueta opaca con permisos |
+| `GET/POST /api/configuration` | Consultar configuración y crear campos o reglas |
+| `GET /api/compliance` | Consultar controles regulatorios |
+| `GET /api/quality/oos` | Consultar investigaciones OOS |
+
+## 5. Extensiones productivas pendientes
+
+La base está preparada para continuar sin romper el núcleo. Antes de operar con datos regulados deben completarse object storage para adjuntos, trabajos programados de alertas, MFA según riesgo, RLS validado, pruebas de restauración, validación formal del sistema, SOP internos e integraciones específicas del laboratorio.

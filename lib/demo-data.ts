@@ -127,15 +127,16 @@ export const integrationRows = [
 ];
 
 export const auditRows = [
-  { actor: "Dra. Vega", action: "Liberó resultado", object: "GT-260603-0181 · Dímero D", origin: "Portal web", when: "16:17:42" },
-  { actor: "Andrea Ruiz", action: "Registró QC", object: "QC-260603-084", origin: "Mesa de trabajo", when: "16:04:18" },
-  { actor: "Diego Ortiz", action: "Actualizó muestra", object: "GT-260603-0182", origin: "Recepción", when: "15:41:09" },
-  { actor: "Sistema", action: "Generó alerta", object: "REA-HEM-029 · stock mínimo", origin: "Regla automática", when: "15:38:50" },
+  { actor: "Dra. Vega", action: "Liberó resultado", object: "GT-260603-0181 · Dímero D", change: "En revisión → Liberado", reason: "Revisión conforme", origin: "Portal web", when: "16:17:42" },
+  { actor: "Andrea Ruiz", action: "Registró QC", object: "QC-260603-084", change: "Nuevo registro", reason: "Control de turno", origin: "Mesa de trabajo", when: "16:04:18" },
+  { actor: "Diego Ortiz", action: "Actualizó muestra", object: "GT-260603-0182", change: "Recibida → En preparación", reason: "Inició procesamiento", origin: "Recepción", when: "15:41:09" },
+  { actor: "Sistema", action: "Generó alerta", object: "REA-HEM-029 · stock mínimo", change: "Disponible → Reponer", reason: "Regla RULE-STOCK-MIN", origin: "Regla automática", when: "15:38:50" },
 ];
 
 export const usersRows = [
-  { name: "Elena Vega", email: "elena.vega@nexalab.local", role: "Revisor clínico", area: "Química", status: "Activo" },
-  { name: "Andrea Ruiz", email: "andrea.ruiz@nexalab.local", role: "Técnico", area: "Hematología", status: "Activo" },
-  { name: "Diego Ortiz", email: "diego.ortiz@nexalab.local", role: "Técnico", area: "Molecular", status: "Activo" },
+  { name: "Elena Vega", email: "elena.vega@nexalab.local", role: "Jefe de laboratorio", area: "Calidad", status: "Activo" },
+  { name: "Andrea Ruiz", email: "andrea.ruiz@nexalab.local", role: "Analista", area: "Hematología", status: "Activo" },
+  { name: "Diego Ortiz", email: "diego.ortiz@nexalab.local", role: "Analista", area: "Molecular", status: "Activo" },
   { name: "José Admin", email: "admin@nexalab.local", role: "Administrador", area: "General", status: "Activo" },
+  { name: "Profesor Juan", email: "juan.docente@nexalab.local", role: "Profesor", area: "Educativo", status: "Activo" },
 ];
