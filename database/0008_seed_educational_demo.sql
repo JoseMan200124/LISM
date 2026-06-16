@@ -19,11 +19,8 @@
 
 -- ─── USUARIOS ─────────────────────────────────────────────────────────────────
 -- Contraseña para todos: Demo1234!
--- Hash bcrypt con 10 rounds:
--- '$2b$10$8ZQ/W5hKGeFYlHqM2tImWO8BrDYnMm4U7Z9qlRVn3hVvMO1dE7/m.' no válido en Neon, usar:
--- Para insertar con hash real debes usar bcrypt. Aquí usamos el mismo hash del seed 0002
--- que corresponde a "Demo1234!" -> se puede compartir si los usuarios son demo
--- Hash real del seed 0002: lo toma de memberships, no lo re-insertamos si ya existen
+-- Se usa crypt() de pgcrypto (igual que 0002_seed_demo.sql) para generar el hash en Postgres.
+-- ON CONFLICT DO NOTHING garantiza que no sobreescribe el admin si 0002 ya lo insertó.
 
 INSERT INTO users (id, full_name, email, password_hash, status)
 VALUES
@@ -31,35 +28,35 @@ VALUES
     '00000000-0000-0000-0000-000000000101',
     'Admin Educativo',
     'admin@nexalab.local',
-    '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe',
+    crypt('Demo1234!', gen_salt('bf', 12)),
     'ACTIVE'
   ),
   (
     '00000000-0000-0000-0000-000000000102',
     'Dra. Ana García',
     'ana.garcia@nexalab.local',
-    '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe',
+    crypt('Demo1234!', gen_salt('bf', 12)),
     'ACTIVE'
   ),
   (
     '00000000-0000-0000-0000-000000000103',
     'Prof. Luis Torres',
     'luis.torres@nexalab.local',
-    '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe',
+    crypt('Demo1234!', gen_salt('bf', 12)),
     'ACTIVE'
   ),
   ('00000000-0000-0000-0000-000000000110', 'María Fernanda López', 'mf.lopez@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
   ('00000000-0000-0000-0000-000000000111', 'Juan Pablo Gómez', 'jp.gomez@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000112', 'Sofía Ramírez', 'sofia.ramirez@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000113', 'Carlos Morales', 'carlos.morales@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000114', 'Valentina Cruz', 'valentina.cruz@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000115', 'Andrés Castillo', 'andres.castillo@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000116', 'Daniela Herrera', 'daniela.herrera@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000117', 'Felipe Reyes', 'felipe.reyes@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000118', 'Gabriela Soto', 'gabriela.soto@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000119', 'Héctor Vega', 'hector.vega@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000120', 'Isabela Ortiz', 'isabela.ortiz@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000121', 'Jorge Mendoza', 'jorge.mendoza@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE')
+  ('00000000-0000-0000-0000-000000000112', 'Sofía Ramírez', 'sofia.ramirez@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000113', 'Carlos Morales', 'carlos.morales@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000114', 'Valentina Cruz', 'valentina.cruz@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000115', 'Andrés Castillo', 'andres.castillo@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000116', 'Daniela Herrera', 'daniela.herrera@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000117', 'Felipe Reyes', 'felipe.reyes@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000118', 'Gabriela Soto', 'gabriela.soto@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000119', 'Héctor Vega', 'hector.vega@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000120', 'Isabela Ortiz', 'isabela.ortiz@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000121', 'Jorge Mendoza', 'jorge.mendoza@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE')
 ON CONFLICT (email) DO NOTHING;
 
 -- ─── MEMBRESÍAS ───────────────────────────────────────────────────────────────
