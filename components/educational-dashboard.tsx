@@ -11,7 +11,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardList,
-  Download,
+  FileDown,
   FlaskConical,
   GraduationCap,
   Microscope,
@@ -19,7 +19,7 @@ import {
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
-import { Toast, downloadCsv, useToast } from "@/components/action-kit";
+import { Toast, useToast } from "@/components/action-kit";
 import type { UserSession } from "@/lib/session";
 
 type Role = UserSession["role"];
@@ -91,13 +91,164 @@ const studentPractices: PracticeItem[] = [
 ];
 
 const statusBadge: Record<string, string> = {
-  "Lista": "status-pill-success",
-  "Preparación": "status-pill-warning",
-  "Programada": "status-pill-info",
-  "Borrador": "status-pill-neutral",
-  "Ejecutada": "status-pill-dark",
-  "Cancelada": "status-pill-danger",
+  Lista: "status-pill-success",
+  Preparación: "status-pill-warning",
+  Programada: "status-pill-info",
+  Borrador: "status-pill-neutral",
+  Ejecutada: "status-pill-dark",
+  Cancelada: "status-pill-danger",
 };
+
+const STATUS_REPORT_CLS: Record<string, string> = {
+  Lista: "rpt-badge-success",
+  Preparación: "rpt-badge-warning",
+  Programada: "rpt-badge-info",
+  Borrador: "rpt-badge-neutral",
+  Ejecutada: "rpt-badge-neutral",
+  Cancelada: "rpt-badge-danger",
+};
+
+const KPI_ACCENT = ["#216d66", "#b7782d", "#b5554d", "#4f806b"] as const;
+
+function buildReportHtml(
+  reportTitle: string,
+  roleLabel: string,
+  kpis: KpiItem[],
+  practices: PracticeItem[],
+  alerts: AlertItem[],
+): string {
+  const date = new Date().toLocaleDateString("es-GT", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+  const time = new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
+
+  const kpiHtml = kpis.map((k, i) => `
+    <div class="rpt-kpi" style="border-left-color:${KPI_ACCENT[i] ?? "#216d66"}">
+      <div class="rpt-kpi-label">${k.label}</div>
+      <strong class="rpt-kpi-value">${k.value}</strong>
+      <em class="rpt-kpi-delta">${k.delta}</em>
+    </div>`).join("");
+
+  const practiceRows = practices.map(p => `
+    <tr>
+      <td><span class="rpt-code">${p.code}</span></td>
+      <td>${p.title}</td>
+      <td>${p.course}</td>
+      <td>${p.teacher}</td>
+      <td>${p.date}</td>
+      <td><span class="${STATUS_REPORT_CLS[p.status] ?? "rpt-badge-neutral"}">${p.status}</span></td>
+    </tr>`).join("");
+
+  const alertHtml = alerts.map(a => `
+    <div class="rpt-alert rpt-alert-${a.severity.toLowerCase()}">
+      <span class="rpt-alert-dot"></span>
+      <div>
+        <p class="rpt-alert-title">${a.title}</p>
+        <p class="rpt-alert-detail">${a.detail}</p>
+        <p class="rpt-alert-meta">${a.severity} · ${a.when}</p>
+      </div>
+    </div>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>NexaLab — ${reportTitle}</title>
+<style>
+@page{margin:14mm 18mm;size:A4}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;font-size:11px;color:#1e3035;background:#fff;margin:0;padding:24px;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
+.rpt-header{display:flex;align-items:flex-start;justify-content:space-between;padding-bottom:16px;border-bottom:2.5px solid #216d66;margin-bottom:22px}
+.rpt-logo{display:flex;align-items:center;gap:12px}
+.rpt-logo-mark{width:44px;height:44px;border-radius:10px;background:#216d66;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;letter-spacing:-.5px;flex-shrink:0}
+.rpt-logo-text strong{display:block;font-size:19px;font-weight:800;color:#216d66;letter-spacing:-.5px}
+.rpt-logo-text span{display:block;font-size:8px;font-weight:700;color:#7f8e91;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.rpt-meta{text-align:right}
+.rpt-meta h1{margin:0;font-size:14px;font-weight:700;color:#1e3035;letter-spacing:-.2px}
+.rpt-meta p{margin:4px 0 0;font-size:10px;color:#7f8e91;line-height:1.5}
+.rpt-role-badge{display:inline-block;margin-top:7px;padding:3px 10px;border-radius:12px;background:#e9f4f1;color:#216d66;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.rpt-section{margin:22px 0 12px;display:flex;align-items:center;gap:8px}
+.rpt-section::before{content:"";width:4px;height:16px;background:#216d66;border-radius:2px;flex-shrink:0}
+.rpt-section span{font-size:9.5px;font-weight:800;color:#216d66;text-transform:uppercase;letter-spacing:.8px}
+.rpt-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
+.rpt-kpi{padding:12px 14px;border:1px solid #e4ebe8;border-radius:8px;border-left:3px solid #216d66;background:#fbfcfb}
+.rpt-kpi-label{font-size:9px;font-weight:700;color:#7f8e91;text-transform:uppercase;letter-spacing:.4px}
+.rpt-kpi-value{display:block;margin-top:7px;font-size:24px;font-weight:800;color:#1e3035;letter-spacing:-.8px;line-height:1}
+.rpt-kpi-delta{display:block;margin-top:5px;font-size:9px;font-style:normal;color:#216d66}
+.rpt-table{width:100%;border-collapse:collapse;font-size:10.5px}
+.rpt-table thead th{padding:7px 10px;background:#f1f6f4;border:1px solid #e4ebe8;font-size:9px;font-weight:800;color:#879497;text-align:left;text-transform:uppercase;letter-spacing:.5px}
+.rpt-table tbody td{padding:9px 10px;border:1px solid #eaefee;color:#4e6368}
+.rpt-table tbody tr:nth-child(even) td{background:#fafcfb}
+.rpt-code{color:#216d66;font-weight:700;font-size:10px}
+.rpt-badge-success{display:inline-block;padding:2px 8px;border-radius:10px;color:#3e715f;background:#eef6f2;font-size:9px;font-weight:700}
+.rpt-badge-warning{display:inline-block;padding:2px 8px;border-radius:10px;color:#9c6827;background:#fbf4e8;font-size:9px;font-weight:700}
+.rpt-badge-info{display:inline-block;padding:2px 8px;border-radius:10px;color:#52707a;background:#eef3f4;font-size:9px;font-weight:700}
+.rpt-badge-neutral{display:inline-block;padding:2px 8px;border-radius:10px;color:#7d8e90;background:#f1f4f3;font-size:9px;font-weight:700}
+.rpt-badge-danger{display:inline-block;padding:2px 8px;border-radius:10px;color:#943b35;background:#fbeee9;font-size:9px;font-weight:700}
+.rpt-alerts{display:grid;gap:7px}
+.rpt-alert{display:grid;grid-template-columns:8px 1fr;gap:10px;padding:10px 12px;border:1px solid #eaefee;border-radius:7px;align-items:start}
+.rpt-alert-dot{width:8px;height:8px;border-radius:50%;margin-top:3px}
+.rpt-alert-alta .rpt-alert-dot{background:#b5554d}
+.rpt-alert-media .rpt-alert-dot{background:#b7782d}
+.rpt-alert-baja .rpt-alert-dot{background:#4f806b}
+.rpt-alert-title{font-size:11px;font-weight:700;color:#354b50;margin:0 0 3px}
+.rpt-alert-detail{font-size:10px;color:#738386;margin:0}
+.rpt-alert-meta{font-size:9px;color:#9ea9ab;margin:3px 0 0}
+.rpt-footer{display:flex;align-items:center;justify-content:space-between;margin-top:30px;padding-top:12px;border-top:1px solid #e4ebe8}
+.rpt-footer p{margin:0;font-size:9px;color:#9ea9ab}
+.rpt-footer span{font-size:9px;font-weight:700;color:#b7c5c6}
+@media print{body{padding:0}}
+</style>
+</head>
+<body>
+<div class="rpt-header">
+  <div class="rpt-logo">
+    <div class="rpt-logo-mark">NL</div>
+    <div class="rpt-logo-text">
+      <strong>NexaLab</strong>
+      <span>Sistema de Información de Laboratorio</span>
+    </div>
+  </div>
+  <div class="rpt-meta">
+    <h1>${reportTitle}</h1>
+    <p>${date} · ${time}</p>
+    <p>Laboratorio Central</p>
+    <div class="rpt-role-badge">${roleLabel}</div>
+  </div>
+</div>
+
+<div class="rpt-section"><span>Indicadores clave</span></div>
+<div class="rpt-kpis">${kpiHtml}</div>
+
+<div class="rpt-section"><span>Prácticas programadas (${practices.length})</span></div>
+<table class="rpt-table">
+  <thead><tr>
+    <th>Código</th><th>Práctica</th><th>Curso</th><th>Responsable</th><th>Fecha</th><th>Estado</th>
+  </tr></thead>
+  <tbody>${practiceRows}</tbody>
+</table>
+
+${alerts.length > 0 ? `
+<div class="rpt-section"><span>Alertas activas (${alerts.length})</span></div>
+<div class="rpt-alerts">${alertHtml}</div>` : ""}
+
+<div class="rpt-footer">
+  <p>NexaLab LIS · Reporte generado automáticamente · Información confidencial del laboratorio</p>
+  <span>${date}</span>
+</div>
+<script>window.addEventListener("load",function(){window.focus();window.print();});</script>
+</body>
+</html>`;
+}
+
+function openReportWindow(html: string): boolean {
+  const win = window.open("", "_blank", "width=960,height=750,scrollbars=yes");
+  if (!win) return false;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  return true;
+}
 
 function PracticesTable({ rows }: Readonly<{ rows: PracticeItem[] }>) {
   return (
@@ -143,6 +294,19 @@ function AdminDashboard() {
     }, 450);
   }
 
+  function handleExportPdf() {
+    const html = buildReportHtml(
+      "Reporte de resumen — Laboratorio educativo",
+      "Administrador",
+      adminKpis,
+      upcomingPractices,
+      adminAlerts,
+    );
+    const opened = openReportWindow(html);
+    if (!opened) showToast("Activa las ventanas emergentes del navegador para generar el PDF.");
+    else showToast("Generando PDF… usa «Guardar como PDF» en el diálogo de impresión.");
+  }
+
   return (
     <div className="page-stack">
       <header className="page-header">
@@ -152,7 +316,7 @@ function AdminDashboard() {
           <p>Supervisa prácticas, inventario y equipos. Atiende primero lo que requiere acción.</p>
         </div>
         <div className="header-actions">
-          <button className="secondary-button" onClick={() => { downloadCsv("nexalab-resumen-educativo.csv", upcomingPractices); showToast("Resumen exportado."); }}><Download size={15} /> Exportar</button>
+          <button className="primary-button" onClick={handleExportPdf}><FileDown size={15} /> Exportar PDF</button>
           <button className="secondary-button icon-only" aria-label="Actualizar" onClick={refresh}><RefreshCw className={refreshing ? "spin" : ""} size={15} /></button>
         </div>
       </header>
@@ -210,6 +374,19 @@ function ProfessorDashboard() {
   const router = useRouter();
   const { message, showToast, clearToast } = useToast();
 
+  function handleExportPdf() {
+    const html = buildReportHtml(
+      "Reporte docente — Mis prácticas",
+      "Docente",
+      professorKpis,
+      myPractices,
+      [],
+    );
+    const opened = openReportWindow(html);
+    if (!opened) showToast("Activa las ventanas emergentes del navegador para generar el PDF.");
+    else showToast("Generando PDF… usa «Guardar como PDF» en el diálogo de impresión.");
+  }
+
   return (
     <div className="page-stack">
       <header className="page-header">
@@ -219,6 +396,7 @@ function ProfessorDashboard() {
           <p>Consulta el estado de tus prácticas, reservas y recursos disponibles.</p>
         </div>
         <div className="header-actions">
+          <button className="secondary-button" onClick={handleExportPdf}><FileDown size={15} /> Exportar PDF</button>
           <button className="primary-button" onClick={() => router.push("/app/education")}>
             <CalendarDays size={15} /> Nueva práctica
           </button>

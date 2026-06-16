@@ -743,6 +743,78 @@ html { scroll-behavior: smooth; }
   .public-qr-shell { border: 0; border-radius: 0; box-shadow: none; }
 }
 
+/* ─── FILTER CHIPS ─────────────────────────────────────────────────────────── */
+.filter-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 20px; color: #7f8e91; background: #fff; font-size: 11px; font-weight: 650; white-space: nowrap; transition: .15s ease; }
+.filter-chip:hover { border-color: #b8cdc8; color: var(--primary-dark); background: #f4f9f8; }
+.filter-chip-active { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-soft); font-weight: 750; }
+.filter-chip-label { color: #9ea9ab; font-size: 10px; margin-left: 1px; }
+@media (max-width: 480px) {
+  .filter-chip-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .filter-chip-label { display: none; }
+}
+
+/* ─── NOTIFICATION CARDS ───────────────────────────────────────────────────── */
+.notification-cards { display: grid; }
+.notification-card { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.notification-card:last-child { border-bottom: 0; }
+.notification-card h3 { margin: 9px 0 0; color: #354b50; font-size: 13px; font-weight: 700; letter-spacing: -.15px; }
+.notification-card p { margin: 5px 0 0; color: #738386; font-size: 12px; line-height: 1.55; }
+.notification-card small { display: block; margin-top: 7px; color: #9ea9ab; font-size: 10px; }
+.notification-badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 9px; font-weight: 780; letter-spacing: .25px; text-transform: uppercase; }
+.notification-badge-info { color: var(--slate); background: var(--slate-soft); }
+.notification-badge-warning { color: var(--amber); background: var(--amber-soft); }
+.notification-badge-success { color: #3e715f; background: var(--sage-soft); }
+.notification-badge-danger { color: var(--red); background: var(--red-soft); }
+
+/* ─── STATUS PILL VARIANTS ─────────────────────────────────────────────────── */
+.kpi-icon-rose { color: var(--red); background: var(--red-soft); }
+.kpi-delta-rose { color: var(--red); }
+.status-pill-success { color: #3e715f; background: var(--sage-soft); }
+.status-pill-warning { color: #9c6827; background: var(--amber-soft); }
+.status-pill-info { color: var(--slate); background: var(--slate-soft); }
+.status-pill-neutral { color: #7d8e90; background: #f1f4f3; }
+.status-pill-dark { color: #4d666a; background: #eaefee; }
+.status-pill-danger { color: var(--red); background: var(--red-soft); }
+
+/* ─── RESPONSIVE IMPROVEMENTS ──────────────────────────────────────────────── */
+/* Panel header wraps on very small screens */
+@media (max-width: 520px) {
+  .panel-header { flex-wrap: wrap; gap: 8px; }
+}
+/* Section heading button alignment on mobile */
+@media (max-width: 760px) {
+  .section-heading { align-items: stretch; }
+  .section-heading > .primary-button,
+  .section-heading > .secondary-button { width: 100%; justify-content: center; }
+  .configuration-body { padding: 12px; }
+}
+/* Touch-friendly minimum sizes */
+@media (hover: none) {
+  .primary-button, .secondary-button { min-height: 42px; }
+  .filter-chip { height: 36px; }
+  .tab-button { min-height: 42px; padding: 0 15px; }
+  .nav-item { min-height: 42px; }
+}
+/* Compact topbar-actions on very small screens */
+@media (max-width: 400px) {
+  .topbar-actions { gap: 4px; }
+  .profile-button { padding: 0 2px; }
+}
+/* Table horizontal scroll indicator */
+.table-scroll { position: relative; }
+@media (max-width: 760px) {
+  .data-table th, .data-table td { padding: 9px 10px; font-size: 10.5px; }
+  .module-stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .module-stat-grid { grid-template-columns: 1fr; }
+  .header-actions { flex-wrap: wrap; }
+  .header-actions > .primary-button,
+  .header-actions > .secondary-button { flex: 1; min-width: 130px; justify-content: center; }
+}
+
+/* ─── PRINT — QR LABELS ────────────────────────────────────────────────────── */
 @media print {
   body * { visibility: hidden !important; }
   .qr-print-zone, .qr-print-zone * { visibility: visible !important; }
