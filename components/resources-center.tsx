@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Boxes, FileCheck2, PackageCheck, Plus, ScanBarcode, ShieldCheck, Wrench } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { QrLabelManager, QrScanTester } from "@/components/qr-label-manager";
 import { equipmentPlans as seedEquipmentPlans, inventoryMovements as seedMovements, locationRows as seedLocations } from "@/lib/compliance-data";
 import { equipmentRows as seedEquipment, inventoryRows as seedInventory } from "@/lib/demo-data";
+import { defaultInventoryCategories } from "@/lib/lab-profile";
 import { InlineNotice, PageIntro, SimpleTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
 
 type ModalKey = "item" | "movement" | "location" | "equipment" | "plan" | "certificate" | "event" | null;
@@ -96,6 +97,8 @@ async function responseMessage(response: Response) {
   }
 }
 
+type CategoryOption = { code: string; name: string; prefix: string };
+
 export function InventoryCenter() {
   const [tab, setTab] = useState("lots");
   const [modal, setModal] = useState<ModalKey>(null);
@@ -103,9 +106,29 @@ export function InventoryCenter() {
   const [items, setItems] = useState<InventoryItem[]>(() => seedInventory.map((item) => ({ ...item, id: inventoryIds[item.sku] ?? crypto.randomUUID() })));
   const [movements, setMovements] = useState<TableRow[]>(seedMovements);
   const [locations, setLocations] = useState<TableRow[]>(seedLocations);
+  const [categories, setCategories] = useState<CategoryOption[]>(() => [...defaultInventoryCategories]);
+  const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const { message, showToast, clearToast } = useToast();
   const reorderCount = items.filter((item) => item.status === "Reponer").length;
   const watchCount = items.filter((item) => item.status === "Vigilar").length;
+
+  useEffect(() => {
+    void fetch("/api/inventory/categories")
+      .then((r) => r.json() as Promise<{ data?: Array<{ code: string; name: string; prefix: string }> }>)
+      .then((payload) => { if (payload.data?.length) setCategories(payload.data); })
+      .catch(() => { /* mantiene categorías default */ });
+  }, []);
+
+  const filteredItems = useMemo(() => {
+    if (activeCategory === "ALL") return items;
+    const cat = categories.find((c) => c.code === activeCategory);
+    if (!cat) return items;
+    return items.filter((item) => {
+      const sku = String(item.sku ?? "").toUpperCase();
+      const category = String(item.category ?? "").toLowerCase();
+      return sku.startsWith(cat.prefix.toUpperCase()) || category.includes(cat.name.toLowerCase().slice(0, 6));
+    });
+  }, [items, activeCategory, categories]);
 
   async function addItem(record: InventoryItem) {
     try {
@@ -196,13 +219,45 @@ export function InventoryCenter() {
       <article className="panel configuration-panel">
         <Tabs items={[{ key: "lots", label: "Lotes" }, { key: "movements", label: "Movimientos" }, { key: "locations", label: "Ubicaciones" }, { key: "qr", label: "QR y etiquetas" }]} active={tab} onChange={setTab} />
         <div className="configuration-body">
-          {tab === "lots" ? <ResourceSection title="Existencias por lote" copy="Cada lote conserva proveedor, vencimiento, ubicación, ficha de seguridad y trazabilidad de uso." action="Registrar consumo" onAction={() => setModal("movement")}><SimpleTable columns={[{ key: "sku", label: "Código" }, { key: "name", label: "Artículo" }, { key: "category", label: "Categoría" }, { key: "lot", label: "Lote" }, { key: "location", label: "Ubicación" }, { key: "quantity", label: "Existencia" }, { key: "minimum", label: "Mínimo" }, { key: "expires", label: "Vence" }, { key: "status", label: "Estado" }]} rows={items} searchPlaceholder="Buscar reactivo, lote o ubicación…" /></ResourceSection> : null}
+          {tab === "lots" ? (
+            <section>
+              <div className="section-heading">
+                <div><h2>Existencias por lote</h2><p>Cada lote conserva proveedor, vencimiento, ubicación, ficha de seguridad y trazabilidad de uso.</p></div>
+                <button className="secondary-button" onClick={() => setModal("movement")}><Plus size={15} /> Registrar consumo</button>
+              </div>
+              <div className="filter-chip-row" role="group" aria-label="Filtrar por categoría">
+                <button
+                  type="button"
+                  className={`filter-chip${activeCategory === "ALL" ? " filter-chip-active" : ""}`}
+                  onClick={() => setActiveCategory("ALL")}
+                >
+                  Todos
+                </button>
+                {categories.map((cat) => (
+                  <button
+                    key={cat.code}
+                    type="button"
+                    className={`filter-chip${activeCategory === cat.code ? " filter-chip-active" : ""}`}
+                    onClick={() => setActiveCategory(cat.code)}
+                  >
+                    {cat.prefix}
+                    <span className="filter-chip-label">{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+              <SimpleTable
+                columns={[{ key: "sku", label: "Código" }, { key: "name", label: "Artículo" }, { key: "category", label: "Categoría" }, { key: "lot", label: "Lote" }, { key: "location", label: "Ubicación" }, { key: "quantity", label: "Existencia" }, { key: "minimum", label: "Mínimo" }, { key: "expires", label: "Vence" }, { key: "status", label: "Estado" }]}
+                rows={filteredItems}
+                searchPlaceholder="Buscar reactivo, lote o ubicación…"
+              />
+            </section>
+          ) : null}
           {tab === "movements" ? <ResourceSection title="Bitácora de movimientos" copy="El sistema propone FEFO y exige justificación cuando se utiliza un lote distinto al recomendado." action="Nuevo movimiento" onAction={() => setModal("movement")}><SimpleTable columns={[{ key: "code", label: "Movimiento" }, { key: "item", label: "Artículo" }, { key: "lot", label: "Lote" }, { key: "type", label: "Tipo" }, { key: "quantity", label: "Cantidad" }, { key: "reason", label: "Motivo" }, { key: "performedBy", label: "Responsable" }, { key: "when", label: "Momento" }]} rows={movements} /></ResourceSection> : null}
           {tab === "locations" ? <ResourceSection title="Ubicaciones jerárquicas" copy="Organiza sedes, laboratorios, armarios, refrigeradores, estantes y cajas para encontrar cada recurso." action="Nueva ubicación" onAction={() => setModal("location")}><SimpleTable columns={[{ key: "code", label: "Código" }, { key: "hierarchy", label: "Ruta" }, { key: "type", label: "Tipo" }, { key: "responsible", label: "Responsable" }, { key: "status", label: "Estado" }]} rows={locations} /></ResourceSection> : null}
           {tab === "qr" ? <QrLabelManager entityType="INVENTORY_ITEM" /> : null}
         </div>
       </article>
-      <InventoryItemModal open={modal === "item"} onClose={() => setModal(null)} onSave={addItem} />
+      <InventoryItemModal open={modal === "item"} categories={categories} onClose={() => setModal(null)} onSave={addItem} />
       <InventoryMovementModal open={modal === "movement"} items={items} onClose={() => setModal(null)} onSave={addMovement} />
       <LocationModal open={modal === "location"} onClose={() => setModal(null)} onSave={addLocation} />
       <QrScanTester open={scannerOpen} onClose={() => setScannerOpen(false)} />
@@ -341,12 +396,12 @@ function ResourceSection({ title, copy, action, onAction, children }: Readonly<{
   return <section><div className="section-heading"><div><h2>{title}</h2><p>{copy}</p></div><button className="secondary-button" onClick={onAction}><Plus size={15} /> {action}</button></div>{children}</section>;
 }
 
-function InventoryItemModal({ open, onClose, onSave }: Readonly<{ open: boolean; onClose: () => void; onSave: (record: InventoryItem) => void | Promise<void> }>) {
+function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ open: boolean; categories: CategoryOption[]; onClose: () => void; onSave: (record: InventoryItem) => void | Promise<void> }>) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const data = new FormData(event.currentTarget); const quantity = String(data.get("quantity")); const minimum = String(data.get("minimum"));
     void onSave({ id: crypto.randomUUID(), sku: String(data.get("sku")), name: String(data.get("name")), category: String(data.get("category")), lot: String(data.get("lot")), location: String(data.get("location")), quantity: `${quantity} ${data.get("unit")}`, minimum: `${minimum} ${data.get("unit")}`, expires: String(data.get("expires") || "—"), receivedAt: String(data.get("receivedAt") || ""), vendor: String(data.get("vendor") || ""), internalFormula: String(data.get("formula") || ""), safetySheetUrl: String(data.get("safetySheetUrl") || ""), status: Number(quantity) <= Number(minimum) ? "Reponer" : "Disponible" }); event.currentTarget.reset(); onClose();
   }
-  return <ActionModal open={open} title="Registrar artículo o lote" description="El código interno identifica el recurso y su etiqueta QR." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label><span>Código interno</span><input name="sku" required placeholder="REA-MIC-019" /></label><label><span>Nombre</span><input name="name" required placeholder="Reactivo o material" /></label><label><span>Categoría</span><select name="category"><option>Reactivo químico</option><option>Reactivo microbiológico</option><option>Material</option><option>Consumible</option><option>Kit</option></select></label><label><span>Lote</span><input name="lot" required /></label><label><span>Proveedor</span><input name="vendor" placeholder="Proveedor opcional" /></label><label><span>Fórmula</span><input name="formula" placeholder="HCl 0.1 N" /></label><label><span>Ubicación</span><input name="location" required placeholder="Armario C1" /></label><label><span>Fecha de ingreso</span><input name="receivedAt" type="date" /></label><label><span>Fecha de vencimiento</span><input name="expires" type="date" /></label><label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required defaultValue="unidades" /></label><label><span>URL de ficha de seguridad</span><input name="safetySheetUrl" type="url" placeholder="https://.../ficha-seguridad.pdf" /></label></div><ModalFooter onClose={onClose} /></form></ActionModal>;
+  return <ActionModal open={open} title="Registrar artículo o lote" description="El código interno identifica el recurso y su etiqueta QR." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label><span>Código interno</span><input name="sku" required placeholder="RQ-0001" /></label><label><span>Nombre</span><input name="name" required placeholder="Reactivo o material" /></label><label><span>Categoría</span><select name="category">{categories.map((cat) => <option key={cat.code} value={cat.name}>{cat.prefix} · {cat.name}</option>)}</select></label><label><span>Lote</span><input name="lot" required /></label><label><span>Proveedor</span><input name="vendor" placeholder="Proveedor opcional" /></label><label><span>Fórmula</span><input name="formula" placeholder="HCl 0.1 N" /></label><label><span>Ubicación</span><input name="location" required placeholder="Armario C1" /></label><label><span>Fecha de ingreso</span><input name="receivedAt" type="date" /></label><label><span>Fecha de vencimiento</span><input name="expires" type="date" /></label><label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required defaultValue="unidades" /></label><label><span>URL de ficha de seguridad</span><input name="safetySheetUrl" type="url" placeholder="https://.../ficha-seguridad.pdf" /></label></div><ModalFooter onClose={onClose} /></form></ActionModal>;
 }
 
 function InventoryMovementModal({ open, items, onClose, onSave }: Readonly<{ open: boolean; items: InventoryItem[]; onClose: () => void; onSave: (record: TableRow & { itemId: string; quantityDelta: number }) => void | Promise<void> }>) {

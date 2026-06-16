@@ -3,8 +3,10 @@ import {
   AlertTriangle,
   Archive,
   BarChart3,
+  Bell,
   BookOpenCheck,
   Boxes,
+  CalendarDays,
   ClipboardList,
   FileCheck2,
   FlaskConical,
@@ -21,6 +23,7 @@ import {
   UsersRound,
   Wrench,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export type ModuleKey =
   | "dashboard"
@@ -102,4 +105,124 @@ export const quickActions = [
   { label: "Registrar consumo", icon: PackageSearch },
   { label: "Abrir bitácora", icon: BookOpenCheck },
   { label: "Reportar mantenimiento", icon: Wrench },
+];
+
+export type EducationalNavItem = {
+  key: ModuleKey;
+  label: string;
+  icon: LucideIcon;
+  href: string;
+};
+
+export type EducationalNavGroup = {
+  title: string;
+  items: EducationalNavItem[];
+};
+
+export const educationalNavigationByRole: Partial<Record<string, EducationalNavGroup[]>> = {
+  LAB_ADMIN: [
+    {
+      title: "Laboratorio educativo",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+        { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+      ],
+    },
+    {
+      title: "Administración",
+      items: [
+        { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
+        { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+        { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
+      ],
+    },
+  ],
+  OWNER: [
+    {
+      title: "Laboratorio educativo",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+        { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+      ],
+    },
+    {
+      title: "Administración",
+      items: [
+        { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
+        { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+        { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
+      ],
+    },
+  ],
+  HEAD_OF_LAB: [
+    {
+      title: "Laboratorio educativo",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+        { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+      ],
+    },
+    {
+      title: "Administración",
+      items: [
+        { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
+        { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+        { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
+      ],
+    },
+  ],
+  PROFESSOR: [
+    {
+      title: "Docente",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+        { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+      ],
+    },
+  ],
+  STUDENT: [
+    {
+      title: "Estudiante",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "education", label: "Mis prácticas", icon: GraduationCap, href: "/app/education" },
+        { key: "alerts", label: "Avisos", icon: Bell, href: "/app/alerts" },
+      ],
+    },
+  ],
+  AUDITOR: [
+    {
+      title: "Auditoría",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+        { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+      ],
+    },
+  ],
+};
+
+export const educationalNavigationFallback: EducationalNavGroup[] = [
+  {
+    title: "Laboratorio educativo",
+    items: [
+      { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+      { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+      { key: "alerts", label: "Avisos", icon: Bell, href: "/app/alerts" },
+    ],
+  },
 ];

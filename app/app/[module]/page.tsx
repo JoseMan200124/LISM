@@ -35,5 +35,5 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
   if (!supportedModules.has(module as ModuleKey)) notFound();
   if (!canAccessModule(session, module as ModuleKey)) redirect("/app");
 
-  return <ModuleView module={module as Exclude<ModuleKey, "dashboard">} />;
+  return <ModuleView module={module as Exclude<ModuleKey, "dashboard">} role={session.role} />;
 }

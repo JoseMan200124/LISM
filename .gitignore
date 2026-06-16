@@ -1,0 +1,48 @@
+# Dependencias
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Build de Next.js
+.next/
+out/
+
+# TypeScript
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Variables de entorno (nunca subir)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores e IDEs
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# MCP (configuración local de Claude Code)
+.mcp.json
+.mcp.json.backup*
+
+# Vercel (artefactos de deploy, no el vercel.json de config)
+.vercel

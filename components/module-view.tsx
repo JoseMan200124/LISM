@@ -164,10 +164,10 @@ function displayCell(key: string, value: string | number) {
   return normalized;
 }
 
-export function ModuleView({ module }: { module: Exclude<ModuleKey, "dashboard"> }) {
+export function ModuleView({ module, role }: { module: Exclude<ModuleKey, "dashboard">; role?: string }) {
   if (module === "inventory") return <InventoryCenter />;
   if (module === "equipment") return <EquipmentCenter />;
-  if (module === "education") return <EducationCenter />;
+  if (module === "education") return <EducationCenter role={role as Parameters<typeof EducationCenter>[0]["role"]} />;
   if (module === "quality") return <QualityCenter />;
   if (module === "documents") return <QualityCenter initialTab="documents" />;
   if (module === "logbooks") return <QualityCenter initialTab="logbooks" />;
