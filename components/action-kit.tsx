@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { CheckCircle2, Clipboard, FileDown, Info, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clipboard, FileDown, Info, TriangleAlert, X } from "lucide-react";
+
+export type ToastType = "success" | "error" | "warning" | "info";
 
 export function ActionModal({
   open,
@@ -45,19 +47,59 @@ export function ActionModal({
   );
 }
 
-export function Toast({ message, onClose }: Readonly<{ message: string; onClose: () => void }>) {
+const TOAST_ICONS: Record<ToastType, typeof CheckCircle2> = {
+  success: CheckCircle2,
+  error:   AlertTriangle,
+  warning: TriangleAlert,
+  info:    Info,
+};
+
+const TOAST_DURATION: Record<ToastType, number> = {
+  success: 3600,
+  error:   6000,
+  warning: 5000,
+  info:    4000,
+};
+
+export function Toast({
+  message,
+  type = "success",
+  onClose,
+}: Readonly<{ message: string; type?: ToastType; onClose: () => void }>) {
   useEffect(() => {
     if (!message) return;
-    const timer = window.setTimeout(onClose, 3600);
+    const timer = window.setTimeout(onClose, TOAST_DURATION[type]);
     return () => window.clearTimeout(timer);
-  }, [message, onClose]);
+  }, [message, type, onClose]);
+
   if (!message) return null;
-  return <div className="app-toast" role="status"><CheckCircle2 size={17} /><span>{message}</span><button onClick={onClose} aria-label="Cerrar"><X size={15} /></button></div>;
+
+  const Icon = TOAST_ICONS[type];
+  const variantClass = type !== "success" ? ` app-toast-${type}` : "";
+
+  return (
+    <div className={`app-toast${variantClass}`} role={type === "error" ? "alert" : "status"}>
+      <Icon size={17} />
+      <span>{message}</span>
+      <button onClick={onClose} aria-label="Cerrar"><X size={15} /></button>
+    </div>
+  );
 }
 
 export function useToast() {
-  const [message, setMessage] = useState("");
-  return { message, showToast: setMessage, clearToast: () => setMessage("") };
+  const [state, setState] = useState<{ message: string; type: ToastType }>({ message: "", type: "success" });
+
+  const clearToast = () => setState({ message: "", type: "success" });
+
+  return {
+    message:   state.message,
+    toastType: state.type,
+    showToast:   (msg: string) => setState({ message: msg, type: "success" }),
+    showError:   (msg: string) => setState({ message: msg, type: "error" }),
+    showWarning: (msg: string) => setState({ message: msg, type: "warning" }),
+    showInfo:    (msg: string) => setState({ message: msg, type: "info" }),
+    clearToast,
+  };
 }
 
 function escapeCsv(value: unknown) {

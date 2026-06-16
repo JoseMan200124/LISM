@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { UserSession } from "@/lib/session";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
-import { InlineNotice, PageIntro, SimpleTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
+import { InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
 
 type PracticeRow = TableRow & {
   id?: string;
@@ -78,7 +78,7 @@ function AdminEducationCenter() {
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const { message, showToast, clearToast } = useToast();
+  const { message, toastType, showToast, showError, clearToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,11 +97,11 @@ function AdminEducationCenter() {
       setReservations(rData.data ?? []);
       setNotifications(nData.data ?? []);
     } catch {
-      showToast("No se pudo cargar la información de prácticas.");
+      showError("No se pudo cargar la información de prácticas. Verifica tu conexión e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showError]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -114,9 +114,9 @@ function AdminEducationCenter() {
     if (response.ok) {
       const payload = await response.json() as { data?: PracticeRow };
       setPractices((prev) => [payload.data ?? { code: "PRA-NEW", title: record.name, course_name: record.detail, status: "DRAFT" } as PracticeRow, ...prev]);
-      showToast("Práctica creada.");
+      showToast("Práctica creada correctamente.");
     } else {
-      showToast("Error al crear la práctica.");
+      showError("No se pudo crear la práctica. Revisa los campos e intenta de nuevo.");
     }
     setAddTarget(null);
   }
@@ -130,11 +130,11 @@ function AdminEducationCenter() {
       body: JSON.stringify({ title: String(data.get("title")), body: String(data.get("body")), audience: String(data.get("audience")) }),
     });
     if (response.ok) {
-      showToast("Aviso publicado.");
+      showToast("Aviso publicado. Los destinatarios ya pueden verlo.");
       setNotifModal(null);
       void load();
     } else {
-      showToast("Error al publicar el aviso.");
+      showError("No se pudo publicar el aviso. Verifica los campos e intenta de nuevo.");
     }
   }
 
@@ -163,6 +163,17 @@ function AdminEducationCenter() {
     published: formatDate(n.publish_at),
   }));
 
+  if (loading) {
+    return (
+      <div className="page-stack">
+        <PageIntro eyebrow="PROGRAMA EDUCATIVO" title="Prácticas y reservas" description="Administra prácticas, reservas de recursos y avisos para el laboratorio educativo." />
+        <SkeletonKpiGrid cols={3} />
+        <SkeletonTable rows={5} cols={6} />
+        <Toast message={message} type={toastType} onClose={clearToast} />
+      </div>
+    );
+  }
+
   return (
     <div className="page-stack">
       <PageIntro eyebrow="PROGRAMA EDUCATIVO" title="Prácticas y reservas" description="Administra prácticas, reservas de recursos y avisos para el laboratorio educativo.">
@@ -173,7 +184,6 @@ function AdminEducationCenter() {
         { label: "Reservas pendientes", value: String(reservations.filter((r) => r.status === "PENDING").length), hint: "Por aprobar", icon: PackageCheck },
         { label: "Avisos publicados", value: String(notifications.length), hint: "Visibles a usuarios", icon: Bell },
       ]} />
-      {loading ? <p className="eyebrow" style={{ padding: "1rem" }}>Cargando...</p> : null}
       <article className="panel configuration-panel">
         <Tabs items={[
           { key: "practices", label: "Cronograma" },
@@ -226,7 +236,7 @@ function AdminEducationCenter() {
         <QuickPracticeModal onClose={() => setAddTarget(null)} onSave={createPractice} />
       ) : null}
       <NotificationModal open={notifModal === "notification"} onClose={() => setNotifModal(null)} onSave={createNotification} />
-      <Toast message={message} onClose={clearToast} />
+      <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
 }
@@ -239,7 +249,8 @@ function ProfessorEducationCenter() {
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
-  const { message, showToast, clearToast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const { message, toastType, showToast, showError, clearToast } = useToast();
 
   useEffect(() => {
     void (async () => {
@@ -258,10 +269,12 @@ function ProfessorEducationCenter() {
         setReservations(rData.data ?? []);
         setNotifications(nData.data ?? []);
       } catch {
-        showToast("No se pudo cargar la información.");
+        showError("No se pudo cargar la información. Verifica tu conexión e intenta de nuevo.");
+      } finally {
+        setLoading(false);
       }
     })();
-  }, [showToast]);
+  }, [showError]);
 
   async function createNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -272,10 +285,10 @@ function ProfessorEducationCenter() {
       body: JSON.stringify({ title: String(data.get("title")), body: String(data.get("body")), audience: String(data.get("audience")) }),
     });
     if (response.ok) {
-      showToast("Aviso publicado.");
+      showToast("Aviso publicado. Los destinatarios ya pueden verlo.");
       setNotifModal(null);
     } else {
-      showToast("Error al publicar el aviso.");
+      showError("No se pudo publicar el aviso. Revisa los campos e intenta de nuevo.");
     }
   }
 
@@ -293,6 +306,17 @@ function ProfessorEducationCenter() {
     quantity: r.quantity ? `${r.quantity} ${r.unit ?? ""}` : "—",
     status: statusLabel(r.status),
   }));
+
+  if (loading) {
+    return (
+      <div className="page-stack">
+        <PageIntro eyebrow="MI PROGRAMA" title="Mis prácticas" description="Consulta el cronograma, tus reservas de recursos y publica avisos para tus grupos." />
+        <SkeletonKpiGrid cols={3} />
+        <SkeletonTable rows={4} cols={5} />
+        <Toast message={message} type={toastType} onClose={clearToast} />
+      </div>
+    );
+  }
 
   return (
     <div className="page-stack">
@@ -356,7 +380,7 @@ function ProfessorEducationCenter() {
         </div>
       </article>
       <NotificationModal open={notifModal === "notification"} onClose={() => setNotifModal(null)} onSave={createNotification} />
-      <Toast message={message} onClose={clearToast} />
+      <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
 }
@@ -367,7 +391,8 @@ function StudentEducationCenter() {
   const [tab, setTab] = useState("practices");
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
-  const { message, showToast, clearToast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const { message, toastType, showError, clearToast } = useToast();
 
   useEffect(() => {
     void (async () => {
@@ -383,17 +408,29 @@ function StudentEducationCenter() {
         setPractices(pData.data ?? []);
         setNotifications(nData.data ?? []);
       } catch {
-        showToast("No se pudo cargar la información.");
+        showError("No se pudo cargar la información. Verifica tu conexión e intenta de nuevo.");
+      } finally {
+        setLoading(false);
       }
     })();
-  }, [showToast]);
+  }, [showError]);
 
   const next = practices.find((p) => ["READY", "IN_PROGRESS", "PLANNED"].includes(String(p.status)));
 
+  if (loading) {
+    return (
+      <div className="page-stack">
+        <PageIntro eyebrow="MIS PRÁCTICAS" title="Laboratorio educativo" description="Consulta tus prácticas asignadas, avisos del docente e instrucciones previas." />
+        <SkeletonKpiGrid cols={3} />
+        <SkeletonTable rows={3} cols={5} />
+        <Toast message={message} type={toastType} onClose={clearToast} />
+      </div>
+    );
+  }
+
   return (
     <div className="page-stack">
-      <PageIntro eyebrow="MIS PRÁCTICAS" title="Laboratorio educativo" description="Consulta tus prácticas asignadas, avisos del docente e instrucciones previas.">
-      </PageIntro>
+      <PageIntro eyebrow="MIS PRÁCTICAS" title="Laboratorio educativo" description="Consulta tus prácticas asignadas, avisos del docente e instrucciones previas." />
       <StatGrid items={[
         { label: "Próxima práctica", value: next ? (next.practice_code ?? next.code ?? "—") : "Ninguna", hint: next ? formatDate(next.starts_at) : "Sin prácticas próximas", icon: CalendarDays },
         { label: "Avisos sin leer", value: String(notifications.length), hint: "De docentes y admin", icon: Bell },
@@ -433,17 +470,35 @@ function StudentEducationCenter() {
                 <div><h2>Avisos del docente</h2><p>Mensajes publicados por tus profesores y el administrador del laboratorio.</p></div>
               </div>
               {notifications.length === 0 ? (
-                <p className="eyebrow" style={{ padding: "2rem 0" }}>Sin avisos por ahora.</p>
+                <div className="empty-state">
+                  <div className="empty-icon"><Bell size={22} /></div>
+                  <h3>Sin avisos por ahora</h3>
+                  <p>Cuando tu docente publique un mensaje o instrucción aparecerá aquí.</p>
+                </div>
               ) : (
-                <div className="mini-card-grid">
-                  {notifications.map((n) => (
-                    <article key={String(n.id)}>
-                      <Bell size={18} />
-                      <h3>{n.title}</h3>
-                      <p>{n.body}</p>
-                      <small>{formatDate(n.publish_at)} · {n.created_by_name ?? "Docente"}</small>
-                    </article>
-                  ))}
+                <div className="notif-feed" style={{ borderRadius: "8px", border: "1px solid var(--line)", overflow: "hidden" }}>
+                  {notifications.map((n, i) => {
+                    const initials = (n.created_by_name ?? "D").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+                    return (
+                      <div key={String(n.id)} className={`notif-item ${i < 2 ? "notif-item-unread" : ""}`}>
+                        <div className="notif-avatar notif-avatar-teal">{initials}</div>
+                        <div>
+                          <div className="notif-row-top">
+                            <span className="notif-author">{n.created_by_name ?? "Docente"}</span>
+                            <span className="notif-sep">·</span>
+                            <span className="notif-time">{formatDate(n.publish_at)}</span>
+                            {i < 2 ? <span className="notif-unread-dot" aria-label="No leído" /> : null}
+                          </div>
+                          <p className="notif-title">{n.title}</p>
+                          {n.body ? <p className="notif-body">{n.body}</p> : null}
+                          <div className="notif-foot">
+                            <span className="notification-badge notification-badge-info">Aviso</span>
+                            {n.practice_title ? <span className="notification-badge notification-badge-success">{n.practice_title}</span> : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -474,7 +529,7 @@ function StudentEducationCenter() {
           ) : null}
         </div>
       </article>
-      <Toast message={message} onClose={clearToast} />
+      <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
 }

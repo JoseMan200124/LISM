@@ -6,16 +6,20 @@ import { useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
+  BookOpenCheck,
   Boxes,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  Clock,
   FileDown,
   FlaskConical,
   GraduationCap,
+  MapPin,
   Microscope,
   PackageCheck,
+  QrCode,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
@@ -284,7 +288,7 @@ function PracticesTable({ rows }: Readonly<{ rows: PracticeItem[] }>) {
 function AdminDashboard() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  const { message, showToast, clearToast } = useToast();
+  const { message, toastType, showToast, clearToast } = useToast();
 
   function refresh() {
     setRefreshing(true);
@@ -322,16 +326,20 @@ function AdminDashboard() {
       </header>
 
       <section className="kpi-grid">
-        {adminKpis.map((kpi, index) => (
-          <article className="kpi-card" key={kpi.label}>
-            <div className={`kpi-icon kpi-icon-${kpi.tone}`}>
-              {index === 0 ? <CalendarDays size={17} /> : index === 1 ? <PackageCheck size={17} /> : index === 2 ? <Boxes size={17} /> : <Microscope size={17} />}
-            </div>
-            <span>{kpi.label}</span>
-            <strong>{kpi.value}</strong>
-            <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
-          </article>
-        ))}
+        {adminKpis.map((kpi, index) => {
+          const urgencyClass = index === 2 ? "kpi-card-urgent" : index === 1 ? "kpi-card-caution" : "";
+          const Icon = [CalendarDays, PackageCheck, Boxes, Microscope][index];
+          return (
+            <article className={`kpi-card ${urgencyClass}`} key={kpi.label}>
+              <div className={`kpi-icon kpi-icon-${kpi.tone}`}>
+                <Icon size={17} />
+              </div>
+              <span>{kpi.label}</span>
+              <strong>{kpi.value}</strong>
+              <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
+            </article>
+          );
+        })}
       </section>
 
       <section className="content-grid content-grid-wide">
@@ -365,14 +373,14 @@ function AdminDashboard() {
         <Link href="/app/education" className="governance-card"><GraduationCap size={18} /><div><h2>Programa</h2><p>Prácticas, reservas y avisos para estudiantes.</p></div><ChevronRight size={15} /></Link>
         <Link href="/app/administration" className="governance-card"><ClipboardList size={18} /><div><h2>Usuarios</h2><p>Roles, permisos y accesos por laboratorio.</p></div><ChevronRight size={15} /></Link>
       </section>
-      <Toast message={message} onClose={clearToast} />
+      <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
 }
 
 function ProfessorDashboard() {
   const router = useRouter();
-  const { message, showToast, clearToast } = useToast();
+  const { message, toastType, showToast, clearToast } = useToast();
 
   function handleExportPdf() {
     const html = buildReportHtml(
@@ -430,15 +438,43 @@ function ProfessorDashboard() {
         <Link href="/app/equipment" className="governance-card"><Microscope size={18} /><div><h2>Equipos</h2><p>Estado y disponibilidad de equipos.</p></div><ChevronRight size={15} /></Link>
         <Link href="/app/alerts" className="governance-card"><AlertTriangle size={18} /><div><h2>Alertas</h2><p>Avisos y notificaciones del laboratorio.</p></div><ChevronRight size={15} /></Link>
       </section>
-      <Toast message={message} onClose={clearToast} />
+      <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
 }
 
+const studentNotifications = [
+  {
+    id: "n1",
+    avatar: "AG",
+    avatarTone: "notif-avatar-teal" as const,
+    author: "Dra. Ana García",
+    time: "Hoy · 14:00",
+    title: "Mañana tienes práctica de tinción de Gram",
+    body: "Revisa la guía antes de llegar. El equipo estará disponible desde las 09:45 h.",
+    badge: "Recordatorio",
+    badgeTone: "notification-badge-info",
+    unread: true,
+  },
+  {
+    id: "n2",
+    avatar: "LT",
+    avatarTone: "notif-avatar-amber" as const,
+    author: "Prof. Luis Torres",
+    time: "Hoy · 10:30",
+    title: "Guía de preparación disponible",
+    body: "El docente publicó la guía de tinción de Gram. Descárgala antes de la clase.",
+    badge: "Instrucción previa",
+    badgeTone: "notification-badge-warning",
+    unread: true,
+  },
+];
+
 function StudentDashboard() {
   const router = useRouter();
-  const { message, showToast, clearToast } = useToast();
-  void showToast;
+  const { message, toastType, clearToast } = useToast();
+
+  const nextPractice = studentPractices[0];
 
   return (
     <div className="page-stack">
@@ -451,47 +487,87 @@ function StudentDashboard() {
       </header>
 
       <section className="kpi-grid">
-        {studentKpis.map((kpi, index) => (
-          <article className="kpi-card" key={kpi.label}>
-            <div className={`kpi-icon kpi-icon-${kpi.tone}`}>
-              {index === 0 ? <CalendarDays size={17} /> : index === 1 ? <AlertTriangle size={17} /> : index === 2 ? <CheckCircle2 size={17} /> : <GraduationCap size={17} />}
-            </div>
-            <span>{kpi.label}</span>
-            <strong>{kpi.value}</strong>
-            <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
-          </article>
-        ))}
+        {studentKpis.slice(0, 3).map((kpi, index) => {
+          const urgencyClass = index === 1 ? "kpi-card-caution" : "";
+          const Icon = [CalendarDays, AlertTriangle, GraduationCap][index];
+          return (
+            <article className={`kpi-card ${urgencyClass}`} key={kpi.label}>
+              <div className={`kpi-icon kpi-icon-${kpi.tone}`}>
+                <Icon size={17} />
+              </div>
+              <span>{kpi.label}</span>
+              <strong>{kpi.value}</strong>
+              <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
+            </article>
+          );
+        })}
       </section>
 
       <article className="panel">
         <div className="panel-header">
-          <div><h2>Mi práctica más cercana</h2><p>Revisa instrucciones y recursos antes de llegar.</p></div>
+          <div><h2>Próxima práctica</h2><p>Prepárate antes de llegar al laboratorio.</p></div>
           <button className="text-button" onClick={() => router.push("/app/education")}>Ver todas <ChevronRight size={14} /></button>
         </div>
-        <PracticesTable rows={studentPractices} />
+        {nextPractice ? (
+          <>
+            <div className="practice-hero">
+              <div className="practice-hero-icon"><FlaskConical size={26} /></div>
+              <div>
+                <h2>{nextPractice.title}</h2>
+                <p>{nextPractice.course}</p>
+                <div className="practice-hero-chips">
+                  <span className="practice-chip"><CalendarDays size={13} />{nextPractice.date}</span>
+                  <span className="practice-chip"><MapPin size={13} />Laboratorio A</span>
+                  <span className="practice-chip"><Clock size={13} />Dra. {nextPractice.teacher.replace("Dra. ", "")}</span>
+                  <span className={`status-pill ${statusBadge[nextPractice.status] ?? "status-pill-neutral"}`}>{nextPractice.status}</span>
+                </div>
+              </div>
+            </div>
+            <hr className="practice-divider" />
+            <div className="practice-actions-bar">
+              <button className="secondary-button" onClick={() => router.push("/app/education")}><BookOpenCheck size={15} /> Ver instrucciones</button>
+              <button className="secondary-button" onClick={() => router.push("/app/resources")}><QrCode size={15} /> Escanear QR</button>
+            </div>
+          </>
+        ) : (
+          <div className="no-practice-banner">
+            <CheckCircle2 size={30} />
+            <div>
+              <h2>Sin prácticas próximas</h2>
+              <p>Cuando tu docente programe una práctica aparecerá aquí.</p>
+            </div>
+          </div>
+        )}
       </article>
 
       <article className="panel">
         <div className="panel-header">
-          <div><h2>Avisos recientes</h2><p>Mensajes del laboratorio para tu grupo.</p></div>
+          <div><h2>Avisos recientes</h2><p>Mensajes de tu docente y del administrador.</p></div>
           <button className="text-button" onClick={() => router.push("/app/alerts")}>Ver todos <ChevronRight size={14} /></button>
         </div>
-        <div className="notification-cards">
-          <div className="notification-card">
-            <span className="notification-badge notification-badge-info">Recordatorio</span>
-            <h3>Mañana tienes práctica de tinción de Gram</h3>
-            <p>Revisa la guía antes de llegar al laboratorio. El equipo estará disponible desde las 09:45.</p>
-            <small>Hoy · 14:00</small>
-          </div>
-          <div className="notification-card">
-            <span className="notification-badge notification-badge-warning">Instrucción previa</span>
-            <h3>Guía de preparación disponible</h3>
-            <p>El docente publicó la guía de tinción de Gram. Descárgala antes de la clase.</p>
-            <small>Hoy · 10:30</small>
-          </div>
+        <div className="notif-feed">
+          {studentNotifications.map((n) => (
+            <div key={n.id} className={`notif-item ${n.unread ? "notif-item-unread" : ""}`}>
+              <div className={`notif-avatar ${n.avatarTone}`}>{n.avatar}</div>
+              <div>
+                <div className="notif-row-top">
+                  <span className="notif-author">{n.author}</span>
+                  <span className="notif-sep">·</span>
+                  <span className="notif-time">{n.time}</span>
+                  {n.unread ? <span className="notif-unread-dot" aria-label="No leído" /> : null}
+                </div>
+                <p className="notif-title">{n.title}</p>
+                <p className="notif-body">{n.body}</p>
+                <div className="notif-foot">
+                  <span className={`notification-badge ${n.badgeTone}`}>{n.badge}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </article>
-      <Toast message={message} onClose={clearToast} />
+
+      <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
 }
