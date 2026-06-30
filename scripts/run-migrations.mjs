@@ -105,7 +105,7 @@ async function main() {
   const connectionString = getConnectionString();
   // Ver nota en lib/db.ts sobre por qué se usa LISM_DB_SSL_DISABLE y no PGSSLMODE.
   const ssl = process.env.LISM_DB_SSL_DISABLE === "true" ? false : { rejectUnauthorized: true };
-  const pool = new Pool({ connectionString, ssl, max: 1 });
+  const pool = new Pool({ connectionString, ssl, max: 1, connectionTimeoutMillis: 10_000 });
   const client = await pool.connect();
 
   console.log(`[migrate] conectado (host oculto por seguridad), dry-run=${dryRun}`);

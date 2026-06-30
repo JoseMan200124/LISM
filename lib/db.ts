@@ -67,6 +67,11 @@ export function getSql(): SqlFn {
       ssl: process.env.LISM_DB_SSL_DISABLE === "true" ? false : { rejectUnauthorized: true },
       max: 5,
       idleTimeoutMillis: 30_000,
+      // `pg` no tiene timeout de conexión por defecto (espera indefinidamente).
+      // Sin esto, un problema de red/DNS/credenciales hace que /api/health
+      // (y por lo tanto los liveness/readiness probes de Container Apps)
+      // se cuelguen en vez de fallar rápido con un error legible.
+      connectionTimeoutMillis: 8_000,
     });
     cachedSql = buildPgTaggedTemplate(pgPool);
   } else {
