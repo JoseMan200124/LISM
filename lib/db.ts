@@ -71,7 +71,16 @@ export function getSql(): SqlFn {
       // Sin esto, un problema de red/DNS/credenciales hace que /api/health
       // (y por lo tanto los liveness/readiness probes de Container Apps)
       // se cuelguen en vez de fallar rápido con un error legible.
-      connectionTimeoutMillis: 8_000,
+      connectionTimeoutMillis: 5_000,
+    });
+    // Sin este listener, un error en un cliente inactivo del pool (p. ej. el
+    // servidor cierra la conexión, un fallo de red transitorio) emite un
+    // evento "error" no manejado en el Pool que TUMBA TODO EL PROCESO de
+    // Node (comportamiento documentado de `pg`, no específico de Next.js).
+    // Capturarlo aquí evita que un problema de conexión a la base de datos
+    // se convierta en un crash-loop del contenedor entero.
+    pgPool.on("error", (error) => {
+      console.error("[lib/db] Error inesperado en el pool de PostgreSQL:", error.message);
     });
     cachedSql = buildPgTaggedTemplate(pgPool);
   } else {
