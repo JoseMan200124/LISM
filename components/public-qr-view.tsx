@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { CheckCircle2, Clock3, KeyRound, MapPin, QrCode, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Clock3, MapPin, QrCode, ShieldCheck, TriangleAlert } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import type { PublicQrProfile } from "@/lib/qr-security";
 
@@ -46,9 +46,27 @@ export function PublicQrView({ token }: Readonly<{ token: string }>) {
             <p className="eyebrow">ETIQUETA NEXALAB</p>
             <h1>Ingresa el código temporal</h1>
             <p>El QR no contiene información del reactivo o del equipo. Solicita a un usuario autorizado el código de seis dígitos generado desde NexaLab. El código vence y solo funciona una vez.</p>
-            <form onSubmit={submit}>
-              <label><span>Código de acceso de un solo uso</span><div className="qr-code-input"><KeyRound size={17} /><input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" autoFocus /></div></label>
-              {error ? <p className="form-error"><TriangleAlert size={14} /> {error}</p> : null}
+            <form className="public-qr-form" onSubmit={submit}>
+              <label>
+                <span>Código de acceso de un solo uso</span>
+                <input
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  autoFocus
+                  aria-describedby={error ? "qr-access-error" : "qr-access-hint"}
+                  aria-invalid={error ? true : undefined}
+                />
+              </label>
+              {error ? (
+                <p className="form-error" id="qr-access-error" role="alert"><TriangleAlert size={14} /> {error}</p>
+              ) : (
+                <span id="qr-access-hint" className="sr-only">Ingresa los 6 dígitos del código temporal entregado por un usuario autorizado.</span>
+              )}
               <button className="primary-button" disabled={loading || code.length !== 6}>{loading ? "Validando…" : "Consultar etiqueta"}</button>
             </form>
             <div className="public-qr-note"><Clock3 size={15} /><span>Por seguridad, al recargar la página deberás solicitar un código nuevo.</span></div>

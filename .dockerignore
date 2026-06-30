@@ -1,0 +1,31 @@
+node_modules
+.next
+.git
+.github
+
+# Variables de entorno / secretos — nunca deben entrar a la imagen
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+*.pem
+*.key
+
+# Tooling local
+.vscode
+.idea
+.claude
+.mcp.json
+.mcp.json.backup*
+
+# Tests y reportes
+__tests__
+coverage
+*.log
+
+# Misceláneo
+.DS_Store
+docs
+*.md

@@ -42,7 +42,7 @@ export function LoginForm() {
   return (
     <div className="login-card">
       <div className="login-mobile-brand">
-        <BrandLogo compact subtitle="Laboratory Information System" priority />
+        <BrandLogo compact subtitle="Laboratorio Educativo" priority />
       </div>
       <p className="eyebrow">ACCESO SEGURO</p>
       <h2>Bienvenido de nuevo</h2>

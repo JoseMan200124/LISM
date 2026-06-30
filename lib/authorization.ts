@@ -75,6 +75,7 @@ const modulePermissions: Partial<Record<ModuleKey, PermissionKey[]>> = {
   compliance: ["compliance.view"],
   configuration: ["configuration.manage"],
   administration: ["configuration.manage"],
+  billing: ["configuration.manage"],
 };
 
 export function canAccessModule(session: UserSession, moduleKey: ModuleKey): boolean {

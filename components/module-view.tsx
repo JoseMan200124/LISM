@@ -41,6 +41,7 @@ import {
 } from "@/lib/demo-data";
 import { AdministrationCenter } from "@/components/administration-center";
 import { AlertsCenter } from "@/components/alerts-center";
+import { BillingCenter } from "@/components/billing-center";
 import { ComplianceCenter } from "@/components/compliance-center";
 import { ConfigurationCenter } from "@/components/configuration-center";
 import { EducationCenter } from "@/components/education-center";
@@ -176,6 +177,7 @@ export function ModuleView({ module, role }: { module: Exclude<ModuleKey, "dashb
   if (module === "compliance") return <ComplianceCenter />;
   if (module === "configuration") return <ConfigurationCenter />;
   if (module === "administration") return <AdministrationCenter />;
+  if (module === "billing") return <BillingCenter />;
   if (module === "reports") return <ReportsView />;
   return <GenericModule module={module} />;
 }

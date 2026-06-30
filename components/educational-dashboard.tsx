@@ -331,11 +331,11 @@ function AdminDashboard() {
           const Icon = [CalendarDays, PackageCheck, Boxes, Microscope][index];
           return (
             <article className={`kpi-card ${urgencyClass}`} key={kpi.label}>
-              <div className={`kpi-icon kpi-icon-${kpi.tone}`}>
-                <Icon size={17} />
+              <div className="kpi-card-head">
+                <div className={`kpi-icon kpi-icon-${kpi.tone}`}><Icon size={19} /></div>
               </div>
-              <span>{kpi.label}</span>
               <strong>{kpi.value}</strong>
+              <span>{kpi.label}</span>
               <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
             </article>
           );
@@ -412,16 +412,19 @@ function ProfessorDashboard() {
       </header>
 
       <section className="kpi-grid">
-        {professorKpis.map((kpi, index) => (
-          <article className="kpi-card" key={kpi.label}>
-            <div className={`kpi-icon kpi-icon-${kpi.tone}`}>
-              {index === 0 ? <CalendarDays size={17} /> : index === 1 ? <PackageCheck size={17} /> : index === 2 ? <TriangleAlert size={17} /> : <CheckCircle2 size={17} />}
-            </div>
-            <span>{kpi.label}</span>
-            <strong>{kpi.value}</strong>
-            <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
-          </article>
-        ))}
+        {professorKpis.map((kpi, index) => {
+          const Icon = [CalendarDays, PackageCheck, TriangleAlert, CheckCircle2][index];
+          return (
+            <article className="kpi-card" key={kpi.label}>
+              <div className="kpi-card-head">
+                <div className={`kpi-icon kpi-icon-${kpi.tone}`}><Icon size={19} /></div>
+              </div>
+              <strong>{kpi.value}</strong>
+              <span>{kpi.label}</span>
+              <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
+            </article>
+          );
+        })}
       </section>
 
       <article className="panel table-panel">
@@ -492,11 +495,11 @@ function StudentDashboard() {
           const Icon = [CalendarDays, AlertTriangle, GraduationCap][index];
           return (
             <article className={`kpi-card ${urgencyClass}`} key={kpi.label}>
-              <div className={`kpi-icon kpi-icon-${kpi.tone}`}>
-                <Icon size={17} />
+              <div className="kpi-card-head">
+                <div className={`kpi-icon kpi-icon-${kpi.tone}`}><Icon size={19} /></div>
               </div>
-              <span>{kpi.label}</span>
               <strong>{kpi.value}</strong>
+              <span>{kpi.label}</span>
               <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
             </article>
           );

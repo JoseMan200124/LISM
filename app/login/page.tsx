@@ -10,22 +10,22 @@ export default async function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-side-panel">
-        <BrandLogo className="brand-lockup-light" subtitle="Laboratory Information System" priority />
+        <BrandLogo className="brand-lockup-light" subtitle="Laboratorio Educativo" priority />
         <div className="login-side-content">
           <p className="eyebrow eyebrow-light">OPERACIÓN TRAZABLE</p>
-          <h1>Del ingreso de la muestra a un resultado confiable.</h1>
+          <h1>Del inventario a una práctica bien ejecutada.</h1>
           <p>
-            Un espacio clínico claro para coordinar recepción, análisis, control de calidad,
-            inventario y reportes sin sobrecargar a tu equipo.
+            Un espacio claro para coordinar inventario, equipos, prácticas y reservas de tu
+            laboratorio educativo sin sobrecargar a tu equipo.
           </p>
           <div className="login-feature-grid">
-            <div><strong>01</strong><span>Flujo guiado por muestra</span></div>
-            <div><strong>02</strong><span>Trazabilidad y auditoría</span></div>
-            <div><strong>03</strong><span>Alertas accionables</span></div>
-            <div><strong>04</strong><span>Escalable por laboratorio</span></div>
+            <div><strong>01</strong><span>Inventario y equipos con QR seguro</span></div>
+            <div><strong>02</strong><span>Programa de prácticas y reservas</span></div>
+            <div><strong>03</strong><span>Alertas y vencimientos bajo control</span></div>
+            <div><strong>04</strong><span>Trazabilidad y auditoría completa</span></div>
           </div>
         </div>
-        <p className="login-caption">Diseñado para equipos que necesitan precisión sin complejidad innecesaria.</p>
+        <p className="login-caption">Diseñado para colegios, universidades y laboratorios escolares que necesitan precisión sin complejidad innecesaria.</p>
       </section>
       <section className="login-form-panel">
         <LoginForm />

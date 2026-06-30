@@ -8,6 +8,7 @@ import {
   Boxes,
   CalendarDays,
   ClipboardList,
+  CreditCard,
   FileCheck2,
   FlaskConical,
   Gauge,
@@ -47,7 +48,8 @@ export type ModuleKey =
   | "audit"
   | "compliance"
   | "configuration"
-  | "administration";
+  | "administration"
+  | "billing";
 
 export const navigation = [
   {
@@ -95,6 +97,12 @@ export const navigation = [
       { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
       { key: "administration", label: "Usuarios y roles", icon: UsersRound, href: "/app/administration" },
       { key: "integrations", label: "Integraciones", icon: GitBranch, href: "/app/integrations" },
+    ],
+  },
+  {
+    title: "Cuenta",
+    items: [
+      { key: "billing", label: "Suscripción y facturación", icon: CreditCard, href: "/app/billing" },
     ],
   },
 ] as const;

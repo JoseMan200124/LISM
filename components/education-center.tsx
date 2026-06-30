@@ -476,7 +476,7 @@ function StudentEducationCenter() {
                   <p>Cuando tu docente publique un mensaje o instrucción aparecerá aquí.</p>
                 </div>
               ) : (
-                <div className="notif-feed" style={{ borderRadius: "8px", border: "1px solid var(--line)", overflow: "hidden" }}>
+                <div className="notif-feed notif-feed-panel">
                   {notifications.map((n, i) => {
                     const initials = (n.created_by_name ?? "D").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
                     return (

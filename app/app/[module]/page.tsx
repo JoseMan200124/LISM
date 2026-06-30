@@ -26,6 +26,7 @@ const supportedModules = new Set<ModuleKey>([
   "compliance",
   "configuration",
   "administration",
+  "billing",
 ]);
 
 export default async function ModulePage({ params }: { params: Promise<{ module: string }> }) {

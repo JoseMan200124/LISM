@@ -62,16 +62,19 @@ export function DashboardView() {
       </header>
 
       <section className="kpi-grid">
-        {overviewKpis.map((kpi, index) => (
-          <article className="kpi-card" key={kpi.label}>
-            <div className={`kpi-icon kpi-icon-${kpi.tone}`}>
-              {index === 0 ? <TestTube2 size={17} /> : index === 1 ? <Clock3 size={17} /> : index === 2 ? <TriangleAlert size={17} /> : <ShieldCheck size={17} />}
-            </div>
-            <span>{kpi.label}</span>
-            <strong>{kpi.value}</strong>
-            <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
-          </article>
-        ))}
+        {overviewKpis.map((kpi, index) => {
+          const Icon = [TestTube2, Clock3, TriangleAlert, ShieldCheck][index];
+          return (
+            <article className="kpi-card" key={kpi.label}>
+              <div className="kpi-card-head">
+                <div className={`kpi-icon kpi-icon-${kpi.tone}`}><Icon size={19} /></div>
+              </div>
+              <strong>{kpi.value}</strong>
+              <span>{kpi.label}</span>
+              <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
+            </article>
+          );
+        })}
       </section>
 
       <section className="content-grid content-grid-wide">
