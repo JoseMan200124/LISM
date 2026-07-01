@@ -5,8 +5,8 @@ import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 
 export function LoginForm() {
-  const [email, setEmail] = useState("admin@nexalab.local");
-  const [password, setPassword] = useState("Demo1234!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -75,10 +75,9 @@ export function LoginForm() {
           {loading ? "Ingresando…" : "Ingresar"}<ArrowRight size={16} />
         </button>
       </form>
-      <div className="demo-callout">
-        <strong>Modo demostración</strong>
-        <span>Usa las credenciales precargadas para explorar el MVP.</span>
-      </div>
+      <p className="login-footer">
+        ¿No tienes cuenta? <a href="/#precios">Ver planes y crear una cuenta</a>
+      </p>
       <p className="login-footer">NexaLab · Entorno protegido · v0.1</p>
     </div>
   );

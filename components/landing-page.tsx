@@ -16,6 +16,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { PricingSection } from "@/components/pricing-section";
 
 const audiences = [
   { icon: Building2, label: "Colegios y universidades" },
@@ -86,13 +87,14 @@ export function LandingPage() {
             <a href="#propuesta">Propuesta</a>
             <a href="#flujo">Flujo</a>
             <a href="#capacidades">Capacidades</a>
+            <a href="#precios">Precios</a>
           </nav>
           <div className="landing-header-actions">
             <Link className="landing-login-link" href="/login">
               Ingresar
             </Link>
             <Link className="landing-button landing-button-small" href="/login">
-              Explorar demo
+              Iniciar sesión
               <ArrowRight size={14} aria-hidden="true" />
             </Link>
           </div>
@@ -123,7 +125,7 @@ export function LandingPage() {
             </div>
             <div className="landing-hero-note">
               <CheckCircle2 size={15} aria-hidden="true" />
-              <span>Disponible en modo demostración para presentar el flujo completo.</span>
+              <span>Primer mes gratis en cualquier plan. Sin costo hoy, cancela cuando quieras.</span>
             </div>
           </div>
 
@@ -287,17 +289,19 @@ export function LandingPage() {
         </div>
       </section>
 
+      <PricingSection />
+
       <section className="landing-cta-section">
         <div className="landing-container landing-cta-card">
           <div>
             <p className="landing-eyebrow"><span /> NexaLab Educativo</p>
             <h2>Un punto de partida profesional para tu laboratorio educativo.</h2>
-            <p>Explora el flujo de demostración y conoce la experiencia completa del sistema.</p>
+            <p>Elige tu plan, crea tu cuenta y empieza con un mes gratis de prueba.</p>
           </div>
-          <Link className="landing-button landing-button-light" href="/login">
-            Explorar demo
+          <a className="landing-button landing-button-light" href="#precios">
+            Ver planes
             <ArrowRight size={16} aria-hidden="true" />
-          </Link>
+          </a>
         </div>
       </section>
 
