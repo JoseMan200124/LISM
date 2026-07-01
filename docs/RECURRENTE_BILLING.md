@@ -100,7 +100,7 @@ Pass `amount_in_cents` directly in each checkout request. No pre-configuration n
 {
   "items": [{
     "name": "Professional — LISM",
-    "amount_in_cents": 18900,
+    "amount_in_cents": 14900,
     "currency": "USD",
     "charge_type": "recurring",
     "quantity": 1
@@ -314,9 +314,9 @@ Add to `.env.local` for local development. Add to Vercel environment variables f
 
    | Product name | Price | Currency | Billing interval | Charge type |
    |---|---|---|---|---|
-   | LISM Academic Starter | 59.00 | USD | Monthly | Recurring |
-   | LISM Professional | 189.00 | USD | Monthly | Recurring |
-   | LISM Multi-site | 549.00 | USD | Monthly | Recurring |
+   | LISM Academic Starter | 49.00 | USD | Monthly | Recurring |
+   | LISM Professional | 149.00 | USD | Monthly | Recurring |
+   | LISM Multi-site | 299.00 | USD | Monthly | Recurring |
 
 4. After creating each product, copy the **Price ID** (format: `price_xxxxxx`).
 

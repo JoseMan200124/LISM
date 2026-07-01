@@ -16,7 +16,7 @@ export interface BillingPlan {
 export const PLAN_ACADEMIC_STARTER: BillingPlan = {
   slug: 'academic_starter',
   name: 'Academic Starter',
-  priceUsd: 59,
+  priceUsd: 49,
   maxUsers: 5,
   maxLabs: 1,
   description: 'Ideal for small academic labs.',
@@ -25,7 +25,7 @@ export const PLAN_ACADEMIC_STARTER: BillingPlan = {
 export const PLAN_PROFESSIONAL: BillingPlan = {
   slug: 'professional',
   name: 'Professional',
-  priceUsd: 189,
+  priceUsd: 149,
   maxUsers: 12,
   maxLabs: 1,
   description: 'For growing professional labs.',
@@ -34,7 +34,7 @@ export const PLAN_PROFESSIONAL: BillingPlan = {
 export const PLAN_MULTI_SITE: BillingPlan = {
   slug: 'multi_site',
   name: 'Multi-site',
-  priceUsd: 549,
+  priceUsd: 299,
   maxUsers: 30,
   maxLabs: 3,
   description: 'Multi-lab enterprise solution.',

@@ -154,7 +154,7 @@ Devuelve la suscripción actual con campos de prueba incluidos.
     "first_payment_status": null,
     "plan": {
       "slug": "professional",
-      "price_monthly_cents": 18900,
+      "price_monthly_cents": 14900,
       "currency": "USD"
     }
   },

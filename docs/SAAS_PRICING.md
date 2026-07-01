@@ -26,9 +26,16 @@ La propuesta de NexaLab mezcla una tarifa simple por laboratorio con usuarios in
 
 ## 3. Propuesta equilibrada para el inicio
 
+**Revisión de precios (penetración de mercado inicial)**: los precios originales de esta
+sección ($59/$189/$549) se calibraron contra referentes internacionales (LabArchives, etc.).
+Se ajustaron a $49/$149/$299 tras comparar contra una tabla de precios de referencia en
+GTQ para el mercado centroamericano (Básico Q299–499, Profesional Q799–1299, Empresarial
+Q1500–3000 al tipo de cambio ~Q7.75/USD), priorizando tracción inicial sobre margen máximo
+mientras el producto no tiene clientes pagando. Ver `database/0012_update_plan_pricing.sql`.
+
 ### Universidad / investigación
 
-**Academic Starter — USD 59 por laboratorio al mes**
+**Academic Starter — USD 49 por laboratorio al mes**
 
 - 5 usuarios incluidos.
 - Muestras, inventario, equipos, QC básico y reportes.
@@ -37,7 +44,7 @@ La propuesta de NexaLab mezcla una tarifa simple por laboratorio con usuarios in
 
 ### Laboratorio pequeño o mediano
 
-**Professional — USD 189 por laboratorio al mes**
+**Professional — USD 149 por laboratorio al mes**
 
 - 12 usuarios incluidos.
 - Flujo completo de órdenes, muestras y resultados.
@@ -47,7 +54,7 @@ La propuesta de NexaLab mezcla una tarifa simple por laboratorio con usuarios in
 
 ### Organización con varias sedes
 
-**Multi-site — desde USD 549 al mes**
+**Multi-site — desde USD 299 al mes**
 
 - 3 laboratorios incluidos.
 - 30 usuarios incluidos.

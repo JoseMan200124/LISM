@@ -198,7 +198,7 @@ export async function POST(request: Request) {
     const checkout = await createRecurrenteCheckout({
       planSlug: "professional",
       planName: sub.plan_name ?? "Suscripción LISM",
-      amountCents: sub.plan_amount_cents ?? 18900,
+      amountCents: sub.plan_amount_cents ?? 14900,
       currency: (sub.plan_currency as "USD" | "GTQ") ?? "USD",
       organizationId: session.organizationId,
       checkoutId,
@@ -286,7 +286,7 @@ export async function POST(request: Request) {
 
   const resolvedPlan = planMeta ?? fallbackRows[0] ?? null;
   const planName = resolvedPlan?.name ?? "Suscripción LISM";
-  const amountCents = resolvedPlan?.price_monthly_cents ?? 18900;
+  const amountCents = resolvedPlan?.price_monthly_cents ?? 14900;
   const currency = (resolvedPlan?.currency ?? "USD") as "USD" | "GTQ";
   const priceId = resolvedPlan?.provider_price_id ?? undefined;
   const resolvedPlanId = resolvedPlan?.id ?? null;
