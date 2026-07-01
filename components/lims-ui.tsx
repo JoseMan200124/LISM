@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { CheckCircle2, CircleAlert, CircleDashed, FlaskConical, Plus, Search } from "lucide-react";
+import { CheckCircle2, CircleAlert, CircleDashed, FlaskConical, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 
 export type TableColumn = { key: string; label: string };
@@ -49,13 +49,14 @@ export function Tabs({
   items,
   active,
   onChange,
-}: Readonly<{ items: Array<{ key: string; label: string }>; active: string; onChange: (key: string) => void }>) {
+}: Readonly<{ items: Array<{ key: string; label: string; tutorialId?: string }>; active: string; onChange: (key: string) => void }>) {
   return (
     <div className="tabs" role="tablist" aria-label="Secciones">
       {items.map((item) => (
         <button
           key={item.key}
           type="button"
+          data-tutorial={item.tutorialId}
           className={`tab-button ${active === item.key ? "tab-button-active" : ""}`}
           onClick={() => onChange(item.key)}
           role="tab"
@@ -229,6 +230,25 @@ export function RuleState({ state }: Readonly<{ state: "IMPLEMENTED" | "CONFIGUR
 
 export function EmptyAction({ label, onClick }: Readonly<{ label: string; onClick?: () => void }>) {
   return <button className="primary-button" type="button" onClick={onClick} disabled={!onClick}><Plus size={15} /> {label}</button>;
+}
+
+export function ErrorState({
+  title = "No se pudo cargar la información",
+  description,
+  onRetry,
+}: Readonly<{ title?: string; description: string; onRetry?: () => void }>) {
+  return (
+    <div className="empty-state error-state" role="alert">
+      <div className="empty-icon"><TriangleAlert size={22} /></div>
+      <h3>{title}</h3>
+      <p>{description}</p>
+      {onRetry ? (
+        <button className="secondary-button" type="button" onClick={onRetry}>
+          <RefreshCw size={15} /> Reintentar
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function InlineNotice({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {

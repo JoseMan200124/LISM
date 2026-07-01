@@ -175,7 +175,7 @@ export function ModuleView({ module, role }: { module: Exclude<ModuleKey, "dashb
   if (module === "training") return <QualityCenter initialTab="training" />;
   if (module === "alerts") return <AlertsCenter />;
   if (module === "compliance") return <ComplianceCenter />;
-  if (module === "configuration") return <ConfigurationCenter />;
+  if (module === "configuration") return <ConfigurationCenter role={role as Parameters<typeof ConfigurationCenter>[0]["role"]} />;
   if (module === "administration") return <AdministrationCenter />;
   if (module === "billing") return <BillingCenter />;
   if (module === "reports") return <ReportsView />;

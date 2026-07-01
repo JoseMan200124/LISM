@@ -27,18 +27,20 @@ export async function POST(request: Request) {
 
   const sql = getSql();
 
-  // Fetch current subscription with plan details
+  // Fetch current subscription with plan details (nombres de columna reales
+  // de 0009_billing.sql — el mismo esquema que ya usa change-plan/route.ts).
   const rows = await sql`
     SELECT
       bs.id,
       bs.status,
+      bs.plan_id,
       bs.provider_subscription_id,
-      bs.recurrente_customer_id,
+      bs.provider_customer_id,
       bp.slug          AS plan_slug,
       bp.name          AS plan_name,
       bp.price_monthly_cents,
       bp.currency,
-      bp.recurrente_price_id
+      bp.provider_price_id
     FROM billing_subscriptions bs
     JOIN billing_plans bp ON bp.id = bs.plan_id
     WHERE bs.organization_id = ${session.organizationId}
@@ -65,18 +67,19 @@ export async function POST(request: Request) {
 
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
+    process.env.APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
-  const successUrl = `${baseUrl}/dashboard/billing?payment_method_updated=true`;
-  const cancelUrl = `${baseUrl}/dashboard/billing?payment_method_update_canceled=true`;
+  const successUrl = `${baseUrl}/app/billing?payment_method_updated=true`;
+  const cancelUrl = `${baseUrl}/app/billing?payment_method_update_canceled=true`;
 
   // Create a billing_checkouts record for this payment method update
+  // (plan_id es UUID FK, no existe columna plan_slug en billing_checkouts).
   const checkoutRows = await sql`
     INSERT INTO billing_checkouts (
       organization_id,
-      plan_slug,
+      initiated_by,
+      plan_id,
       status,
       purpose,
       success_url,
@@ -85,7 +88,8 @@ export async function POST(request: Request) {
       expires_at
     ) VALUES (
       ${session.organizationId},
-      ${sub.plan_slug},
+      ${session.userId},
+      ${sub.plan_id},
       'pending',
       'payment_method_update',
       ${successUrl},
@@ -114,8 +118,8 @@ export async function POST(request: Request) {
       checkoutId,
       successUrl,
       cancelUrl,
-      customerId: sub.recurrente_customer_id ?? undefined,
-      priceId: sub.recurrente_price_id ?? undefined,
+      customerId: (sub.provider_customer_id as string | null) ?? undefined,
+      priceId: (sub.provider_price_id as string | null) ?? undefined,
     });
   } catch (err) {
     // Clean up the checkout record if Recurrente call fails
@@ -133,8 +137,8 @@ export async function POST(request: Request) {
   await sql`
     UPDATE billing_checkouts
     SET
-      recurrente_checkout_id  = ${recurrenteCheckout.id},
-      recurrente_checkout_url = ${recurrenteCheckout.checkout_url},
+      provider_checkout_id = ${recurrenteCheckout.id},
+      checkout_url         = ${recurrenteCheckout.checkout_url},
       metadata = ${JSON.stringify({
         subscriptionId: sub.id,
         providerSubscriptionId: sub.provider_subscription_id ?? null,

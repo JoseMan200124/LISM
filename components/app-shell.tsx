@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
-  Bell,
   ChevronDown,
   CircleHelp,
   Command,
@@ -14,6 +13,8 @@ import {
   Search,
   Settings,
   Microscope,
+  Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { navigation, educationalNavigationByRole, educationalNavigationFallback } from "@/lib/navigation";
@@ -23,18 +24,15 @@ import { BrandLogo } from "@/components/brand-logo";
 import { roleLabels } from "@/lib/permissions";
 import { canAccessModule, hasPermission } from "@/lib/authorization";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
+import { NotificationCenter } from "@/components/notification-center";
+import { UserAvatar } from "@/components/user-avatar";
+import { TutorialProvider } from "@/components/tutorial/tutorial-context";
+import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay";
+import { TutorialPrompt } from "@/components/tutorial/tutorial-prompt";
+import { TutorialTriggerButton } from "@/components/tutorial/tutorial-trigger-button";
 import { isEducationalProfile } from "@/lib/lab-profile";
 
 type DialogKey = "laboratory" | "help" | "preferences" | null;
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((word) => word[0] ?? "")
-    .join("")
-    .toUpperCase();
-}
 
 export function AppShell({ session, children }: Readonly<{ session: UserSession; children: React.ReactNode }>) {
   const pathname = usePathname();
@@ -42,11 +40,13 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
   const searchRef = useRef<HTMLInputElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [newSpecimenOpen, setNewSpecimenOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKey>(null);
   const [query, setQuery] = useState("");
-  const { message, showToast, clearToast } = useToast();
+  const [avatarCacheBust, setAvatarCacheBust] = useState(0);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const { message, toastType, showToast, showError, clearToast } = useToast();
 
   const isEducational = isEducationalProfile();
 
@@ -74,6 +74,43 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
     window.location.href = "/login";
   }
 
+  async function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch("/api/users/me/avatar", { method: "POST", body: form });
+      if (response.ok) {
+        showToast("Foto de perfil actualizada.");
+        setAvatarCacheBust(Date.now());
+      } else {
+        const payload = await response.json().catch(() => ({ message: undefined })) as { message?: string };
+        showError(payload.message || "No se pudo subir la foto.");
+      }
+    } catch {
+      showError("No se pudo subir la foto. Intenta de nuevo.");
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
+
+  async function handleAvatarDelete() {
+    try {
+      const response = await fetch("/api/users/me/avatar", { method: "DELETE" });
+      if (response.ok) {
+        showToast("Foto de perfil eliminada.");
+        setAvatarCacheBust(Date.now());
+      } else {
+        showError("No se pudo eliminar la foto.");
+      }
+    } catch {
+      showError("No se pudo eliminar la foto. Intenta de nuevo.");
+    }
+  }
+
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalized = query.trim();
@@ -87,6 +124,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
   }
 
   return (
+    <TutorialProvider>
     <div className="app-layout">
       <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
         <div className="sidebar-header">
@@ -125,6 +163,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         </nav>
 
         <div className="sidebar-footer">
+          <TutorialTriggerButton />
           <button className="sidebar-link" onClick={() => setDialog("help")}><CircleHelp size={17} /><span>Centro de ayuda</span></button>
           <button className="sidebar-link" onClick={() => setDialog("preferences")}><Settings size={17} /><span>Preferencias</span></button>
         </div>
@@ -142,35 +181,25 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
           </form>
           <div className="topbar-actions">
             {canReceiveSpecimens ? <button className="primary-button compact-button" onClick={() => setNewSpecimenOpen(true)}><Plus size={16} /> Nueva muestra</button> : null}
-            <div className="relative-menu-wrap">
-              <button className="icon-button notification-button" aria-label="Notificaciones" onClick={() => setNotificationsOpen((open) => !open)}><Bell size={18} /><span /></button>
-              {notificationsOpen ? (
-                <div className="compact-popover notification-popover">
-                  <strong>Alertas recientes</strong>
-                  {isEducational ? (
-                    <>
-                      <Link href="/app/alerts" onClick={() => setNotificationsOpen(false)}>Reactivo próximo a vencer</Link>
-                      <Link href="/app/alerts" onClick={() => setNotificationsOpen(false)}>Equipo con mantenimiento próximo</Link>
-                      <Link href="/app/education" onClick={() => setNotificationsOpen(false)}>Reserva pendiente de preparar</Link>
-                    </>
-                  ) : (
-                    <>
-                      <Link href="/app/alerts" onClick={() => setNotificationsOpen(false)}>Reactivo próximo a vencer</Link>
-                      <Link href="/app/alerts" onClick={() => setNotificationsOpen(false)}>Calibración pendiente</Link>
-                      <Link href="/app/alerts" onClick={() => setNotificationsOpen(false)}>Reserva educativa por preparar</Link>
-                    </>
-                  )}
-                </div>
-              ) : null}
-            </div>
+            <NotificationCenter />
             <div className="profile-menu-wrap">
               <button className="profile-button" onClick={() => setProfileOpen((open) => !open)}>
-                <span className="avatar">{getInitials(session.name)}</span>
+                <UserAvatar userId={session.userId} name={session.name} size="sm" cacheBust={avatarCacheBust} />
                 <span className="profile-copy"><strong>{session.name}</strong><small>{roleLabels[session.role]}</small></span>
                 <ChevronDown size={14} />
               </button>
               {profileOpen ? (
                 <div className="profile-dropdown">
+                  <div className="profile-dropdown-avatar">
+                    <UserAvatar userId={session.userId} name={session.name} size="lg" cacheBust={avatarCacheBust} />
+                    <div className="profile-dropdown-avatar-actions">
+                      <label className="text-button profile-avatar-upload-label">
+                        <Upload size={13} /> {avatarUploading ? "Subiendo…" : "Cambiar foto"}
+                        <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={avatarUploading} onChange={(event) => void handleAvatarChange(event)} />
+                      </label>
+                      <button className="text-button" onClick={() => void handleAvatarDelete()}><Trash2 size={13} /> Eliminar</button>
+                    </div>
+                  </div>
                   <p><strong>{session.name}</strong><span>{session.email}</span></p>
                   <button onClick={logout}><LogOut size={15} /> Cerrar sesión</button>
                 </div>
@@ -190,7 +219,10 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
       <ActionModal open={dialog === "preferences"} title="Preferencias" description="Estas preferencias se guardan únicamente en este navegador." onClose={() => setDialog(null)}>
         <div className="modal-form"><label className="check-line"><input type="checkbox" defaultChecked /> <span>Mostrar alertas en la barra superior</span></label><label className="check-line"><input type="checkbox" defaultChecked /> <span>Usar tablas compactas</span></label><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cancelar</button><button className="primary-button" onClick={() => { window.localStorage.setItem("nexalab.preferences.saved", "true"); setDialog(null); showToast("Preferencias guardadas en este navegador."); }}>Guardar</button></footer></div>
       </ActionModal>
-      <Toast message={message} onClose={clearToast} />
+      <Toast message={message} type={toastType} onClose={clearToast} />
+      <TutorialOverlay />
+      <TutorialPrompt />
     </div>
+    </TutorialProvider>
   );
 }

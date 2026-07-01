@@ -188,6 +188,14 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .profile-menu-wrap { position: relative; }
 .profile-button { display: flex; height: 44px; align-items: center; gap: 8px; border: 0; background: transparent; padding: 0 2px 0 6px; text-align: left; }
 .avatar { display: grid; width: 31px; height: 31px; border: 1px solid #d7e7e2; border-radius: 50%; color: var(--primary-dark); background: var(--primary-soft); font-size: 10px; font-weight: 800; place-items: center; }
+
+/* ─── USER AVATAR (foto real o iniciales con color determinístico) ─────────── */
+.user-avatar-image { border-radius: 50%; border: 1px solid #d7e7e2; object-fit: cover; flex-shrink: 0; }
+.user-avatar-initials { display: grid; border-radius: 50%; font-weight: 800; place-items: center; flex-shrink: 0; }
+.avatar-tone-teal  { color: var(--primary-dark); background: var(--primary-soft); }
+.avatar-tone-amber { color: #7a4e17; background: var(--amber-soft); }
+.avatar-tone-slate { color: var(--slate); background: var(--slate-soft); }
+.avatar-tone-sage  { color: #3e715f; background: var(--sage-soft); }
 .profile-copy strong { display: block; color: #34484d; font-size: 12px; }
 .profile-copy small { display: block; margin-top: 2px; color: #929ea0; font-size: 10px; }
 .profile-button svg { color: #929fa1; }
@@ -198,6 +206,18 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .profile-dropdown span { overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 11px; text-overflow: ellipsis; }
 .profile-dropdown button { display: flex; width: 100%; align-items: center; gap: 8px; border: 0; padding: 10px 12px; color: #994b45; background: #fff; font-size: 12px; }
 .profile-dropdown button:hover { background: #fdf6f5; }
+.profile-dropdown-avatar { display: flex; align-items: center; gap: 10px; padding: 12px; border-bottom: 1px solid var(--line); }
+.profile-dropdown-avatar-actions { display: grid; gap: 2px; }
+.profile-dropdown-avatar-actions .text-button,
+.profile-dropdown-avatar-actions label.text-button {
+  display: inline-flex;
+  width: auto;
+  padding: 2px 0;
+  color: var(--primary);
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
 .main-content { max-width: 1700px; margin: 0 auto; padding: 26px; }
 .page-stack { display: grid; gap: 20px; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
@@ -975,6 +995,11 @@ html { scroll-behavior: smooth; }
 .empty-state h3 { margin: 0; color: #3e5559; font-size: 14px; font-weight: 700; letter-spacing: -.15px; }
 .empty-state p  { max-width: 360px; margin: 7px 0 0; font-size: 12px; line-height: 1.65; }
 
+/* ─── ERROR STATE ──────────────────────────────────────────────────────────── */
+.error-state .empty-icon { color: #b3413c; background: #fbe9e8; }
+.error-state h3 { margin: 0; color: #7a2d2a; font-size: 14px; font-weight: 700; letter-spacing: -.15px; }
+.error-state p  { max-width: 360px; margin: 7px 0 16px; font-size: 12px; line-height: 1.65; color: var(--muted); }
+
 /* ─── KPI URGENCY VARIANTS ─────────────────────────────────────────────────── */
 .kpi-card-urgent  { border-color: #f0c8c5 !important; background: linear-gradient(135deg, #fff, #fdf6f5) !important; }
 .kpi-card-caution { border-color: #edd9bc !important; background: linear-gradient(135deg, #fff, #fdf8f0) !important; }
@@ -1017,6 +1042,54 @@ html { scroll-behavior: smooth; }
 .notif-body   { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.56; }
 .notif-foot   { display: flex; align-items: center; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
 .notif-unread-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); flex-shrink: 0; margin-left: auto; align-self: center; }
+
+/* ─── CAMPANA DE NOTIFICACIONES (dropdown funcional) ───────────────────────── */
+.notification-popover-wide { width: 340px; max-height: 70vh; display: grid; grid-template-rows: auto 1fr; }
+.notification-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.notification-popover-head strong { padding: 0; }
+.notification-mark-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.notification-mark-all:hover { filter: brightness(0.96); }
+.notification-popover-body { overflow-y: auto; max-height: calc(70vh - 44px); }
+.notification-popover-status { padding: 22px 14px; text-align: center; color: var(--muted); font-size: 12px; }
+.notification-popover-error { color: var(--red); }
+.notification-group-label {
+  display: block;
+  padding: 9px 16px 4px;
+  color: #9ea9ab;
+  font-size: 9px;
+  font-weight: 780;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.notification-item-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
 
 /* ─── PRACTICE HERO CARD (VISTA ESTUDIANTE) ────────────────────────────────── */
 .practice-hero {
@@ -1677,3 +1750,79 @@ html { scroll-behavior: smooth; }
   .bc-change-compare { flex-direction: column; }
   .bc-compare-arrow { transform: rotate(90deg); align-self: center; }
 }
+
+/* ─── TUTORIAL GUIADO ───────────────────────────────────────────────────────── */
+.tutorial-backdrop { position: fixed; inset: 0; z-index: 200; border: 0; padding: 0; cursor: default; background: transparent; }
+.tutorial-spotlight {
+  position: fixed;
+  z-index: 201;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(15, 26, 28, .55);
+  pointer-events: none;
+}
+.tutorial-tooltip {
+  position: fixed;
+  z-index: 202;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(15, 40, 38, .28);
+}
+.tutorial-tooltip-head { display: flex; align-items: center; justify-content: space-between; }
+.tutorial-progress { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
+.tutorial-tooltip h3 { margin: 0; color: #1e3035; font-size: 14px; font-weight: 780; }
+.tutorial-tooltip p { margin: 0; color: #526468; font-size: 12px; line-height: 1.55; }
+.tutorial-dots { display: flex; gap: 5px; margin-top: 2px; }
+.tutorial-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.tutorial-dot-active { background: var(--primary); }
+.tutorial-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.tutorial-actions-nav { display: flex; align-items: center; gap: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-spotlight { transition: none !important; }
+}
+@media (max-width: 480px) {
+  .tutorial-tooltip { left: 12px !important; right: 12px; width: auto !important; max-width: calc(100vw - 24px); }
+}
+
+.tutorial-prompt {
+  position: fixed;
+  right: 22px;
+  bottom: 78px;
+  z-index: 90;
+  display: grid;
+  gap: 8px;
+  width: min(300px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(32, 62, 66, .16);
+}
+.tutorial-prompt > svg { color: var(--primary); }
+.tutorial-prompt p { margin: 0; color: #34484d; font-size: 12px; font-weight: 660; line-height: 1.5; }
+.tutorial-prompt-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.tutorial-prompt-close { position: absolute; top: 8px; right: 8px; }
+
+/* ─── CONFIGURACIÓN: CUENTA, INSTITUCIÓN, NOTIFICACIONES ───────────────────── */
+.account-tab-loading { padding: 32px; color: var(--muted); font-size: 12px; text-align: center; }
+.account-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcfc;
+  flex-wrap: wrap;
+}
+.account-avatar-wrap { display: flex; }
+.account-profile-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.account-file-label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.account-details-grid { margin-top: 4px; }
+.account-readonly-note { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.institution-logo-box { display: flex; align-items: center; }
+.institution-logo-preview { max-width: 160px; max-height: 72px; object-fit: contain; }
+.institution-logo-fallback { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11.5px; max-width: 320px; line-height: 1.5; }

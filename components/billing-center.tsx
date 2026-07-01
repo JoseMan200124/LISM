@@ -321,7 +321,7 @@ function PaymentHistory({ payments, loading }: Readonly<{ payments: Payment[]; l
   const [open, setOpen] = useState(false);
 
   return (
-    <section className="panel bc-history-panel">
+    <section className="panel bc-history-panel" data-tutorial="billing-history">
       <button
         className="bc-history-toggle"
         onClick={() => setOpen((v) => !v)}
@@ -651,9 +651,17 @@ export function BillingCenter() {
         mode?: string;
       };
 
-      const plansArray = Array.isArray(plansJson)
-        ? plansJson as Plan[]
-        : ((plansJson as { data?: unknown[] }).data ?? []) as Plan[];
+      const rawPlansArray = (Array.isArray(plansJson)
+        ? plansJson
+        : (plansJson as { data?: unknown[] }).data ?? []) as Array<Record<string, unknown>>;
+      // La API (/api/billing/plans) devuelve `price_monthly_cents`, no
+      // `price_cents` — sin este mapeo el precio se mostraba como "USDNaN"
+      // en la pantalla de selección de plan (bug preexistente, corregido
+      // aquí sin tocar precios, límites ni el endpoint).
+      const plansArray = rawPlansArray.map((plan) => ({
+        ...plan,
+        price_cents: (plan.price_cents ?? plan.price_monthly_cents ?? 0) as number,
+      })) as Plan[];
 
       const rawSub = subJson.data ?? null;
       const trialEl: boolean = subJson.trial_eligible ?? true;
@@ -1200,7 +1208,7 @@ export function BillingCenter() {
         {/* ── SECTION A: Current Plan Summary ───────────────────────────────── */}
 
         {canManage && subscription && (
-          <section className="panel bc-summary-panel" aria-label="Resumen del plan actual">
+          <section className="panel bc-summary-panel" aria-label="Resumen del plan actual" data-tutorial="billing-plan-summary">
             <div className="bc-summary-inner">
               <div className="bc-summary-main">
                 <div className="bc-summary-plan-row">

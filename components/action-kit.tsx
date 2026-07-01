@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Clipboard, FileDown, Info, TriangleAlert, X } from "lucide-react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
@@ -89,15 +89,24 @@ export function Toast({
 export function useToast() {
   const [state, setState] = useState<{ message: string; type: ToastType }>({ message: "", type: "success" });
 
-  const clearToast = () => setState({ message: "", type: "success" });
+  // Memoizadas con dependencias vacías (setState de React es siempre
+  // estable): sin esto, cada consumidor de useToast() recibía funciones
+  // nuevas en cada render, lo que rompía cualquier useEffect/useCallback
+  // que las tomara como dependencia (ver components/education-center.tsx,
+  // causaba un loop de refetch infinito en el módulo Programa).
+  const clearToast = useCallback(() => setState({ message: "", type: "success" }), []);
+  const showToast = useCallback((msg: string) => setState({ message: msg, type: "success" }), []);
+  const showError = useCallback((msg: string) => setState({ message: msg, type: "error" }), []);
+  const showWarning = useCallback((msg: string) => setState({ message: msg, type: "warning" }), []);
+  const showInfo = useCallback((msg: string) => setState({ message: msg, type: "info" }), []);
 
   return {
     message:   state.message,
     toastType: state.type,
-    showToast:   (msg: string) => setState({ message: msg, type: "success" }),
-    showError:   (msg: string) => setState({ message: msg, type: "error" }),
-    showWarning: (msg: string) => setState({ message: msg, type: "warning" }),
-    showInfo:    (msg: string) => setState({ message: msg, type: "info" }),
+    showToast,
+    showError,
+    showWarning,
+    showInfo,
     clearToast,
   };
 }

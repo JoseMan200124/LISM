@@ -10,6 +10,7 @@
 | `0004_configurable_compliance_core.sql` | Configuración versionada, roles granulares, alertas, flujos, QR, calidad, documentos, firmas, evidencia y protección append-only. |
 | `0005_seed_configurable_demo.sql` | Plantillas y datos demostrativos para la ampliación configurable. |
 | `0006_secure_qr_labels.sql` | Códigos temporales de un solo uso, bitácora de escaneos y etiquetas QR para recursos existentes. |
+| `0011_profile_tutorial_notifications.sql` | Progreso de tutorial guiado por usuario (`users.tutorial_state`) y estado de lectura de notificaciones por usuario (`user_notification_reads`). Avatar de usuario y logo institucional reutilizan `attachments` (`entity_type='user_avatar'` / `'organization_logo'`), sin tablas nuevas de archivos. |
 
 ## Instalación nueva
 

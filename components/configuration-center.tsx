@@ -27,6 +27,10 @@ import {
 } from "@/lib/compliance-data";
 import { InlineNotice, PageIntro, StatGrid, Tabs } from "@/components/lims-ui";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
+import { MyProfileTab, InstitutionTab, NotificationsPrefsTab } from "@/components/configuration-account-tabs";
+import { BillingCenter } from "@/components/billing-center";
+import { hasPermission } from "@/lib/authorization";
+import type { UserSession } from "@/lib/session";
 
 const storageKeys = {
   profile: "nexalab.demo.profile",
@@ -34,7 +38,7 @@ const storageKeys = {
   rules: "nexalab.demo.alert-rules",
 };
 
-const tabs = [
+const labTabs = [
   { key: "profile", label: "Perfil del laboratorio" },
   { key: "fields", label: "Campos personalizados" },
   { key: "alerts", label: "Reglas de alerta" },
@@ -42,8 +46,16 @@ const tabs = [
   { key: "roles", label: "Roles y permisos" },
 ];
 
-export function ConfigurationCenter() {
-  const [activeTab, setActiveTab] = useState("profile");
+export function ConfigurationCenter({ role }: Readonly<{ role?: UserSession["role"] }>) {
+  const canManageInstitution = role ? hasPermission({ role } as UserSession, "configuration.manage") : false;
+  const tabs = [
+    { key: "my-profile", label: "Mi perfil", tutorialId: "config-tab-profile" },
+    ...(canManageInstitution ? [{ key: "institution", label: "Institución y marca", tutorialId: "config-tab-institution" }] : []),
+    { key: "notifications-prefs", label: "Notificaciones", tutorialId: "config-tab-notifications" },
+    { key: "billing-summary", label: "Facturación", tutorialId: "config-tab-billing" },
+    ...labTabs,
+  ];
+  const [activeTab, setActiveTab] = useState("my-profile");
   const [profile, setProfile] = useState<LaboratoryProfileKey>("PHARMA_QC");
   const [fields, setFields] = useState<CustomFieldDefinition[]>(defaultCustomFields);
   const [rules, setRules] = useState<AlertRule[]>(defaultAlertRules);
@@ -88,6 +100,10 @@ export function ConfigurationCenter() {
       <article className="panel configuration-panel">
         <Tabs items={tabs} active={activeTab} onChange={setActiveTab} />
         <div className="configuration-body">
+          {activeTab === "my-profile" ? <MyProfileTab /> : null}
+          {activeTab === "institution" && canManageInstitution ? <InstitutionTab canManage={canManageInstitution} /> : null}
+          {activeTab === "notifications-prefs" ? <NotificationsPrefsTab /> : null}
+          {activeTab === "billing-summary" ? <BillingCenter /> : null}
           {activeTab === "profile" ? <ProfileTab value={profile} onChange={(value) => { setProfile(value); persist(value, fields, rules); }} /> : null}
           {activeTab === "fields" ? <FieldsTab fields={fields} onChange={(next) => { setFields(next); persist(profile, next, rules); }} /> : null}
           {activeTab === "alerts" ? <AlertsTab rules={rules} onChange={(next) => { setRules(next); persist(profile, fields, next); }} /> : null}

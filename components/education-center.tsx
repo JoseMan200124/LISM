@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { UserSession } from "@/lib/session";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
-import { InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
+import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
 
 type PracticeRow = TableRow & {
   id?: string;
@@ -78,16 +78,26 @@ function AdminEducationCenter() {
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { message, toastType, showToast, showError, clearToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [pRes, rRes, nRes] = await Promise.all([
         fetch("/api/education/practices"),
         fetch("/api/education/reservations"),
         fetch("/api/education/notifications"),
       ]);
+      if (pRes.status === 403 || rRes.status === 403 || nRes.status === 403) {
+        setError("No tienes permiso para ver esta sección. Contacta al administrador del laboratorio si crees que es un error.");
+        return;
+      }
+      if (!pRes.ok || !rRes.ok || !nRes.ok) {
+        setError("El servidor no pudo procesar la solicitud. Intenta de nuevo en unos segundos.");
+        return;
+      }
       const [pData, rData, nData] = await Promise.all([
         pRes.json() as Promise<{ data?: PracticeRow[] }>,
         rRes.json() as Promise<{ data?: ReservationRow[] }>,
@@ -97,11 +107,11 @@ function AdminEducationCenter() {
       setReservations(rData.data ?? []);
       setNotifications(nData.data ?? []);
     } catch {
-      showError("No se pudo cargar la información de prácticas. Verifica tu conexión e intenta de nuevo.");
+      setError("No se pudo cargar la información de prácticas. Verifica tu conexión e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
-  }, [showError]);
+  }, []);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -174,10 +184,20 @@ function AdminEducationCenter() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="page-stack">
+        <PageIntro eyebrow="PROGRAMA EDUCATIVO" title="Prácticas y reservas" description="Administra prácticas, reservas de recursos y avisos para el laboratorio educativo." />
+        <ErrorState description={error} onRetry={() => void load()} />
+        <Toast message={message} type={toastType} onClose={clearToast} />
+      </div>
+    );
+  }
+
   return (
     <div className="page-stack">
       <PageIntro eyebrow="PROGRAMA EDUCATIVO" title="Prácticas y reservas" description="Administra prácticas, reservas de recursos y avisos para el laboratorio educativo.">
-        <button className="primary-button" onClick={() => setAddTarget("practice")}><Plus size={15} /> Nueva práctica</button>
+        <button className="primary-button" data-tutorial="education-new-practice" onClick={() => setAddTarget("practice")}><Plus size={15} /> Nueva práctica</button>
       </PageIntro>
       <StatGrid items={[
         { label: "Prácticas programadas", value: String(practices.filter((p) => ["PLANNED", "PREPARING", "READY"].includes(String(p.status))).length), hint: "Próximas", icon: CalendarDays },
@@ -250,31 +270,42 @@ function ProfessorEducationCenter() {
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { message, toastType, showToast, showError, clearToast } = useToast();
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const [pRes, rRes, nRes] = await Promise.all([
-          fetch("/api/education/practices"),
-          fetch("/api/education/reservations"),
-          fetch("/api/education/notifications"),
-        ]);
-        const [pData, rData, nData] = await Promise.all([
-          pRes.json() as Promise<{ data?: PracticeRow[] }>,
-          rRes.json() as Promise<{ data?: ReservationRow[] }>,
-          nRes.json() as Promise<{ data?: NotificationRow[] }>,
-        ]);
-        setPractices(pData.data ?? []);
-        setReservations(rData.data ?? []);
-        setNotifications(nData.data ?? []);
-      } catch {
-        showError("No se pudo cargar la información. Verifica tu conexión e intenta de nuevo.");
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [pRes, rRes, nRes] = await Promise.all([
+        fetch("/api/education/practices"),
+        fetch("/api/education/reservations"),
+        fetch("/api/education/notifications"),
+      ]);
+      if (pRes.status === 403 || rRes.status === 403 || nRes.status === 403) {
+        setError("No tienes permiso para ver esta sección. Contacta al administrador del laboratorio si crees que es un error.");
+        return;
       }
-    })();
-  }, [showError]);
+      if (!pRes.ok || !rRes.ok || !nRes.ok) {
+        setError("El servidor no pudo procesar la solicitud. Intenta de nuevo en unos segundos.");
+        return;
+      }
+      const [pData, rData, nData] = await Promise.all([
+        pRes.json() as Promise<{ data?: PracticeRow[] }>,
+        rRes.json() as Promise<{ data?: ReservationRow[] }>,
+        nRes.json() as Promise<{ data?: NotificationRow[] }>,
+      ]);
+      setPractices(pData.data ?? []);
+      setReservations(rData.data ?? []);
+      setNotifications(nData.data ?? []);
+    } catch {
+      setError("No se pudo cargar la información. Verifica tu conexión e intenta de nuevo.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   async function createNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -318,10 +349,20 @@ function ProfessorEducationCenter() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="page-stack">
+        <PageIntro eyebrow="MI PROGRAMA" title="Mis prácticas" description="Consulta el cronograma, tus reservas de recursos y publica avisos para tus grupos." />
+        <ErrorState description={error} onRetry={() => void load()} />
+        <Toast message={message} type={toastType} onClose={clearToast} />
+      </div>
+    );
+  }
+
   return (
     <div className="page-stack">
       <PageIntro eyebrow="MI PROGRAMA" title="Mis prácticas" description="Consulta el cronograma, tus reservas de recursos y publica avisos para tus grupos.">
-        <button className="secondary-button" onClick={() => setNotifModal("notification")}><Bell size={15} /> Publicar aviso</button>
+        <button className="secondary-button" data-tutorial="education-new-notification" onClick={() => setNotifModal("notification")}><Bell size={15} /> Publicar aviso</button>
       </PageIntro>
       <StatGrid items={[
         { label: "Mis prácticas", value: String(practices.length), hint: "Asignadas a mí", icon: CalendarDays },
@@ -392,28 +433,39 @@ function StudentEducationCenter() {
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const { message, toastType, showError, clearToast } = useToast();
+  const [error, setError] = useState<string | null>(null);
+  const { message, toastType, clearToast } = useToast();
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const [pRes, nRes] = await Promise.all([
-          fetch("/api/education/practices"),
-          fetch("/api/education/notifications"),
-        ]);
-        const [pData, nData] = await Promise.all([
-          pRes.json() as Promise<{ data?: PracticeRow[] }>,
-          nRes.json() as Promise<{ data?: NotificationRow[] }>,
-        ]);
-        setPractices(pData.data ?? []);
-        setNotifications(nData.data ?? []);
-      } catch {
-        showError("No se pudo cargar la información. Verifica tu conexión e intenta de nuevo.");
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [pRes, nRes] = await Promise.all([
+        fetch("/api/education/practices"),
+        fetch("/api/education/notifications"),
+      ]);
+      if (pRes.status === 403 || nRes.status === 403) {
+        setError("No tienes permiso para ver esta sección. Contacta a tu docente o administrador si crees que es un error.");
+        return;
       }
-    })();
-  }, [showError]);
+      if (!pRes.ok || !nRes.ok) {
+        setError("El servidor no pudo procesar la solicitud. Intenta de nuevo en unos segundos.");
+        return;
+      }
+      const [pData, nData] = await Promise.all([
+        pRes.json() as Promise<{ data?: PracticeRow[] }>,
+        nRes.json() as Promise<{ data?: NotificationRow[] }>,
+      ]);
+      setPractices(pData.data ?? []);
+      setNotifications(nData.data ?? []);
+    } catch {
+      setError("No se pudo cargar la información. Verifica tu conexión e intenta de nuevo.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const next = practices.find((p) => ["READY", "IN_PROGRESS", "PLANNED"].includes(String(p.status)));
 
@@ -423,6 +475,16 @@ function StudentEducationCenter() {
         <PageIntro eyebrow="MIS PRÁCTICAS" title="Laboratorio educativo" description="Consulta tus prácticas asignadas, avisos del docente e instrucciones previas." />
         <SkeletonKpiGrid cols={3} />
         <SkeletonTable rows={3} cols={5} />
+        <Toast message={message} type={toastType} onClose={clearToast} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page-stack">
+        <PageIntro eyebrow="MIS PRÁCTICAS" title="Laboratorio educativo" description="Consulta tus prácticas asignadas, avisos del docente e instrucciones previas." />
+        <ErrorState description={error} onRetry={() => void load()} />
         <Toast message={message} type={toastType} onClose={clearToast} />
       </div>
     );
