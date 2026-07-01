@@ -1825,4 +1825,15 @@ html { scroll-behavior: smooth; }
 .account-readonly-note { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
 .institution-logo-box { display: flex; align-items: center; }
 .institution-logo-preview { max-width: 160px; max-height: 72px; object-fit: contain; }
-.institution-logo-fallback { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11.5px; max-width: 320px; line-height: 1.5; }
+.institution-logo-fallback { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 11.5px; max-width: 360px; line-height: 1.5; }
+.institution-logo-preview-fallback { max-width: 44px; max-height: 44px; opacity: .55; }
+.user-directory-cell { display: flex; align-items: center; gap: 9px; }
+
+/* `.modal-form input { width:100% }` (línea 381) estira cualquier checkbox u
+   radio a lo ancho completo de su contenedor, deformándolo por completo —
+   causa raíz de las casillas "descuadradas" en Preferencias/Notificaciones.
+   Los checkboxes/radios deben mantener su tamaño natural. */
+.modal-form input[type="checkbox"],
+.modal-form input[type="radio"] {
+  width: auto;
+}

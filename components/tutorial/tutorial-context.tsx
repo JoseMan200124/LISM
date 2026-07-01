@@ -104,8 +104,12 @@ export function TutorialProvider({ children }: Readonly<{ children: ReactNode }>
   const isPromptDismissed = useCallback((moduleKey: ModuleKey) => dismissedThisSession.has(moduleKey), [dismissedThisSession]);
 
   const dismissPromptForSession = useCallback((moduleKey: ModuleKey) => {
+    // "No, gracias" se persiste igual que completar/omitir el tutorial (se
+    // guarda en users.tutorial_state) — así el banner no vuelve a
+    // aparecer en próximas visitas/sesiones, no solo en la pestaña actual.
     setDismissedThisSession((prev) => new Set(prev).add(moduleKey));
-  }, []);
+    void persistCompletion(moduleKey);
+  }, [persistCompletion]);
 
   const value = useMemo<TutorialContextValue>(() => ({
     activeModule, stepIndex, startTutorial, next, back, skip, close,

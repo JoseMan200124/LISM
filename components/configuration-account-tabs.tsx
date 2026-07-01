@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Building2, ImageOff, Trash2, Upload } from "lucide-react";
+import { Building2, Trash2, Upload } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { ErrorState } from "@/components/lims-ui";
 import { UserAvatar } from "@/components/user-avatar";
@@ -149,7 +149,8 @@ function LogoPreview({ probeUrl, cacheBust }: Readonly<{ probeUrl: string; cache
   }
   return (
     <div className="institution-logo-fallback">
-      <ImageOff size={20} />
+      {/* eslint-disable-next-line @next/next/no-img-element -- asset estático público, no requiere next/image aquí */}
+      <img src="/branding/nexalab-mark.png" alt="NexaLab (respaldo)" className="institution-logo-preview institution-logo-preview-fallback" />
       <span>Sin logo institucional — se usa NexaLab como respaldo en tus reportes</span>
     </div>
   );
