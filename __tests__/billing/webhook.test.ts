@@ -273,9 +273,12 @@ function makeMockSql(opts: {
   const rowSequence = opts.rowSequence ?? [];
 
   const sql = vi.fn((...args: unknown[]) => {
-    // args[0] is the TemplateStringsArray; join its parts to capture the SQL text
+    // args[0] is the TemplateStringsArray, the rest are the interpolated values;
+    // stitch them back together so assertions can see bound values (e.g. status
+    // strings), not just the literal query text.
     const parts = args[0] as TemplateStringsArray;
-    calls.push(parts.join("?"));
+    const values = args.slice(1);
+    calls.push(parts.reduce((acc, part, i) => acc + part + (i < values.length ? String(values[i]) : ""), ""));
 
     const rows = rowSequence[callIndex] ?? [];
     callIndex++;
