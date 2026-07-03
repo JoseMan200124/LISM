@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "@/components/login-form";
 import { BrandLogo } from "@/components/brand-logo";
+
+export const metadata: Metadata = {
+  title: "Ingresar",
+  robots: { index: false, follow: true },
+};
 
 export default async function LoginPage() {
   const session = await getSession();

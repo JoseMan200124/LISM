@@ -1,0 +1,45 @@
+# NexaLab
+
+> NexaLab es un sistema de gestión de laboratorio (LIS) orientado a laboratorios
+> educativos: colegios, universidades y laboratorios escolares. Centraliza
+> inventario, equipos, prácticas y reservas en un panel operativo claro y
+> trazable.
+
+## Qué resuelve
+
+- Inventario de reactivos, materiales e insumos por categoría, con vencimientos
+  y stock mínimo.
+- Gestión de equipos: estado, mantenimiento, calibración y certificados.
+- Programación de prácticas educativas, reservas de recursos y avisos a
+  estudiantes.
+- Alertas de vencimientos, mantenimientos y reservas pendientes de atención.
+- Acceso seguro por código QR con token temporal para consultar inventario y
+  equipos sin exponer datos sensibles.
+- Administración de usuarios, roles y auditoría del laboratorio.
+
+## A quién sirve
+
+Colegios, universidades y laboratorios escolares con equipos técnicos que
+necesitan coordinar inventario, equipos y prácticas sin depender de hojas de
+cálculo dispersas.
+
+## Precios
+
+Los planes y precios vigentes se muestran en tiempo real en
+https://nexalab.com/#precios. Todos los planes incluyen el primer mes gratis,
+sin costo inicial, con posibilidad de cambiar o cancelar en cualquier momento.
+
+## Páginas principales
+
+- [Inicio](https://nexalab.com/): propuesta de valor, flujo de trabajo,
+  capacidades, precios y preguntas frecuentes.
+- [Crear cuenta](https://nexalab.com/registro): registro con mes gratis.
+- [Ingresar](https://nexalab.com/login): acceso para laboratorios existentes.
+
+## Notas para agentes y crawlers
+
+- El contenido público e indexable vive en `/`. Las rutas `/app/*`, `/api/*` y
+  `/qr/*` son privadas, requieren autenticación y no deben citarse como fuente
+  pública de información.
+- Precios, capacidades y preguntas frecuentes en `/` reflejan la fuente de
+  verdad del producto; evita inferir funciones no listadas allí.

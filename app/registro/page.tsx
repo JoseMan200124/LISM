@@ -1,8 +1,14 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { SignupForm } from "@/components/signup-form";
 import { BrandLogo } from "@/components/brand-logo";
+
+export const metadata: Metadata = {
+  title: "Crear cuenta",
+  robots: { index: false, follow: true },
+};
 
 export default async function RegisterPage() {
   const session = await getSession();

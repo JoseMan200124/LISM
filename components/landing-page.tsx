@@ -17,6 +17,23 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { PricingSection } from "@/components/pricing-section";
+import { FaqSection } from "@/components/faq-section";
+import { JsonLd } from "@/components/structured-data";
+
+const softwareApplicationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "NexaLab",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description:
+    "NexaLab reúne inventario, equipos, prácticas y reservas de laboratorios educativos en una experiencia clara, trazable y fácil de adoptar.",
+  offers: {
+    "@type": "Offer",
+    priceCurrency: "USD",
+    category: "Suscripción mensual con primer mes gratis",
+  },
+};
 
 const audiences = [
   { icon: Building2, label: "Colegios y universidades" },
@@ -78,6 +95,7 @@ const capabilities = [
 export function LandingPage() {
   return (
     <main className="landing-page">
+      <JsonLd data={softwareApplicationJsonLd} />
       <header className="landing-header">
         <div className="landing-container landing-header-inner">
           <Link href="/" className="landing-brand" aria-label="Ir al inicio de NexaLab">
@@ -88,6 +106,7 @@ export function LandingPage() {
             <a href="#flujo">Flujo</a>
             <a href="#capacidades">Capacidades</a>
             <a href="#precios">Precios</a>
+            <a href="#faq">FAQ</a>
           </nav>
           <div className="landing-header-actions">
             <Link className="landing-login-link" href="/login">
@@ -290,6 +309,8 @@ export function LandingPage() {
       </section>
 
       <PricingSection />
+
+      <FaqSection />
 
       <section className="landing-cta-section">
         <div className="landing-container landing-cta-card">
