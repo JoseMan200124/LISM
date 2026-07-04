@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { JsonLd } from "@/components/structured-data";
+import { VersionWatcher } from "@/components/version-watcher";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://nexalab.com";
 const siteName = "NexaLab";
@@ -77,11 +78,14 @@ const organizationJsonLd = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const appVersion = process.env.APP_VERSION ?? "dev";
+
   return (
     <html lang="es">
       <body>
         <JsonLd data={organizationJsonLd} />
         {children}
+        <VersionWatcher initialVersion={appVersion} />
       </body>
     </html>
   );

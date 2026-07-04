@@ -27,6 +27,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# SHA del commit desplegado (pasado por CI vía --build-arg), expuesto en
+# runtime por /api/version para que el cliente detecte cuándo hay una
+# revisión más nueva corriendo que la que tiene cargada.
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
 

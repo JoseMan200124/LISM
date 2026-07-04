@@ -937,6 +937,50 @@ html { scroll-behavior: smooth; }
 .app-toast-warning svg { color: var(--amber); }
 .app-toast-info svg    { color: #3d7caa; }
 
+/* ─── VERSION UPDATE BANNER ────────────────────────────────────────────────── */
+.version-update-banner {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 120;
+  display: flex;
+  max-width: min(92vw, 440px);
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  border: 1px solid #aed0c7;
+  border-radius: 10px;
+  color: #3a6560;
+  background: #f4fbf9;
+  box-shadow: 0 16px 42px rgba(34,70,64,.18), 0 2px 8px rgba(34,70,64,.10);
+  font-size: 12px;
+  font-weight: 760;
+}
+.version-update-refresh {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 10px;
+  color: #fff;
+  background: var(--primary);
+  font-size: 11.5px;
+  font-weight: 760;
+  cursor: pointer;
+}
+.version-update-banner > button:last-child {
+  display: grid;
+  flex: 0 0 auto;
+  margin-left: 2px;
+  border: 0;
+  color: #63817c;
+  background: transparent;
+  cursor: pointer;
+  place-items: center;
+}
+
 /* ─── SKELETON LOADING ─────────────────────────────────────────────────────── */
 @keyframes nexalab-shimmer {
   0%   { background-position: -800px 0; }
