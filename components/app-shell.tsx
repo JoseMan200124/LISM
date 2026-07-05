@@ -20,7 +20,7 @@ import {
 import { navigation, educationalNavigationByRole, educationalNavigationFallback } from "@/lib/navigation";
 import type { UserSession } from "@/lib/session";
 import { NewAccessionModal } from "@/components/new-accession-modal";
-import { BrandLogo } from "@/components/brand-logo";
+import { OrganizationLogo } from "@/components/organization-logo";
 import { roleLabels } from "@/lib/permissions";
 import { canAccessModule, hasPermission } from "@/lib/authorization";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
@@ -129,7 +129,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
       <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
         <div className="sidebar-header">
           <Link href="/app" className="brand-home-link" aria-label="Ir al inicio de NexaLab">
-            <BrandLogo compact subtitle={isEducational ? "Educativo" : "Laboratory OS"} priority />
+            <OrganizationLogo compact subtitle={isEducational ? "Educativo" : "Laboratory OS"} priority />
           </Link>
           <button className="icon-button sidebar-close" aria-label="Cerrar menú" onClick={() => setMobileOpen(false)}><X size={18} /></button>
         </div>

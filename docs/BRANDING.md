@@ -13,10 +13,11 @@
 
 El logotipo horizontal se integra únicamente donde fortalece la orientación y la identidad del producto sin saturar la interfaz:
 
-- Encabezado del menú lateral.
+- Encabezado del menú lateral (`components/organization-logo.tsx`) — se sustituye automáticamente por el logo institucional que suba el laboratorio en Configuración > Institución y marca (`/api/organization/logo`); NexaLab queda como respaldo mientras no haya uno.
 - Pantalla de inicio de sesión en escritorio.
 - Pantalla de inicio de sesión en dispositivos móviles.
 - Ícono del navegador y accesos directos.
+- Reportes PDF exportados (`/api/organization/branding`) — mismo logo institucional, con NexaLab como respaldo.
 
 La navegación interna conserva iconos lineales pequeños para acciones y módulos. El logotipo no se repite dentro de tarjetas, tablas o paneles operativos porque competiría con la información de laboratorio.
 

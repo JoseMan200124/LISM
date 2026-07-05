@@ -5,6 +5,7 @@ import { Building2, Trash2, Upload } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { ErrorState } from "@/components/lims-ui";
 import { UserAvatar } from "@/components/user-avatar";
+import { useOrganizationLogoStatus } from "@/components/organization-logo";
 import { roleLabels } from "@/lib/permissions";
 import type { UserSession } from "@/lib/session";
 
@@ -130,22 +131,12 @@ export function MyProfileTab() {
   );
 }
 
-function LogoPreview({ probeUrl, cacheBust }: Readonly<{ probeUrl: string; cacheBust: number }>) {
-  const [status, setStatus] = useState<"checking" | "ok" | "failed">("checking");
-
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("checking");
-    const probe = new Image();
-    probe.onload = () => { if (!cancelled) setStatus("ok"); };
-    probe.onerror = () => { if (!cancelled) setStatus("failed"); };
-    probe.src = `${probeUrl}${cacheBust ? `?v=${cacheBust}` : ""}`;
-    return () => { cancelled = true; };
-  }, [probeUrl, cacheBust]);
+function LogoPreview({ cacheBust }: Readonly<{ cacheBust: number }>) {
+  const { status, src } = useOrganizationLogoStatus(cacheBust);
 
   if (status === "ok") {
     // eslint-disable-next-line @next/next/no-img-element -- imagen autenticada, ya precargada y verificada
-    return <img src={`${probeUrl}${cacheBust ? `?v=${cacheBust}` : ""}`} alt="Logo institucional" className="institution-logo-preview" />;
+    return <img src={src} alt="Logo institucional" className="institution-logo-preview" />;
   }
   return (
     <div className="institution-logo-fallback">
@@ -214,11 +205,11 @@ export function InstitutionTab({ canManage }: Readonly<{ canManage: boolean }>) 
   return (
     <div>
       <div className="section-heading">
-        <div><h2>Institución y marca</h2><p>El logo institucional aparece en tus reportes PDF y en esta pantalla. La interfaz de NexaLab no cambia.</p></div>
+        <div><h2>Institución y marca</h2><p>El logo institucional aparece en tus reportes PDF, en el menú lateral y en esta pantalla.</p></div>
       </div>
       <div className="account-profile-card">
         <div className="institution-logo-box" data-tutorial="config-institution-logo">
-          <LogoPreview probeUrl="/api/organization/logo" cacheBust={cacheBust} />
+          <LogoPreview cacheBust={cacheBust} />
         </div>
         {canManage ? (
           <div className="account-profile-actions">
