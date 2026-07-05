@@ -106,6 +106,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .brand-lockup { position: relative; z-index: 1; display: inline-flex; min-width: 0; flex-direction: column; align-items: flex-start; }
 .brand-wordmark { display: block; width: auto; height: 48px; object-fit: contain; object-position: left center; }
 .brand-lockup-compact .brand-wordmark { height: 31px; }
+/* Logo institucional subido por el laboratorio: dimensiones nativas
+   arbitrarias (cuadrado, vertical, muy ancho…), así que a diferencia de
+   brand-wordmark se acota también el ancho — object-fit: contain lo
+   escala dentro de esa caja sin deformarlo ni desbordar el sidebar. */
+.organization-logo-mark { display: block; width: 100%; max-width: 200px; height: 52px; object-fit: contain; object-position: left center; }
+.brand-lockup-compact .organization-logo-mark { max-width: 176px; height: 42px; }
 .brand-subtitle { display: block; margin-top: 3px; color: #819095; font-size: 8px; font-weight: 760; letter-spacing: .8px; line-height: 1; text-transform: uppercase; }
 .brand-lockup-light .brand-subtitle { color: #819095; }
 .login-side-content { position: relative; z-index: 1; max-width: 620px; padding-bottom: 44px; }

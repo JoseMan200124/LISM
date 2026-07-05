@@ -44,7 +44,7 @@ export function OrganizationLogo({ className = "", subtitle, compact = false, pr
   return (
     <span className={`brand-lockup ${compact ? "brand-lockup-compact" : ""} ${className}`.trim()}>
       {/* eslint-disable-next-line @next/next/no-img-element -- imagen autenticada de tamaño variable, next/image requiere dimensiones fijas que no aplican a un logo institucional arbitrario */}
-      <img src={src} alt="Logo institucional" className="brand-wordmark" />
+      <img src={src} alt="Logo institucional" className="organization-logo-mark" />
       {subtitle ? <span className="brand-subtitle">{subtitle}</span> : null}
     </span>
   );
