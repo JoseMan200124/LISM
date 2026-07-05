@@ -91,8 +91,9 @@ export function TutorialProvider({ children }: Readonly<{ children: ReactNode }>
   }, [activeModule, persistCompletion]);
 
   const close = useCallback(() => {
+    if (activeModule) void persistCompletion(activeModule);
     setActiveModule(null);
-  }, []);
+  }, [activeModule, persistCompletion]);
 
   const isModuleCompleted = useCallback((moduleKey: ModuleKey) => {
     const definition = tutorialsByModule[moduleKey];

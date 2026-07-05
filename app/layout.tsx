@@ -68,6 +68,15 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+// El layout raíz debe leer `APP_VERSION` en cada request (no una sola vez al
+// prerenderizar): el Dockerfile solo fija esa env var en la etapa `runner`,
+// después del `npm run build`, así que un render estático horneaba siempre
+// el valor de fallback "dev" en el HTML, mientras `/api/version` (también
+// force-dynamic) sí reportaba la versión real desplegada — el desfase hacía
+// que VersionWatcher viera una actualización disponible permanentemente,
+// incluso justo después de recargar.
+export const dynamic = "force-dynamic";
+
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",

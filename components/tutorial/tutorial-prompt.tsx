@@ -8,9 +8,8 @@ import { useTutorial } from "@/components/tutorial/tutorial-context";
 /**
  * Banner discreto y no bloqueante que ofrece iniciar el tutorial la primera
  * vez que el usuario visita una sección con tutorial disponible y que
- * todavía no ha completado. Rechazarlo solo lo oculta por esta sesión (no
- * se persiste como "completado"), y siempre puede reabrirse desde el ícono
- * de tutorial en la barra lateral.
+ * todavía no ha completado. Rechazarlo se persiste igual que completar u
+ * omitir el tutorial, así no vuelve a ofrecerse en futuras sesiones.
  */
 export function TutorialPrompt() {
   const pathname = usePathname();
