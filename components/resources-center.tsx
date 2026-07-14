@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Boxes, FileCheck2, PackageCheck, Plus, ScanBarcode, ShieldCheck, Wrench } from "lucide-react";
+import { Archive, Boxes, FileCheck2, PackageCheck, Plus, ScanBarcode, ShieldCheck, Trash2, Wrench } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { QrLabelManager, QrScanTester } from "@/components/qr-label-manager";
 import { defaultInventoryCategories } from "@/lib/lab-profile";
@@ -92,7 +92,38 @@ export function InventoryCenter() {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const inventoryDefs = useCustomFieldDefs("inventory");
   const { message, toastType, showToast, showError, clearToast } = useToast();
+
+  async function openDetail(id: string) {
+    setDetailLoading(true);
+    setDetail(null);
+    try {
+      const res = await fetch(`/api/inventory/${id}`);
+      if (res.ok) { const p = await res.json() as { data?: Record<string, unknown> }; setDetail(p.data ?? null); }
+      else showError(await responseMessage(res));
+    } catch { showError("No se pudo cargar el detalle del artículo."); }
+    finally { setDetailLoading(false); }
+  }
+  async function discardItem(id: string, body: Record<string, unknown>): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/inventory/${id}/discard`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { showError(await responseMessage(res)); return false; }
+      const p = await res.json() as { data?: { archived?: boolean } };
+      showToast(p.data?.archived ? "Descarte registrado. El lote quedó agotado y archivado." : "Descarte registrado y existencia recalculada.");
+      setDetail(null); await load(); return true;
+    } catch { showError("No se pudo conectar con el servidor."); return false; }
+  }
+  async function archiveItem(id: string) {
+    if (!window.confirm("¿Archivar este artículo? Dejará de aparecer en el inventario activo, pero conserva su historial.")) return;
+    try {
+      const res = await fetch(`/api/inventory/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "ARCHIVED" }) });
+      if (!res.ok) { showError(await responseMessage(res)); return; }
+      showToast("Artículo archivado."); setDetail(null); await load();
+    } catch { showError("No se pudo conectar con el servidor."); }
+  }
 
   useEffect(() => { if (readFilterQuery() === "low-stock") setLowStockOnly(true); }, []);
 
@@ -265,6 +296,7 @@ export function InventoryCenter() {
               <SimpleTable
                 columns={[{ key: "sku", label: "Código" }, { key: "name", label: "Artículo" }, { key: "category", label: "Categoría" }, { key: "lot", label: "Lote" }, { key: "location", label: "Ubicación" }, { key: "quantity", label: "Existencia" }, { key: "minimum", label: "Mínimo" }, { key: "expires", label: "Vence" }, { key: "status", label: "Estado" }]}
                 rows={filteredItems}
+                onRowClick={(row) => { if (row.id) void openDetail(String(row.id)); }}
                 searchPlaceholder="Buscar reactivo, lote o ubicación…"
                 emptyTitle="Sin artículos todavía"
                 emptyMessage="Crea un nuevo artículo para comenzar a controlar tu inventario."
@@ -276,6 +308,7 @@ export function InventoryCenter() {
           {tab === "qr" ? <QrLabelManager entityType="INVENTORY_ITEM" /> : null}
         </div>
       </article>
+      <InventoryDetailModal open={detailLoading || Boolean(detail)} loading={detailLoading} item={detail} defs={inventoryDefs} onClose={() => setDetail(null)} onDiscard={discardItem} onArchive={archiveItem} />
       <InventoryItemModal open={modal === "item"} categories={categories} onClose={() => setModal(null)} onSave={addItem} />
       <InventoryMovementModal open={modal === "movement"} items={items} onClose={() => setModal(null)} onSave={addMovement} />
       <LocationModal open={modal === "location"} onClose={() => setModal(null)} onSave={addLocation} />
@@ -490,6 +523,84 @@ function ResourceSection({ title, copy, action, onAction, actionTutorialId, disa
 
 function ModalFooter({ onClose, saving }: Readonly<{ onClose: () => void; saving?: boolean }>) {
   return <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Guardar"}</button></footer>;
+}
+
+function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, onArchive }: Readonly<{
+  open: boolean; loading: boolean; item: Record<string, unknown> | null;
+  defs: ReturnType<typeof useCustomFieldDefs>;
+  onClose: () => void; onDiscard: (id: string, body: Record<string, unknown>) => Promise<boolean>; onArchive: (id: string) => void;
+}>) {
+  const [discarding, setDiscarding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  if (!open) return null;
+  const id = item ? String(item.id) : "";
+  const cv = (item?.custom_values ?? {}) as Record<string, unknown>;
+  const movements = (item?.movements ?? []) as Array<Record<string, unknown>>;
+
+  async function submitDiscard(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setSaving(true);
+    const ok = await onDiscard(id, {
+      quantity: Number(data.get("quantity") ?? 0),
+      reason: String(data.get("reason") ?? "").trim(),
+      note: String(data.get("note") ?? "").trim(),
+    });
+    setSaving(false);
+    if (ok) setDiscarding(false);
+  }
+
+  return (
+    <ActionModal open={open} title={item ? `${item.sku} · ${item.name}` : "Artículo"} description="Ficha del artículo: datos, campos personalizados, historial y acciones." onClose={onClose}>
+      <div className="modal-form">
+        {loading || !item ? <p>Cargando…</p> : (
+          <>
+            <div className="details-grid">
+              <div><small>Categoría</small><strong>{String(item.category ?? "—")}</strong></div>
+              <div><small>Existencia</small><strong>{String(item.quantity ?? 0)} {String(item.unit ?? "")}</strong></div>
+              <div><small>Mínimo</small><strong>{String(item.reorder_point ?? 0)} {String(item.unit ?? "")}</strong></div>
+              <div><small>Ubicación</small><strong>{String(item.location ?? "—")}</strong></div>
+              <div><small>Lote</small><strong>{String(item.lot_number ?? "—") || "—"}</strong></div>
+              <div><small>Proveedor</small><strong>{String(item.vendor ?? "—") || "—"}</strong></div>
+              <div><small>Vence</small><strong>{fmtDate(item.expires_at)}</strong></div>
+              <div><small>Estado</small><strong>{String(item.status) === "ARCHIVED" ? "Archivado" : "Activo"}</strong></div>
+              {item.safety_sheet_url ? <div className="field-span-two"><small>Ficha de seguridad</small><strong><a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">Abrir ficha</a></strong></div> : null}
+            </div>
+            {defs.length > 0 ? (
+              <div className="details-grid" style={{ marginTop: 10 }}>
+                {defs.map((d) => <div key={d.id}><small>{d.label}</small><strong>{cv[d.field_key] === undefined || cv[d.field_key] === "" ? "—" : String(cv[d.field_key])}</strong></div>)}
+              </div>
+            ) : null}
+            <p className="form-section-title" style={{ marginTop: 14 }}>Historial de movimientos</p>
+            {movements.length === 0 ? <p className="modal-note">Sin movimientos registrados.</p> : (
+              <div className="definition-list">
+                {movements.slice(0, 8).map((m) => (
+                  <article key={String(m.id)} className="definition-row">
+                    <div><strong>{MOVEMENT_TYPE_LABEL[String(m.movement_type)] ?? String(m.movement_type)}</strong><p>{String(m.note ?? "") || String(m.reason_code ?? "")}</p></div>
+                    <small>{String(m.quantity_delta)} → {String(m.resulting_quantity)}</small>
+                    <em>{fmtDateTime(m.performed_at)}</em>
+                  </article>
+                ))}
+              </div>
+            )}
+            {discarding ? (
+              <form className="inline-editor" onSubmit={submitDiscard} style={{ marginTop: 12 }}>
+                <label><span>Cantidad a descartar</span><input name="quantity" type="number" min="0.001" step="0.001" required /></label>
+                <label><span>Motivo</span><input name="reason" required placeholder="Vencido, contaminado, roto…" /></label>
+                <label><span>Observación</span><input name="note" placeholder="Detalle opcional" /></label>
+                <button className="primary-button" type="submit" disabled={saving}>{saving ? "Registrando…" : "Confirmar descarte"}</button>
+              </form>
+            ) : null}
+            <footer className="modal-actions">
+              <button type="button" className="secondary-button" onClick={onClose}>Cerrar</button>
+              {String(item.status) !== "ARCHIVED" ? <button type="button" className="secondary-button" onClick={() => onArchive(id)}><Archive size={15} /> Archivar</button> : null}
+              {String(item.status) !== "ARCHIVED" ? <button type="button" className="primary-button" onClick={() => setDiscarding((c) => !c)}><Trash2 size={15} /> Descartar</button> : null}
+            </footer>
+          </>
+        )}
+      </div>
+    </ActionModal>
+  );
 }
 
 function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ open: boolean; categories: CategoryOption[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
