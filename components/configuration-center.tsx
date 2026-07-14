@@ -17,24 +17,21 @@ import {
 } from "lucide-react";
 import {
   defaultAlertRules,
-  defaultCustomFields,
   laboratoryProfiles,
   roleTemplates,
   workflowTemplates,
   type AlertRule,
-  type CustomFieldDefinition,
   type LaboratoryProfileKey,
 } from "@/lib/compliance-data";
 import { InlineNotice, PageIntro, StatGrid, Tabs } from "@/components/lims-ui";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
+import { CustomFieldsManager } from "@/components/custom-fields-manager";
 import { MyProfileTab, InstitutionTab, NotificationsPrefsTab } from "@/components/configuration-account-tabs";
 import { BillingCenter } from "@/components/billing-center";
 import { hasPermission } from "@/lib/authorization";
 import type { UserSession } from "@/lib/session";
 
 const storageKeys = {
-  profile: "nexalab.demo.profile",
-  fields: "nexalab.demo.custom-fields",
   rules: "nexalab.demo.alert-rules",
 };
 
@@ -60,21 +57,17 @@ export function ConfigurationCenter({ role }: Readonly<{ role?: UserSession["rol
   // se inicia en PHARMA_QC ni se cambia por localStorage: los demás perfiles se
   // muestran bloqueados (§3.7).
   const [profile] = useState<LaboratoryProfileKey>("EDUCATIONAL");
-  const [fields, setFields] = useState<CustomFieldDefinition[]>(defaultCustomFields);
   const [rules, setRules] = useState<AlertRule[]>(defaultAlertRules);
   const [message, setMessage] = useState("Configuración vigente: versión 3 · aprobada por Calidad");
   const [historyOpen, setHistoryOpen] = useState(false);
   const { message: toastMessage, showToast, clearToast } = useToast();
 
   useEffect(() => {
-    const savedFields = window.localStorage.getItem(storageKeys.fields);
     const savedRules = window.localStorage.getItem(storageKeys.rules);
-    if (savedFields) setFields(JSON.parse(savedFields) as CustomFieldDefinition[]);
     if (savedRules) setRules(JSON.parse(savedRules) as AlertRule[]);
   }, []);
 
-  function persist(nextFields = fields, nextRules = rules) {
-    window.localStorage.setItem(storageKeys.fields, JSON.stringify(nextFields));
+  function persist(nextRules = rules) {
     window.localStorage.setItem(storageKeys.rules, JSON.stringify(nextRules));
     setMessage(`Cambios guardados como borrador · ${new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}`);
     showToast("Borrador de configuración guardado en este navegador.");
@@ -91,7 +84,7 @@ export function ConfigurationCenter({ role }: Readonly<{ role?: UserSession["rol
 
       <StatGrid items={[
         { label: "Perfil activo", value: selectedProfile.name, hint: "Plantilla configurable", icon: Layers3 },
-        { label: "Campos adicionales", value: String(fields.length), hint: "Versionados por módulo", icon: SlidersHorizontal },
+        { label: "Campos personalizados", value: "Por módulo", hint: "Inventario · Equipos · Prácticas", icon: SlidersHorizontal },
         { label: "Reglas activas", value: String(rules.filter((rule) => rule.active).length), hint: "Alertas y recordatorios", icon: BellRing },
       ]} />
 
@@ -105,8 +98,8 @@ export function ConfigurationCenter({ role }: Readonly<{ role?: UserSession["rol
           {activeTab === "notifications-prefs" ? <NotificationsPrefsTab /> : null}
           {activeTab === "billing-summary" ? <BillingCenter /> : null}
           {activeTab === "profile" ? <ProfileTab value={profile} onLocked={() => showToast("Este perfil no está incluido en tu plan. Mejora tu plan para habilitarlo.")} /> : null}
-          {activeTab === "fields" ? <FieldsTab fields={fields} onChange={(next) => { setFields(next); persist(next, rules); }} /> : null}
-          {activeTab === "alerts" ? <AlertsTab rules={rules} onChange={(next) => { setRules(next); persist(fields, next); }} /> : null}
+          {activeTab === "fields" ? <CustomFieldsManager /> : null}
+          {activeTab === "alerts" ? <AlertsTab rules={rules} onChange={(next) => { setRules(next); persist(next); }} /> : null}
           {activeTab === "workflows" ? <WorkflowTab onCreate={() => showToast("Nuevo flujo creado como borrador para configurar sus etapas.")} /> : null}
           {activeTab === "roles" ? <RolesTab onCreate={() => showToast("Nuevo rol creado como borrador con permisos mínimos.")} /> : null}
         </div>
@@ -144,47 +137,6 @@ function ProfileTab({ value, onLocked }: Readonly<{ value: LaboratoryProfileKey;
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-function FieldsTab({ fields, onChange }: Readonly<{ fields: CustomFieldDefinition[]; onChange: (fields: CustomFieldDefinition[]) => void }>) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState({ module: "Inventario", label: "", type: "Texto", required: "Opcional", visibility: "Todos" });
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!draft.label.trim()) return;
-    onChange([...fields, { id: crypto.randomUUID(), ...draft, label: draft.label.trim(), version: "borrador" }]);
-    setDraft({ module: "Inventario", label: "", type: "Texto", required: "Opcional", visibility: "Todos" });
-    setOpen(false);
-  }
-
-  return (
-    <div>
-      <div className="section-heading">
-        <div><h2>Constructor de formularios</h2><p>Añade información propia sin cambiar el código. Los campos críticos del núcleo no pueden eliminarse.</p></div>
-        <button className="primary-button" onClick={() => setOpen((current) => !current)}><Plus size={15} /> Nuevo campo</button>
-      </div>
-      {open ? (
-        <form className="inline-editor" onSubmit={submit}>
-          <label><span>Módulo</span><select value={draft.module} onChange={(event) => setDraft({ ...draft, module: event.target.value })}><option>Inventario</option><option>Equipos</option><option>Prácticas</option></select></label>
-          <label><span>Nombre visible</span><input required value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="Ej. Temperatura máxima" /></label>
-          <label><span>Tipo</span><select value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })}><option>Texto</option><option>Número</option><option>Fecha</option><option>Archivo</option><option>Selección</option><option>Número + unidad</option></select></label>
-          <label><span>Obligatoriedad</span><select value={draft.required} onChange={(event) => setDraft({ ...draft, required: event.target.value })}><option>Opcional</option><option>Obligatorio</option><option>Condicional</option><option>Según categoría</option></select></label>
-          <button className="primary-button" type="submit"><Save size={15} /> Agregar</button>
-        </form>
-      ) : null}
-      <div className="definition-list">
-        {fields.map((field) => (
-          <article key={field.id} className="definition-row">
-            <span className="definition-icon"><SlidersHorizontal size={16} /></span>
-            <div><strong>{field.label}</strong><p>{field.module} · {field.type} · {field.required}</p></div>
-            <small>{field.visibility}</small>
-            <em>{field.version}</em>
-          </article>
-        ))}
       </div>
     </div>
   );

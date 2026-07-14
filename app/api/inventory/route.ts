@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { createDemoQrLabel, createOpaqueToken } from "@/lib/qr-security";
+import { missingRequiredFields, type CustomFieldDefinition } from "@/lib/custom-fields";
 
 const inventorySchema = z.object({
   sku: z.string().min(2).max(80),
@@ -27,6 +28,7 @@ const inventorySchema = z.object({
   // No se fuerza a true (§3.6): el control de consumo es opcional por artículo.
   // La UI decide el valor por defecto según el tipo (reactivo/medio -> true).
   requiresUsageLog: z.boolean().optional().default(false),
+  customValues: z.record(z.string(), z.unknown()).optional(),
 }).refine((value) => value.categoryId || value.categoryName, {
   message: "Debes indicar la categoría mediante categoryId o categoryName.",
   path: ["categoryId"],
@@ -61,6 +63,7 @@ export async function GET() {
       i.reorder_point,
       i.unit,
       i.expires_at,
+      i.custom_values,
       CASE
         WHEN i.quantity <= i.reorder_point THEN 'REORDER'
         WHEN i.expires_at IS NOT NULL AND i.expires_at <= current_date + interval '30 day' THEN 'WATCH'
@@ -108,6 +111,18 @@ export async function POST(request: Request) {
   }
 
   const sql = getSql();
+
+  // Valida en servidor los campos personalizados obligatorios del módulo (§3.7).
+  const defs = await sql`
+    SELECT field_key, required_mode, status FROM custom_field_definitions
+    WHERE laboratory_id = ${session.laboratoryId} AND module_key = 'inventory' AND status = 'ACTIVE'
+  ` as unknown as CustomFieldDefinition[];
+  const missing = missingRequiredFields(defs, payload.customValues);
+  if (missing.length > 0) {
+    return NextResponse.json({ success: false, error: "MISSING_CUSTOM_FIELDS", message: "Faltan campos personalizados obligatorios.", fields: missing }, { status: 400 });
+  }
+  const customValues = payload.customValues ?? {};
+
   let categoryId = payload.categoryId;
   if (!categoryId && payload.categoryName) {
     const categories = await sql`
@@ -136,11 +151,11 @@ export async function POST(request: Request) {
     INSERT INTO inventory_items (
       laboratory_id, category_id, storage_location_id, sku, name, vendor, lot_number,
       quantity, reorder_point, unit, expires_at, received_at, safety_sheet_url, internal_formula,
-      requires_usage_log, created_by
+      requires_usage_log, custom_values, created_by
     ) VALUES (
       ${session.laboratoryId}, ${categoryId}, ${storageLocationId ?? null}, ${payload.sku}, ${payload.name}, ${payload.vendor || null}, ${payload.lotNumber},
       ${payload.quantity}, ${payload.reorderPoint}, ${payload.unit}, ${payload.expiresAt ?? null}, ${payload.receivedAt ?? null}, ${payload.safetySheetUrl || null}, ${payload.internalFormula || null},
-      ${payload.requiresUsageLog}, ${session.userId}
+      ${payload.requiresUsageLog}, ${JSON.stringify(customValues)}::jsonb, ${session.userId}
     )
     RETURNING id, sku, name, quantity, reorder_point, unit, status
   `;

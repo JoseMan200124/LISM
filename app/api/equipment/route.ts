@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { createDemoQrLabel, createOpaqueToken } from "@/lib/qr-security";
+import { missingRequiredFields, type CustomFieldDefinition } from "@/lib/custom-fields";
 
 const schema = z.object({
   code: z.string().min(2).max(60),
@@ -21,6 +22,7 @@ const schema = z.object({
   status: z.enum(["OPERATIONAL", "MAINTENANCE_DUE", "OUT_OF_SERVICE", "RETIRED"]).default("OPERATIONAL"),
   nextMaintenanceAt: z.string().date().optional().nullable(),
   notes: z.string().max(2000).optional().default(""),
+  customValues: z.record(z.string(), z.unknown()).optional(),
 });
 
 function locationCode(value: string) {
@@ -46,7 +48,7 @@ export async function GET() {
     SELECT e.id, e.code, e.name, e.manufacturer, e.model, e.serial_number,
       COALESCE(l.name, 'Sin ubicación') AS location, e.storage_location_id, e.status,
       e.last_calibration_at, e.next_maintenance_at, e.notes,
-      e.responsible_user_id, COALESCE(u.full_name, 'Sin responsable') AS responsible,
+      e.responsible_user_id, COALESCE(u.full_name, 'Sin responsable') AS responsible, e.custom_values,
       p.next_calibration_at, p.next_maintenance_at AS plan_next_maintenance_at,
       p.next_qualification_at, p.next_verification_at,
       COALESCE(p.plan_count, 0) AS plan_count
@@ -99,6 +101,17 @@ export async function POST(request: Request) {
   }
 
   const sql = getSql();
+
+  const defs = await sql`
+    SELECT field_key, required_mode, status FROM custom_field_definitions
+    WHERE laboratory_id = ${session.laboratoryId} AND module_key = 'equipment' AND status = 'ACTIVE'
+  ` as unknown as CustomFieldDefinition[];
+  const missing = missingRequiredFields(defs, payload.customValues);
+  if (missing.length > 0) {
+    return NextResponse.json({ success: false, error: "MISSING_CUSTOM_FIELDS", message: "Faltan campos personalizados obligatorios.", fields: missing }, { status: 400 });
+  }
+  const customValues = payload.customValues ?? {};
+
   let storageLocationId = payload.storageLocationId;
   if (!storageLocationId && payload.locationName) {
     const locations = await sql`
@@ -114,10 +127,10 @@ export async function POST(request: Request) {
   const rows = await sql`
     INSERT INTO equipment (
       laboratory_id, department_id, storage_location_id, responsible_user_id, code, name,
-      manufacturer, model, serial_number, status, next_maintenance_at, notes
+      manufacturer, model, serial_number, status, next_maintenance_at, notes, custom_values
     ) VALUES (
       ${session.laboratoryId}, ${payload.departmentId ?? null}, ${storageLocationId ?? null}, ${payload.responsibleUserId ?? null}, ${payload.code}, ${payload.name},
-      ${payload.manufacturer || null}, ${payload.model || null}, ${payload.serialNumber || null}, ${payload.status}, ${payload.nextMaintenanceAt ?? null}, ${payload.notes || null}
+      ${payload.manufacturer || null}, ${payload.model || null}, ${payload.serialNumber || null}, ${payload.status}, ${payload.nextMaintenanceAt ?? null}, ${payload.notes || null}, ${JSON.stringify(customValues)}::jsonb
     )
     RETURNING id, code, name, manufacturer, model, serial_number, status, next_maintenance_at
   `;
