@@ -328,6 +328,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .data-table tbody tr:last-child td { border-bottom: 0; }
 .data-table tbody tr { transition: background .12s ease; }
 .data-table tbody tr:hover { background: #f6fbf9; }
+.data-table tbody tr.data-row-clickable { cursor: pointer; }
+.data-table tbody tr.data-row-clickable:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; background: #f1f8f5; }
 .table-id { color: var(--primary); font-size: 11px; }
 .priority, .status-pill { display: inline-flex; min-height: 22px; align-items: center; border-radius: 20px; padding: 1px 9px; font-size: 10px; font-weight: 760; letter-spacing: .15px; white-space: nowrap; }
 .priority-rutina { color: #507277; background: #edf3f3; }

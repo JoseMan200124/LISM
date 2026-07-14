@@ -24,7 +24,9 @@ const inventorySchema = z.object({
   vendor: z.string().max(180).optional().default(""),
   internalFormula: z.string().max(220).optional().default(""),
   safetySheetUrl: z.string().url().optional().or(z.literal("")),
-  requiresUsageLog: z.boolean().optional().default(true),
+  // No se fuerza a true (§3.6): el control de consumo es opcional por artículo.
+  // La UI decide el valor por defecto según el tipo (reactivo/medio -> true).
+  requiresUsageLog: z.boolean().optional().default(false),
 }).refine((value) => value.categoryId || value.categoryName, {
   message: "Debes indicar la categoría mediante categoryId o categoryName.",
   path: ["categoryId"],

@@ -125,6 +125,7 @@ export function SimpleTable({
   footer,
   emptyTitle = "Sin registros",
   emptyMessage = "Todavía no hay información disponible en esta sección.",
+  onRowClick,
 }: Readonly<{
   columns: TableColumn[];
   rows: TableRow[];
@@ -133,6 +134,10 @@ export function SimpleTable({
   footer?: React.ReactNode;
   emptyTitle?: string;
   emptyMessage?: string;
+  // Cuando se pasa, cada fila es un control accesible (botón) que abre el
+  // detalle/edición del registro. La fila recibe el objeto completo, así que
+  // puede incluir un campo `id` no mostrado en columnas.
+  onRowClick?: (row: TableRow) => void;
 }>) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
@@ -174,7 +179,16 @@ export function SimpleTable({
               <thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
               <tbody>
                 {filtered.map((row, index) => (
-                  <tr key={`${index}-${String(row.code ?? row.id ?? "row")}`}>
+                  <tr
+                    key={`${index}-${String(row.code ?? row.id ?? "row")}`}
+                    className={onRowClick ? "data-row-clickable" : undefined}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    role={onRowClick ? "button" : undefined}
+                    onKeyDown={onRowClick ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onRowClick(row); }
+                    } : undefined}
+                  >
                     {columns.map((column) => <td key={column.key}>{renderCell(column.key, row[column.key])}</td>)}
                   </tr>
                 ))}

@@ -38,13 +38,32 @@ export async function GET() {
   if (!hasPermission(session, "equipment.view")) return NextResponse.json({ message: "No tienes permiso para consultar equipos." }, { status: 403 });
   if (!hasDatabase()) return NextResponse.json({ data: equipmentRows, mode: "demo" });
   const sql = getSql();
+  // equipment_plans es la fuente de verdad de las próximas fechas por tipo. Se
+  // agregan aquí (MIN por tipo de plan activo) para que la ficha y el listado
+  // reflejen siempre lo que se creó en Planes — sin duplicar columnas ni que un
+  // plan quede "huérfano" del registro del equipo (bug CM-11).
   const rows = await sql`
     SELECT e.id, e.code, e.name, e.manufacturer, e.model, e.serial_number,
-      COALESCE(l.name, 'Sin ubicación') AS location, e.status, e.last_calibration_at,
-      e.next_maintenance_at, COALESCE(u.full_name, 'Sin responsable') AS responsible
+      COALESCE(l.name, 'Sin ubicación') AS location, e.storage_location_id, e.status,
+      e.last_calibration_at, e.next_maintenance_at, e.notes,
+      e.responsible_user_id, COALESCE(u.full_name, 'Sin responsable') AS responsible,
+      p.next_calibration_at, p.next_maintenance_at AS plan_next_maintenance_at,
+      p.next_qualification_at, p.next_verification_at,
+      COALESCE(p.plan_count, 0) AS plan_count
     FROM equipment e
     LEFT JOIN storage_locations l ON l.id = e.storage_location_id AND l.laboratory_id = e.laboratory_id
     LEFT JOIN users u ON u.id = e.responsible_user_id
+    LEFT JOIN (
+      SELECT equipment_id,
+        MIN(next_due_at) FILTER (WHERE plan_type = 'CALIBRATION') AS next_calibration_at,
+        MIN(next_due_at) FILTER (WHERE plan_type = 'MAINTENANCE') AS next_maintenance_at,
+        MIN(next_due_at) FILTER (WHERE plan_type = 'QUALIFICATION') AS next_qualification_at,
+        MIN(next_due_at) FILTER (WHERE plan_type = 'VERIFICATION') AS next_verification_at,
+        COUNT(*) AS plan_count
+      FROM equipment_plans
+      WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'
+      GROUP BY equipment_id
+    ) p ON p.equipment_id = e.id
     WHERE e.laboratory_id = ${session.laboratoryId}
     ORDER BY e.name ASC
   `;
