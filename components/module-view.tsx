@@ -146,7 +146,7 @@ const moduleConfigs: Partial<Record<ModuleKey, ModuleConfig>> = {
     hint: "Cada adaptador debe validarse por separado antes de utilizarse en una operación regulada.",
   },
   audit: {
-    eyebrow: "TRAZABILIDAD INMUTABLE", title: "Auditoría", description: "Consulta acciones, responsables, valor anterior, valor nuevo, motivo y momento exacto.", action: "Exportar bitácora", icon: ShieldCheck,
+    eyebrow: "TRAZABILIDAD INMUTABLE", title: "Bitácora", description: "Consulta acciones, responsables, valor anterior, valor nuevo, motivo y momento exacto.", action: "Exportar bitácora", icon: ShieldCheck,
     stats: [
       { label: "Eventos hoy", value: "1,904", hint: "Solo anexado", icon: ShieldCheck },
       { label: "Acciones críticas", value: "146", hint: "Firmas y cambios", icon: ClipboardCheck },

@@ -93,7 +93,7 @@ export const navigation = [
     title: "Gobernanza",
     items: [
       { key: "compliance", label: "Cumplimiento", icon: ShieldCheck, href: "/app/compliance" },
-      { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+      { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
       { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
       { key: "administration", label: "Usuarios y roles", icon: UsersRound, href: "/app/administration" },
       { key: "integrations", label: "Integraciones", icon: GitBranch, href: "/app/integrations" },
@@ -143,7 +143,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       title: "Administración",
       items: [
         { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
-        { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+        { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
         { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
       ],
     },
@@ -163,7 +163,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       title: "Administración",
       items: [
         { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
-        { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+        { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
         { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
       ],
     },
@@ -183,7 +183,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       title: "Administración",
       items: [
         { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
-        { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+        { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
         { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
       ],
     },
@@ -218,7 +218,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
-        { key: "audit", label: "Auditoría", icon: Archive, href: "/app/audit" },
+        { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
       ],
     },
   ],
