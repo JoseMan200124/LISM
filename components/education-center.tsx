@@ -29,6 +29,8 @@ type ReservationRow = TableRow & {
   id?: string;
   reservation_code?: string;
   resource_type?: string;
+  resource_name?: string;
+  practice_title?: string;
   quantity?: number;
   unit?: string;
   status?: string;
@@ -48,6 +50,47 @@ type NotificationRow = TableRow & {
 type AddTarget = "practice" | "reservation" | "notification" | null;
 type ModalOpen = "notification" | null;
 
+type PracticePayload = {
+  title: string;
+  courseName?: string;
+  startsAt: string;
+  endsAt?: string;
+  instructions?: string;
+  status?: string;
+};
+
+type ReservationPayload = {
+  practiceId?: string | null;
+  resourceType: "INVENTORY_ITEM" | "EQUIPMENT" | "OTHER";
+  resourceId?: string | null;
+  resourceName?: string;
+  quantity?: number;
+  unit?: string;
+  neededAt?: string | null;
+  notes?: string;
+};
+
+type ResourceOption = { id: string; label: string };
+
+// Extrae el mensaje seguro devuelto por la API (estructura estándar { message })
+// para mostrar el error real en vez de un texto genérico.
+async function apiErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const payload = await response.json() as { message?: string };
+    return payload.message || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// Combina una fecha (YYYY-MM-DD) y una hora (HH:MM) en un ISO con offset local.
+function combineDateTime(date: string, time: string): string | null {
+  if (!date || !time) return null;
+  const composed = new Date(`${date}T${time}`);
+  if (Number.isNaN(composed.getTime())) return null;
+  return composed.toISOString();
+}
+
 function formatDate(value: string | undefined | null): string {
   if (!value) return "—";
   try {
@@ -66,6 +109,12 @@ function statusLabel(status: string | undefined | null): string {
     PARTIAL: "Parcial", NO_SHOW: "Inasistencia",
   };
   return map[String(status)] ?? String(status ?? "—");
+}
+
+function resourceTypeLabel(type: string | undefined | null): string {
+  if (type === "INVENTORY_ITEM") return "Inventario";
+  if (type === "EQUIPMENT") return "Equipo";
+  return "Otro";
 }
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
@@ -115,20 +164,64 @@ function AdminEducationCenter() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function createPractice(record: { name: string; detail: string; status: string }) {
-    const response = await fetch("/api/education/practices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: record.name, courseName: record.detail, startsAt: new Date().toISOString(), endsAt: new Date().toISOString() }),
-    });
-    if (response.ok) {
-      const payload = await response.json() as { data?: PracticeRow };
-      setPractices((prev) => [payload.data ?? { code: "PRA-NEW", title: record.name, course_name: record.detail, status: "DRAFT" } as PracticeRow, ...prev]);
-      showToast("Práctica creada correctamente.");
-    } else {
-      showError("No se pudo crear la práctica. Revisa los campos e intenta de nuevo.");
+  async function createPractice(payload: PracticePayload): Promise<boolean> {
+    try {
+      const response = await fetch("/api/education/practices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        setAddTarget(null);
+        showToast("Práctica creada correctamente.");
+        await load();
+        return true;
+      }
+      showError(await apiErrorMessage(response, "No se pudo crear la práctica. Revisa los campos e intenta de nuevo."));
+      return false;
+    } catch {
+      showError("No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.");
+      return false;
     }
-    setAddTarget(null);
+  }
+
+  async function createReservation(payload: ReservationPayload): Promise<boolean> {
+    try {
+      const response = await fetch("/api/education/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        setAddTarget(null);
+        showToast("Reserva creada. Queda pendiente de aprobación.");
+        await load();
+        return true;
+      }
+      showError(await apiErrorMessage(response, "No se pudo crear la reserva. Revisa los campos e intenta de nuevo."));
+      return false;
+    } catch {
+      showError("No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.");
+      return false;
+    }
+  }
+
+  async function updateReservationStatus(id: string, status: "APPROVED" | "REJECTED") {
+    try {
+      const response = await fetch("/api/education/reservations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      if (response.ok) {
+        showToast(status === "APPROVED" ? "Reserva aprobada." : "Reserva rechazada.");
+        await load();
+      } else {
+        showError(await apiErrorMessage(response, "No se pudo actualizar la reserva."));
+      }
+    } catch {
+      showError("No se pudo conectar con el servidor. Intenta de nuevo.");
+    }
   }
 
   async function createNotification(event: FormEvent<HTMLFormElement>) {
@@ -159,8 +252,10 @@ function AdminEducationCenter() {
 
   const reservationRows: TableRow[] = reservations.map((r) => ({
     code: r.reservation_code ?? "—",
-    type: r.resource_type === "INVENTORY_ITEM" ? "Inventario" : "Equipo",
-    quantity: r.quantity ? `${r.quantity} ${r.unit ?? ""}` : "—",
+    resource: r.resource_name ?? "—",
+    type: resourceTypeLabel(r.resource_type),
+    quantity: r.quantity ? `${r.quantity} ${r.unit ?? ""}`.trim() : "—",
+    practice: r.practice_title ?? "—",
     status: statusLabel(r.status),
   }));
 
@@ -230,8 +325,9 @@ function AdminEducationCenter() {
                 <div><h2>Solicitudes de recursos</h2><p>Aprueba, rechaza o prepara materiales y equipos para cada práctica.</p></div>
                 <button className="secondary-button" onClick={() => setAddTarget("reservation")}><Plus size={15} /> Nueva reserva</button>
               </div>
+              <PendingReservations reservations={reservations} onDecide={updateReservationStatus} />
               <SimpleTable
-                columns={[{ key: "code", label: "Código" }, { key: "type", label: "Tipo" }, { key: "quantity", label: "Cantidad" }, { key: "status", label: "Estado" }]}
+                columns={[{ key: "code", label: "Código" }, { key: "resource", label: "Recurso" }, { key: "type", label: "Tipo" }, { key: "quantity", label: "Cantidad" }, { key: "practice", label: "Práctica" }, { key: "status", label: "Estado" }]}
                 rows={reservationRows}
                 searchPlaceholder="Buscar reserva…"
               />
@@ -253,7 +349,10 @@ function AdminEducationCenter() {
         </div>
       </article>
       {addTarget === "practice" ? (
-        <QuickPracticeModal onClose={() => setAddTarget(null)} onSave={createPractice} />
+        <PracticeModal onClose={() => setAddTarget(null)} onSave={createPractice} />
+      ) : null}
+      {addTarget === "reservation" ? (
+        <ReservationModal practices={practices} onClose={() => setAddTarget(null)} onSave={createReservation} />
       ) : null}
       <NotificationModal open={notifModal === "notification"} onClose={() => setNotifModal(null)} onSave={createNotification} />
       <Toast message={message} type={toastType} onClose={clearToast} />
@@ -598,29 +697,218 @@ function StudentEducationCenter() {
 
 // ─── Modales compartidos ───────────────────────────────────────────────────────
 
-function QuickPracticeModal({
+function PendingReservations({
+  reservations,
+  onDecide,
+}: Readonly<{
+  reservations: ReservationRow[];
+  onDecide: (id: string, status: "APPROVED" | "REJECTED") => void | Promise<void>;
+}>) {
+  const pending = reservations.filter((r) => r.status === "PENDING" && r.id);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  if (pending.length === 0) return null;
+
+  async function decide(id: string, status: "APPROVED" | "REJECTED") {
+    setBusyId(id);
+    try { await onDecide(id, status); } finally { setBusyId(null); }
+  }
+
+  return (
+    <div className="approval-strip">
+      <p className="approval-strip-title">{pending.length} reserva{pending.length === 1 ? "" : "s"} pendiente{pending.length === 1 ? "" : "s"} de aprobación</p>
+      {pending.map((r) => (
+        <div key={String(r.id)} className="approval-row">
+          <div>
+            <strong>{r.reservation_code ?? "—"}</strong>
+            <span> · {r.resource_name ?? resourceTypeLabel(r.resource_type)}</span>
+            {r.quantity ? <span> · {r.quantity} {r.unit ?? ""}</span> : null}
+            {r.practice_title ? <span className="approval-practice"> · {r.practice_title}</span> : null}
+          </div>
+          <div className="approval-actions">
+            <button type="button" className="secondary-button" disabled={busyId === r.id} onClick={() => decide(String(r.id), "REJECTED")}>Rechazar</button>
+            <button type="button" className="primary-button" disabled={busyId === r.id} onClick={() => decide(String(r.id), "APPROVED")}>Aprobar</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PracticeModal({
   onClose,
   onSave,
 }: Readonly<{
   onClose: () => void;
-  onSave: (record: { name: string; detail: string; status: string }) => void | Promise<void>;
+  onSave: (payload: PracticePayload) => Promise<boolean>;
 }>) {
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError(null);
     const data = new FormData(event.currentTarget);
-    void onSave({ name: String(data.get("title")), detail: String(data.get("course")), status: "DRAFT" });
-    event.currentTarget.reset();
+    const title = String(data.get("title") ?? "").trim();
+    const date = String(data.get("date") ?? "");
+    const startTime = String(data.get("startTime") ?? "");
+    const endTime = String(data.get("endTime") ?? "");
+
+    const startsAt = combineDateTime(date, startTime);
+    if (!startsAt) { setError("Indica la fecha y la hora de inicio."); return; }
+    let endsAt: string | undefined;
+    if (endTime) {
+      const composed = combineDateTime(date, endTime);
+      if (!composed) { setError("La hora de finalización no es válida."); return; }
+      if (new Date(composed) <= new Date(startsAt)) { setError("La hora de finalización debe ser posterior a la de inicio."); return; }
+      endsAt = composed;
+    }
+
+    setSaving(true);
+    const ok = await onSave({
+      title,
+      courseName: String(data.get("course") ?? "").trim() || undefined,
+      startsAt,
+      endsAt,
+      instructions: String(data.get("instructions") ?? "").trim() || undefined,
+      status: String(data.get("status") ?? "PLANNED"),
+    });
+    setSaving(false);
+    if (!ok) return;
   }
+
   return (
-    <ActionModal open title="Nueva práctica" description="Completa el título y el curso. Los detalles y recursos pueden ajustarse después." onClose={onClose}>
+    <ActionModal open title="Nueva práctica" description="El código se genera automáticamente. Programa la fecha, el horario y el curso." onClose={onClose}>
       <form className="modal-form" onSubmit={submit}>
-        <div className="form-grid">
-          <label><span>Título de la práctica</span><input name="title" required placeholder="Tinción de Gram" /></label>
-          <label><span>Curso o sección</span><input name="course" required placeholder="Microbiología I · Sección A" /></label>
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        <div className="form-grid form-grid-two">
+          <label className="field-span-two"><span>Título de la práctica</span><input name="title" required minLength={3} placeholder="Tinción de Gram" /></label>
+          <label><span>Curso o asignatura</span><input name="course" placeholder="Microbiología I · Sección A" /></label>
+          <label><span>Estado</span>
+            <select name="status" defaultValue="PLANNED">
+              <option value="DRAFT">Borrador</option>
+              <option value="PLANNED">Planificada</option>
+              <option value="PREPARING">En preparación</option>
+              <option value="READY">Lista</option>
+            </select>
+          </label>
+          <label><span>Fecha</span><input name="date" type="date" required /></label>
+          <label><span>Hora de inicio</span><input name="startTime" type="time" required /></label>
+          <label><span>Hora de finalización</span><input name="endTime" type="time" /></label>
+          <label className="field-span-two"><span>Instrucciones (opcional)</span><textarea name="instructions" rows={3} placeholder="Objetivos, materiales de referencia, indicaciones previas…" /></label>
         </div>
         <footer className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="primary-button">Crear práctica</button>
+          <button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Crear práctica"}</button>
+        </footer>
+      </form>
+    </ActionModal>
+  );
+}
+
+function ReservationModal({
+  practices,
+  onClose,
+  onSave,
+}: Readonly<{
+  practices: PracticeRow[];
+  onClose: () => void;
+  onSave: (payload: ReservationPayload) => Promise<boolean>;
+}>) {
+  const [resourceType, setResourceType] = useState<"INVENTORY_ITEM" | "EQUIPMENT" | "OTHER">("EQUIPMENT");
+  const [equipment, setEquipment] = useState<ResourceOption[]>([]);
+  const [inventory, setInventory] = useState<ResourceOption[]>([]);
+  const [loadingResources, setLoadingResources] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingResources(true);
+    void Promise.all([
+      fetch("/api/equipment").then((r) => (r.ok ? r.json() : { data: [] })).catch(() => ({ data: [] })),
+      fetch("/api/inventory").then((r) => (r.ok ? r.json() : { data: [] })).catch(() => ({ data: [] })),
+    ]).then(([eq, inv]) => {
+      if (!active) return;
+      const eqRows = (eq as { data?: Array<{ id?: string; code?: string; name?: string }> }).data ?? [];
+      const invRows = (inv as { data?: Array<{ id?: string; sku?: string; name?: string }> }).data ?? [];
+      setEquipment(eqRows.filter((e) => e.id).map((e) => ({ id: String(e.id), label: `${e.code ?? ""} · ${e.name ?? ""}`.trim() })));
+      setInventory(invRows.filter((i) => i.id).map((i) => ({ id: String(i.id), label: `${i.sku ?? ""} · ${i.name ?? ""}`.trim() })));
+      setLoadingResources(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const resourceOptions = resourceType === "EQUIPMENT" ? equipment : resourceType === "INVENTORY_ITEM" ? inventory : [];
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    const data = new FormData(event.currentTarget);
+    const resourceId = String(data.get("resourceId") ?? "");
+    const resourceName = String(data.get("resourceName") ?? "").trim();
+
+    if (resourceType !== "OTHER" && !resourceId) { setError("Selecciona el recurso a reservar."); return; }
+    if (resourceType === "OTHER" && resourceName.length < 2) { setError("Describe el recurso a reservar."); return; }
+
+    const date = String(data.get("date") ?? "");
+    const time = String(data.get("time") ?? "");
+    const neededAt = date ? combineDateTime(date, time || "00:00") : null;
+    const quantityRaw = String(data.get("quantity") ?? "").trim();
+
+    setSaving(true);
+    const ok = await onSave({
+      practiceId: String(data.get("practiceId") ?? "") || null,
+      resourceType,
+      resourceId: resourceType === "OTHER" ? null : resourceId,
+      resourceName: resourceType === "OTHER" ? resourceName : undefined,
+      quantity: quantityRaw ? Number(quantityRaw) : undefined,
+      unit: String(data.get("unit") ?? "").trim() || undefined,
+      neededAt,
+      notes: String(data.get("notes") ?? "").trim() || undefined,
+    });
+    setSaving(false);
+    if (!ok) return;
+  }
+
+  return (
+    <ActionModal open title="Nueva reserva" description="Reserva un equipo o artículo de inventario para una práctica." onClose={onClose}>
+      <form className="modal-form" onSubmit={submit}>
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        <div className="form-grid form-grid-two">
+          <label className="field-span-two"><span>Práctica (opcional)</span>
+            <select name="practiceId" defaultValue="">
+              <option value="">Sin práctica asociada</option>
+              {practices.filter((p) => p.id).map((p) => (
+                <option key={String(p.id)} value={String(p.id)}>{(p.practice_code ?? p.code ?? "")} · {p.title ?? ""}</option>
+              ))}
+            </select>
+          </label>
+          <label><span>Tipo de recurso</span>
+            <select name="resourceType" value={resourceType} onChange={(e) => setResourceType(e.target.value as typeof resourceType)}>
+              <option value="EQUIPMENT">Equipo</option>
+              <option value="INVENTORY_ITEM">Inventario</option>
+              <option value="OTHER">Otro</option>
+            </select>
+          </label>
+          {resourceType === "OTHER" ? (
+            <label><span>Recurso</span><input name="resourceName" placeholder="Aula, espacio u otro recurso" /></label>
+          ) : (
+            <label><span>Recurso</span>
+              <select name="resourceId" disabled={loadingResources}>
+                <option value="">{loadingResources ? "Cargando…" : resourceOptions.length ? "Selecciona…" : "Sin recursos disponibles"}</option>
+                {resourceOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </label>
+          )}
+          <label><span>Cantidad (opcional)</span><input name="quantity" type="number" min="0" step="0.01" /></label>
+          <label><span>Unidad (opcional)</span><input name="unit" placeholder="unidades, mL…" /></label>
+          <label><span>Fecha requerida</span><input name="date" type="date" /></label>
+          <label><span>Hora requerida</span><input name="time" type="time" /></label>
+          <label className="field-span-two"><span>Notas (opcional)</span><textarea name="notes" rows={2} placeholder="Detalles para quien prepara el recurso…" /></label>
+        </div>
+        <footer className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
+          <button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Crear reserva"}</button>
         </footer>
       </form>
     </ActionModal>
