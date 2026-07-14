@@ -18,6 +18,7 @@ import {
   PackageSearch,
   ScanBarcode,
   Settings2,
+  ShieldAlert,
   ShieldCheck,
   Stethoscope,
   TestTube2,
@@ -43,6 +44,7 @@ export type ModuleKey =
   | "logbooks"
   | "training"
   | "alerts"
+  | "incidents"
   | "reports"
   | "integrations"
   | "audit"
@@ -137,6 +139,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+        { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
       ],
     },
     {
@@ -157,6 +160,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+        { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
       ],
     },
     {
@@ -177,6 +181,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+        { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
       ],
     },
     {
@@ -197,6 +202,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+        { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
       ],
     },
   ],

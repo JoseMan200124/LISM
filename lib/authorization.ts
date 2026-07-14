@@ -20,13 +20,15 @@ export type PermissionKey =
   | "compliance.view"
   | "education.view"
   | "education.manage"
+  | "incidents.view"
+  | "incidents.manage"
   | "signatures.create";
 
 const allPermissions: PermissionKey[] = [
   "configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage",
   "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter",
   "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view",
-  "education.view", "education.manage", "signatures.create",
+  "education.view", "education.manage", "incidents.view", "incidents.manage", "signatures.create",
 ];
 
 const permissionsByRole: Record<UserSession["role"], PermissionKey[]> = {
@@ -36,12 +38,12 @@ const permissionsByRole: Record<UserSession["role"], PermissionKey[]> = {
   TECHNICIAN: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view"],
   REVIEWER: ["inventory.view", "equipment.view", "specimens.view", "specimens.transition", "results.view", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "signatures.create"],
   VIEWER: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "education.view"],
-  HEAD_OF_LAB: ["configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "education.view", "education.manage", "signatures.create"],
+  HEAD_OF_LAB: ["configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "education.view", "education.manage", "incidents.view", "incidents.manage", "signatures.create"],
   ANALYST: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "signatures.create"],
   ASSISTANT: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "education.view"],
-  AUDITOR: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "audit.view", "compliance.view", "education.view"],
+  AUDITOR: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "audit.view", "compliance.view", "education.view", "incidents.view"],
   CONSULTATION: ["inventory.view", "equipment.view", "specimens.view", "education.view"],
-  PROFESSOR: ["inventory.view", "equipment.view", "education.view", "education.manage"],
+  PROFESSOR: ["inventory.view", "equipment.view", "education.view", "education.manage", "incidents.view", "incidents.manage"],
   STUDENT: ["inventory.view", "equipment.view", "education.view"],
 };
 
@@ -64,6 +66,7 @@ const modulePermissions: Partial<Record<ModuleKey, PermissionKey[]>> = {
   inventory: ["inventory.view"],
   equipment: ["equipment.view"],
   education: ["education.view"],
+  incidents: ["incidents.view"],
   quality: ["quality.view"],
   documents: ["quality.view"],
   logbooks: ["quality.view", "equipment.view"],

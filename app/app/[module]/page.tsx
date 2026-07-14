@@ -20,6 +20,7 @@ const supportedModules = new Set<ModuleKey>([
   "logbooks",
   "training",
   "alerts",
+  "incidents",
   "reports",
   "integrations",
   "audit",

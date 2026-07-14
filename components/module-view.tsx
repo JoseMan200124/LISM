@@ -41,6 +41,7 @@ import {
 } from "@/lib/demo-data";
 import { AdministrationCenter } from "@/components/administration-center";
 import { AlertsCenter } from "@/components/alerts-center";
+import { IncidentsCenter } from "@/components/incidents-center";
 import { BillingCenter } from "@/components/billing-center";
 import { ComplianceCenter } from "@/components/compliance-center";
 import { ConfigurationCenter } from "@/components/configuration-center";
@@ -174,6 +175,7 @@ export function ModuleView({ module, role }: { module: Exclude<ModuleKey, "dashb
   if (module === "logbooks") return <QualityCenter initialTab="logbooks" />;
   if (module === "training") return <QualityCenter initialTab="training" />;
   if (module === "alerts") return <AlertsCenter />;
+  if (module === "incidents") return <IncidentsCenter role={role as Parameters<typeof IncidentsCenter>[0]["role"]} />;
   if (module === "compliance") return <ComplianceCenter />;
   if (module === "configuration") return <ConfigurationCenter role={role as Parameters<typeof ConfigurationCenter>[0]["role"]} />;
   if (module === "administration") return <AdministrationCenter />;

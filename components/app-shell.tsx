@@ -213,8 +213,27 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
       <ActionModal open={dialog === "laboratory"} title="Laboratorio activo" description="La versión inicial mantiene una sede activa por sesión. El selector ya está preparado para habilitar sedes adicionales." onClose={() => setDialog(null)}>
         <div className="modal-form"><div className="details-grid"><div><small>Sede actual</small><strong>{session.laboratoryName}</strong></div><div><small>Perfil</small><strong>{roleLabels[session.role]}</strong></div></div><footer className="modal-actions"><button className="primary-button" onClick={() => setDialog(null)}>Continuar en esta sede</button></footer></div>
       </ActionModal>
-      <ActionModal open={dialog === "help"} title="Centro de ayuda" description="Accesos rápidos para resolver dudas operativas." onClose={() => setDialog(null)}>
-        <div className="modal-form"><p>Consulta el flujo correspondiente desde cada módulo. Para soporte interno, registra una incidencia desde Alertas e incluye el módulo, el registro y la acción realizada.</p><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cerrar</button><button className="primary-button" onClick={() => { setDialog(null); router.push("/app/alerts"); }}>Abrir alertas</button></footer></div>
+      <ActionModal open={dialog === "help"} title="Centro de ayuda" description="Dónde va cada cosa en NexaLab." onClose={() => setDialog(null)}>
+        <div className="modal-form">
+          <div className="help-guide">
+            <article>
+              <h3>Alertas automáticas</h3>
+              <p>Las genera el sistema: inventario bajo, vencimientos, stock, equipos, mantenimiento, calibración y prácticas. Cada alerta enlaza con el registro que la originó.</p>
+              <button type="button" className="secondary-button" onClick={() => { setDialog(null); router.push("/app/alerts"); }}>Ir a Alertas</button>
+            </article>
+            <article>
+              <h3>Incidencias / Hallazgos</h3>
+              <p>Los registras tú a mano: accidentes, daños, derrames, observaciones o incumplimientos. Se asignan, se les da seguimiento y se cierran con su resolución.</p>
+              <button type="button" className="secondary-button" onClick={() => { setDialog(null); router.push("/app/incidents"); }}>Ir a Incidencias</button>
+            </article>
+            <article>
+              <h3>Bitácora / Historial</h3>
+              <p>La trazabilidad de todas las acciones realizadas en la plataforma: quién hizo qué, cuándo y con qué valores anteriores y nuevos.</p>
+              <button type="button" className="secondary-button" onClick={() => { setDialog(null); router.push("/app/audit"); }}>Ir a Bitácora</button>
+            </article>
+          </div>
+          <footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cerrar</button></footer>
+        </div>
       </ActionModal>
       <ActionModal open={dialog === "preferences"} title="Preferencias" description="Estas preferencias se guardan únicamente en este navegador." onClose={() => setDialog(null)}>
         <div className="modal-form"><label className="check-line"><input type="checkbox" defaultChecked /> <span>Mostrar alertas en la barra superior</span></label><label className="check-line"><input type="checkbox" defaultChecked /> <span>Usar tablas compactas</span></label><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cancelar</button><button className="primary-button" onClick={() => { window.localStorage.setItem("nexalab.preferences.saved", "true"); setDialog(null); showToast("Preferencias guardadas en este navegador."); }}>Guardar</button></footer></div>
