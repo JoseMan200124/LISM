@@ -143,6 +143,20 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .text-button { display: inline-flex; align-items: center; gap: 4px; border: 0; color: var(--primary); background: transparent; font-size: 12px; font-weight: 760; }
 .form-error { margin: 0; padding: 9px 11px; border: 1px solid #eed2cf; border-radius: 8px; color: #994b45; background: #fdf5f4; font-size: 12px; }
 .field-help { display: block; margin-top: 4px; color: #8a999c; font-size: 10.5px; line-height: 1.4; }
+.share-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.share-actions .secondary-button { text-decoration: none; }
+.share-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+.share-card { width: min(100%, 640px); padding: 28px 26px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow); }
+.share-card h1 { margin: 6px 0 2px; color: #1b3840; font-size: 22px; }
+.share-code { margin: 0 0 16px; color: var(--primary); font-weight: 700; font-size: 13px; }
+.share-meta { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin: 0 0 18px; }
+.share-meta dt { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.share-meta dd { margin: 3px 0 0; color: #2c4349; font-size: 13px; }
+.share-instructions { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.share-instructions h2 { margin: 0 0 6px; font-size: 14px; color: #31474c; }
+.share-instructions p { margin: 0; color: #53686c; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.share-foot { margin: 16px 0 0; color: var(--muted); font-size: 11px; }
+@media (max-width: 560px) { .share-meta { grid-template-columns: 1fr; } }
 .help-guide { display: grid; gap: 12px; }
 .help-guide article { padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdfc; }
 .help-guide h3 { margin: 0 0 4px; color: #31474c; font-size: 13px; }

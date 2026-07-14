@@ -72,6 +72,19 @@ type ReservationPayload = {
 
 type ResourceOption = { id: string; label: string };
 
+type PracticeDetail = {
+  id: string;
+  practice_code?: string;
+  title?: string;
+  course_name?: string | null;
+  starts_at?: string;
+  ends_at?: string | null;
+  instructions?: string | null;
+  status?: string;
+  teacher_name?: string | null;
+  shareToken?: string | null;
+};
+
 // Extrae el mensaje seguro devuelto por la API (estructura estándar { message })
 // para mostrar el error real en vez de un texto genérico.
 async function apiErrorMessage(response: Response, fallback: string): Promise<string> {
@@ -131,6 +144,7 @@ function AdminEducationCenter() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [addTarget, setAddTarget] = useState<AddTarget>(null);
   const [notifModal, setNotifModal] = useState<ModalOpen>(null);
+  const [practiceDetail, setPracticeDetail] = useState<PracticeDetail | null>(null);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -220,6 +234,15 @@ function AdminEducationCenter() {
     }
   }
 
+  async function openPracticeDetail(id: string) {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/education/practices/${id}`);
+      if (res.ok) { const p = await res.json() as { data?: PracticeDetail }; if (p.data) setPracticeDetail(p.data); }
+      else showError(await apiErrorMessage(res, "No se pudo abrir la práctica."));
+    } catch { showError("No se pudo conectar con el servidor."); }
+  }
+
   async function updateReservationStatus(id: string, status: "APPROVED" | "REJECTED") {
     try {
       const response = await fetch("/api/education/reservations", {
@@ -256,6 +279,7 @@ function AdminEducationCenter() {
   }
 
   const practiceRows: TableRow[] = practices.map((p) => ({
+    id: p.id ?? "",
     code: p.practice_code ?? p.code ?? "—",
     title: p.title ?? "—",
     course: p.course_name ?? "—",
@@ -330,6 +354,7 @@ function AdminEducationCenter() {
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "title", label: "Práctica" }, { key: "course", label: "Curso" }, { key: "teacher", label: "Responsable" }, { key: "scheduled", label: "Fecha inicio" }, { key: "status", label: "Estado" }]}
                 rows={practiceRows}
+                onRowClick={(row) => { if (row.id) void openPracticeDetail(String(row.id)); }}
                 searchPlaceholder="Buscar práctica o curso…"
               />
             </section>
@@ -372,6 +397,7 @@ function AdminEducationCenter() {
       {addTarget === "reservation" ? (
         <ReservationModal practices={practices} onClose={() => setAddTarget(null)} onSave={createReservation} />
       ) : null}
+      <PracticeDetailModal detail={practiceDetail} onClose={() => setPracticeDetail(null)} />
       <NotificationModal open={notifModal === "notification"} onClose={() => setNotifModal(null)} onSave={createNotification} />
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
@@ -929,6 +955,54 @@ function ReservationModal({
           <button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Crear reserva"}</button>
         </footer>
       </form>
+    </ActionModal>
+  );
+}
+
+function PracticeDetailModal({ detail, onClose }: Readonly<{ detail: PracticeDetail | null; onClose: () => void }>) {
+  const [copied, setCopied] = useState(false);
+  if (!detail) return null;
+  const shareUrl = detail.shareToken && typeof window !== "undefined" ? `${window.location.origin}/p/${detail.shareToken}` : "";
+  const shareTitle = `Práctica: ${detail.title ?? ""}`;
+  const shareText = `Práctica ${detail.practice_code ?? ""} — ${detail.title ?? ""}${detail.course_name ? ` (${detail.course_name})` : ""}. Detalles: ${shareUrl}`;
+
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(shareUrl); setCopied(true); window.setTimeout(() => setCopied(false), 2000); } catch { /* noop */ }
+  }
+  async function webShare() {
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try { await (navigator as Navigator & { share: (d: { title: string; text: string; url: string }) => Promise<void> }).share({ title: shareTitle, text: shareText, url: shareUrl }); } catch { /* cancelado */ }
+    }
+  }
+  const canWebShare = typeof navigator !== "undefined" && "share" in navigator;
+  const mailto = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareText)}`;
+  const whatsapp = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+
+  return (
+    <ActionModal open title={`${detail.practice_code ?? ""} · ${detail.title ?? "Práctica"}`} description="Detalle de la práctica y opciones para compartirla." onClose={onClose}>
+      <div className="modal-form">
+        <div className="details-grid">
+          <div><small>Curso</small><strong>{detail.course_name ?? "—"}</strong></div>
+          <div><small>Responsable</small><strong>{detail.teacher_name ?? "—"}</strong></div>
+          <div><small>Inicio</small><strong>{formatDate(detail.starts_at)}</strong></div>
+          <div><small>Fin</small><strong>{detail.ends_at ? formatDate(detail.ends_at) : "—"}</strong></div>
+          <div><small>Estado</small><strong>{statusLabel(detail.status)}</strong></div>
+          {detail.instructions ? <div className="field-span-two"><small>Instrucciones</small><strong>{detail.instructions}</strong></div> : null}
+        </div>
+        {detail.shareToken ? (
+          <>
+            <p className="form-section-title" style={{ marginTop: 14 }}>Compartir con estudiantes</p>
+            <p className="modal-note">Genera un enlace de solo lectura. Correo y WhatsApp abren la app correspondiente con el mensaje listo; el envío lo confirmas tú (no se envía automáticamente).</p>
+            <div className="share-actions">
+              <button type="button" className="secondary-button" onClick={() => void copyLink()}>{copied ? "¡Copiado!" : "Copiar enlace"}</button>
+              <a className="secondary-button" href={mailto}>Abrir correo</a>
+              <a className="secondary-button" href={whatsapp} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
+              {canWebShare ? <button type="button" className="secondary-button" onClick={() => void webShare()}>Compartir…</button> : null}
+            </div>
+          </>
+        ) : null}
+        <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cerrar</button></footer>
+      </div>
     </ActionModal>
   );
 }
