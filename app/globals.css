@@ -1873,6 +1873,7 @@ html { scroll-behavior: smooth; }
   background: #fff;
   box-shadow: 0 20px 48px rgba(15, 40, 38, .28);
 }
+.tutorial-tooltip-centered { top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(92vw, 340px); }
 .tutorial-tooltip-head { display: flex; align-items: center; justify-content: space-between; }
 .tutorial-progress { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
 .tutorial-tooltip h3 { margin: 0; color: #1e3035; font-size: 14px; font-weight: 780; }

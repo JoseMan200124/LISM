@@ -483,7 +483,7 @@ export function EquipmentCenter() {
       ]} />
       <InlineNotice title="Bloqueo preventivo configurable">Un equipo puede quedar inhabilitado para nuevos análisis cuando su calibración, verificación o mantenimiento crítico esté vencido.</InlineNotice>
       <article className="panel configuration-panel">
-        <Tabs items={[{ key: "master", label: "Equipos" }, { key: "plans", label: "Planes" }, { key: "certificates", label: "Certificados" }, { key: "qr", label: "QR" }]} active={tab} onChange={setTab} />
+        <Tabs items={[{ key: "master", label: "Equipos" }, { key: "plans", label: "Planes" }, { key: "certificates", label: "Certificados", tutorialId: "equipment-tab-certificates" }, { key: "qr", label: "QR" }]} active={tab} onChange={setTab} />
         <div className="configuration-body">
           {tab === "master" ? (
             <ResourceSection title="Equipos" copy="Haz clic en un equipo para ver detalle y editar. Las próximas fechas provienen de sus planes." action="Registrar evento" onAction={() => setModal("event")} disabled={equipment.length === 0}>

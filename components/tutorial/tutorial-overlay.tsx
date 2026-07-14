@@ -22,42 +22,66 @@ function usePrefersReducedMotion(): boolean {
 export function TutorialOverlay() {
   const { activeModule, stepIndex, next, back, skip, close } = useTutorial();
   const [rect, setRect] = useState<Rect | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   const nextButtonRef = useRef<HTMLButtonElement>(null);
   const reducedMotion = usePrefersReducedMotion();
-  const skippedStepRef = useRef<string | null>(null);
 
   const definition = activeModule ? tutorialsByModule[activeModule] : null;
   const step = definition?.steps[stepIndex] ?? null;
 
   useEffect(() => {
-    if (!step) {
-      setRect(null);
-      return;
-    }
-    const target = document.querySelector(step.selector);
-    if (!target) {
-      // El elemento no existe en esta pantalla (por ejemplo, el rol actual
-      // no ve ese botón) — se omite este paso automáticamente en vez de
-      // enseñar una acción que el usuario no puede realizar.
-      if (skippedStepRef.current !== step.id) {
-        skippedStepRef.current = step.id;
-        next();
+    setNotFound(false);
+    setRect(null);
+    if (!step) return;
+
+    let cancelled = false;
+    let timer = 0;
+    let attempts = 0;
+    let preActionDone = false;
+    let removeListeners: (() => void) | null = null;
+
+    function locate() {
+      if (cancelled) return;
+      const target = document.querySelector(step!.selector);
+      if (target) {
+        const update = () => {
+          const box = target!.getBoundingClientRect();
+          setRect({ top: box.top, left: box.left, width: box.width, height: box.height });
+        };
+        update();
+        window.addEventListener("resize", update);
+        window.addEventListener("scroll", update, true);
+        removeListeners = () => {
+          window.removeEventListener("resize", update);
+          window.removeEventListener("scroll", update, true);
+        };
+        target.scrollIntoView({ block: "center", behavior: reducedMotion ? "auto" : "smooth" });
+        return;
       }
-      return;
+      // Acción previa (abrir la pestaña donde vive el elemento) antes de reintentar.
+      if (step!.preAction && !preActionDone) {
+        preActionDone = true;
+        const trigger = document.querySelector(step!.preAction.click) as HTMLElement | null;
+        trigger?.click();
+      }
+      attempts += 1;
+      if (attempts <= 12) {
+        timer = window.setTimeout(locate, 150);
+        return;
+      }
+      // Tras reintentar, si aún no aparece NO se avanza en silencio (§2.4):
+      // se muestra un estado controlado con opción de reintentar u omitir.
+      setNotFound(true);
     }
-    const update = () => {
-      const box = target.getBoundingClientRect();
-      setRect({ top: box.top, left: box.left, width: box.width, height: box.height });
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    target.scrollIntoView({ block: "center", behavior: reducedMotion ? "auto" : "smooth" });
+
+    locate();
     return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
+      cancelled = true;
+      window.clearTimeout(timer);
+      removeListeners?.();
     };
-  }, [step, next, reducedMotion]);
+  }, [step, reducedMotion, retryNonce]);
 
   useEffect(() => {
     nextButtonRef.current?.focus();
@@ -72,7 +96,34 @@ export function TutorialOverlay() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [activeModule, close]);
 
-  if (!activeModule || !definition || !step || !rect) return null;
+  if (!activeModule || !definition || !step) return null;
+
+  // Estado controlado: el elemento del paso no apareció (ni tras abrir su
+  // pestaña). No se salta solo; el usuario decide reintentar u omitir.
+  if (notFound) {
+    return (
+      <div className="tutorial-root">
+        <button className="tutorial-backdrop" aria-label="Cerrar tutorial" onClick={close} />
+        <div className="tutorial-tooltip tutorial-tooltip-centered" role="dialog" aria-modal="true" aria-labelledby="tutorial-step-title">
+          <div className="tutorial-tooltip-head">
+            <span className="tutorial-progress">{stepIndex + 1} / {definition.steps.length}</span>
+            <button className="icon-button" aria-label="Cerrar tutorial" onClick={close}><X size={15} /></button>
+          </div>
+          <h3 id="tutorial-step-title">{step.title}</h3>
+          <p>No pudimos mostrar este paso en la pantalla actual. Puedes reintentar u omitirlo.</p>
+          <footer className="tutorial-actions">
+            <button className="secondary-button" onClick={skip}>Omitir tutorial</button>
+            <div className="tutorial-actions-nav">
+              <button className="secondary-button" onClick={() => setRetryNonce((n) => n + 1)}>Reintentar</button>
+              <button ref={nextButtonRef} className="primary-button" onClick={next}>Omitir paso <ArrowRight size={15} /></button>
+            </div>
+          </footer>
+        </div>
+      </div>
+    );
+  }
+
+  if (!rect) return null;
 
   const isLast = stepIndex === definition.steps.length - 1;
   const placement = step.placement ?? "bottom";

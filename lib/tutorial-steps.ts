@@ -6,6 +6,10 @@ export type TutorialStep = {
   title: string;
   body: string;
   placement?: "bottom" | "top" | "left" | "right";
+  // Acción previa: antes de localizar el selector, se hace clic en este otro
+  // selector (p. ej. abrir la pestaña donde vive el elemento). Evita que un
+  // paso se "salte" solo porque su pestaña no estaba abierta (§2.4).
+  preAction?: { click: string };
 };
 
 export type TutorialDefinition = {
@@ -39,8 +43,8 @@ export const tutorialsByModule: Partial<Record<ModuleKey, TutorialDefinition>> =
     version: 1,
     steps: [
       { id: "new-equipment", selector: "[data-tutorial='equipment-new']", title: "Registrar un equipo", body: "Da de alta un equipo con su código, ubicación y próxima fecha de mantenimiento.", placement: "left" },
-      { id: "certificates", selector: "[data-tutorial='equipment-certificates']", title: "Certificados y evidencia", body: "Adjunta certificados de calibración o mantenimiento con proveedor y vigencia.", placement: "top" },
-      { id: "tabs", selector: ".configuration-panel .tabs, .configuration-panel [role='tablist']", title: "Registro, planes y QR", body: "Consulta el estado de cada equipo, sus planes de mantenimiento y su código QR.", placement: "top" },
+      { id: "tabs", selector: ".configuration-panel .tabs, .configuration-panel [role='tablist']", title: "Equipos, planes y certificados", body: "Cambia entre el listado de equipos, sus planes de mantenimiento, los certificados y el código QR.", placement: "top" },
+      { id: "certificates", selector: "[data-tutorial='equipment-certificates']", title: "Certificados y evidencia", body: "Adjunta certificados de calibración o mantenimiento con proveedor y vigencia. Abrimos la pestaña de Certificados por ti.", placement: "top", preAction: { click: "[data-tutorial='equipment-tab-certificates']" } },
     ],
   },
   education: {
@@ -52,9 +56,18 @@ export const tutorialsByModule: Partial<Record<ModuleKey, TutorialDefinition>> =
     ],
   },
   alerts: {
+    version: 2,
+    steps: [
+      { id: "intro", selector: ".page-header, .page-stack > header", title: "Alertas automáticas", body: "El sistema genera estas alertas solo: stock bajo, vencimientos, mantenimientos y calibraciones próximas o vencidas, y reservas sin preparar.", placement: "bottom" },
+      { id: "tabs", selector: ".configuration-panel .tabs, .configuration-panel [role='tablist']", title: "Alertas, reglas y escalamientos", body: "En «Alertas» ves cada aviso y abres el registro que lo originó. En «Reglas» defines qué se vigila y a quién se avisa. En «Escalamientos», a quién se informa si nadie atiende a tiempo.", placement: "top" },
+      { id: "incidents-vs", selector: ".inline-notice", title: "¿Y las incidencias?", body: "Lo que ocurre en el laboratorio y registras a mano (accidentes, daños, derrames, hallazgos) va en el módulo «Incidencias», no aquí. El Centro de ayuda explica la diferencia.", placement: "bottom" },
+    ],
+  },
+  incidents: {
     version: 1,
     steps: [
-      { id: "list", selector: ".page-header, .page-stack > header", title: "Alertas e incidencias", body: "Revisa alertas activas del laboratorio: vencimientos, mantenimientos y reservas sin preparar.", placement: "bottom" },
+      { id: "intro", selector: ".page-header, .page-stack > header", title: "Incidencias y hallazgos", body: "Aquí registras manualmente lo que ocurre en el laboratorio: accidentes, daños, derrames, desviaciones u observaciones. Es distinto de las alertas automáticas.", placement: "bottom" },
+      { id: "tabs", selector: ".configuration-panel .tabs, .configuration-panel [role='tablist']", title: "Abiertas y todas", body: "Filtra entre incidencias abiertas y el historial completo. Haz clic en una fila para ver el detalle, asignarla, darle seguimiento y cerrarla.", placement: "top" },
     ],
   },
   administration: {
