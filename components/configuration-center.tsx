@@ -52,11 +52,14 @@ export function ConfigurationCenter({ role }: Readonly<{ role?: UserSession["rol
     { key: "my-profile", label: "Mi perfil", tutorialId: "config-tab-profile" },
     ...(canManageInstitution ? [{ key: "institution", label: "Institución y marca", tutorialId: "config-tab-institution" }] : []),
     { key: "notifications-prefs", label: "Notificaciones", tutorialId: "config-tab-notifications" },
-    { key: "billing-summary", label: "Facturación", tutorialId: "config-tab-billing" },
+    { key: "billing-summary", label: "Mi Plan", tutorialId: "config-tab-billing" },
     ...labTabs,
   ];
   const [activeTab, setActiveTab] = useState("my-profile");
-  const [profile, setProfile] = useState<LaboratoryProfileKey>("PHARMA_QC");
+  // El perfil activo es el incluido en el plan del laboratorio (educativo). No
+  // se inicia en PHARMA_QC ni se cambia por localStorage: los demás perfiles se
+  // muestran bloqueados (§3.7).
+  const [profile] = useState<LaboratoryProfileKey>("EDUCATIONAL");
   const [fields, setFields] = useState<CustomFieldDefinition[]>(defaultCustomFields);
   const [rules, setRules] = useState<AlertRule[]>(defaultAlertRules);
   const [message, setMessage] = useState("Configuración vigente: versión 3 · aprobada por Calidad");
@@ -64,16 +67,13 @@ export function ConfigurationCenter({ role }: Readonly<{ role?: UserSession["rol
   const { message: toastMessage, showToast, clearToast } = useToast();
 
   useEffect(() => {
-    const savedProfile = window.localStorage.getItem(storageKeys.profile) as LaboratoryProfileKey | null;
     const savedFields = window.localStorage.getItem(storageKeys.fields);
     const savedRules = window.localStorage.getItem(storageKeys.rules);
-    if (savedProfile) setProfile(savedProfile);
     if (savedFields) setFields(JSON.parse(savedFields) as CustomFieldDefinition[]);
     if (savedRules) setRules(JSON.parse(savedRules) as AlertRule[]);
   }, []);
 
-  function persist(nextProfile = profile, nextFields = fields, nextRules = rules) {
-    window.localStorage.setItem(storageKeys.profile, nextProfile);
+  function persist(nextFields = fields, nextRules = rules) {
     window.localStorage.setItem(storageKeys.fields, JSON.stringify(nextFields));
     window.localStorage.setItem(storageKeys.rules, JSON.stringify(nextRules));
     setMessage(`Cambios guardados como borrador · ${new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}`);
@@ -104,9 +104,9 @@ export function ConfigurationCenter({ role }: Readonly<{ role?: UserSession["rol
           {activeTab === "institution" && canManageInstitution ? <InstitutionTab canManage={canManageInstitution} /> : null}
           {activeTab === "notifications-prefs" ? <NotificationsPrefsTab /> : null}
           {activeTab === "billing-summary" ? <BillingCenter /> : null}
-          {activeTab === "profile" ? <ProfileTab value={profile} onChange={(value) => { setProfile(value); persist(value, fields, rules); }} /> : null}
-          {activeTab === "fields" ? <FieldsTab fields={fields} onChange={(next) => { setFields(next); persist(profile, next, rules); }} /> : null}
-          {activeTab === "alerts" ? <AlertsTab rules={rules} onChange={(next) => { setRules(next); persist(profile, fields, next); }} /> : null}
+          {activeTab === "profile" ? <ProfileTab value={profile} onLocked={() => showToast("Este perfil no está incluido en tu plan. Mejora tu plan para habilitarlo.")} /> : null}
+          {activeTab === "fields" ? <FieldsTab fields={fields} onChange={(next) => { setFields(next); persist(next, rules); }} /> : null}
+          {activeTab === "alerts" ? <AlertsTab rules={rules} onChange={(next) => { setRules(next); persist(fields, next); }} /> : null}
           {activeTab === "workflows" ? <WorkflowTab onCreate={() => showToast("Nuevo flujo creado como borrador para configurar sus etapas.")} /> : null}
           {activeTab === "roles" ? <RolesTab onCreate={() => showToast("Nuevo rol creado como borrador con permisos mínimos.")} /> : null}
         </div>
@@ -119,21 +119,31 @@ export function ConfigurationCenter({ role }: Readonly<{ role?: UserSession["rol
   );
 }
 
-function ProfileTab({ value, onChange }: Readonly<{ value: LaboratoryProfileKey; onChange: (value: LaboratoryProfileKey) => void }>) {
+function ProfileTab({ value, onLocked }: Readonly<{ value: LaboratoryProfileKey; onLocked: () => void }>) {
   return (
     <div>
-      <div className="section-heading"><div><h2>Selecciona una base de trabajo</h2><p>La plantilla habilita módulos y ejemplos iniciales. Después puedes ajustar campos, reglas y flujos.</p></div></div>
+      <div className="section-heading"><div><h2>Perfil del laboratorio</h2><p>Tu plan incluye el perfil educativo. Los demás perfiles están disponibles al mejorar tu plan.</p></div></div>
       <div className="profile-card-grid">
-        {laboratoryProfiles.map((profile) => (
-          <button key={profile.key} className={`profile-card ${value === profile.key ? "profile-card-active" : ""}`} onClick={() => onChange(profile.key)}>
-            <span className="profile-card-icon"><Boxes size={17} /></span>
-            <strong>{profile.name}</strong>
-            <p>{profile.description}</p>
-            <small>{profile.suggestedFor}</small>
-            <div>{profile.modules.map((module) => <em key={module}>{module}</em>)}</div>
-            {value === profile.key ? <i><CheckCircle2 size={14} /> Perfil activo</i> : null}
-          </button>
-        ))}
+        {laboratoryProfiles.map((profile) => {
+          const active = value === profile.key;
+          const locked = !active;
+          return (
+            <button
+              key={profile.key}
+              type="button"
+              className={`profile-card ${active ? "profile-card-active" : "profile-card-locked"}`}
+              aria-disabled={locked}
+              onClick={() => { if (locked) onLocked(); }}
+            >
+              <span className="profile-card-icon"><Boxes size={17} /></span>
+              <strong>{profile.name}</strong>
+              <p>{profile.description}</p>
+              <small>{profile.suggestedFor}</small>
+              <div>{profile.modules.map((module) => <em key={module}>{module}</em>)}</div>
+              {active ? <i><CheckCircle2 size={14} /> Perfil activo</i> : <i className="profile-card-lock">Este perfil no está incluido en tu plan · Mejorar plan</i>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -141,13 +151,13 @@ function ProfileTab({ value, onChange }: Readonly<{ value: LaboratoryProfileKey;
 
 function FieldsTab({ fields, onChange }: Readonly<{ fields: CustomFieldDefinition[]; onChange: (fields: CustomFieldDefinition[]) => void }>) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState({ module: "Reactivos", label: "", type: "Texto", required: "Opcional", visibility: "Todos" });
+  const [draft, setDraft] = useState({ module: "Inventario", label: "", type: "Texto", required: "Opcional", visibility: "Todos" });
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.label.trim()) return;
     onChange([...fields, { id: crypto.randomUUID(), ...draft, label: draft.label.trim(), version: "borrador" }]);
-    setDraft({ module: "Reactivos", label: "", type: "Texto", required: "Opcional", visibility: "Todos" });
+    setDraft({ module: "Inventario", label: "", type: "Texto", required: "Opcional", visibility: "Todos" });
     setOpen(false);
   }
 
@@ -159,7 +169,7 @@ function FieldsTab({ fields, onChange }: Readonly<{ fields: CustomFieldDefinitio
       </div>
       {open ? (
         <form className="inline-editor" onSubmit={submit}>
-          <label><span>Módulo</span><select value={draft.module} onChange={(event) => setDraft({ ...draft, module: event.target.value })}><option>Reactivos</option><option>Inventario</option><option>Equipos</option><option>Muestras</option><option>Prácticas</option><option>Resultados</option></select></label>
+          <label><span>Módulo</span><select value={draft.module} onChange={(event) => setDraft({ ...draft, module: event.target.value })}><option>Inventario</option><option>Equipos</option><option>Prácticas</option></select></label>
           <label><span>Nombre visible</span><input required value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="Ej. Temperatura máxima" /></label>
           <label><span>Tipo</span><select value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })}><option>Texto</option><option>Número</option><option>Fecha</option><option>Archivo</option><option>Selección</option><option>Número + unidad</option></select></label>
           <label><span>Obligatoriedad</span><select value={draft.required} onChange={(event) => setDraft({ ...draft, required: event.target.value })}><option>Opcional</option><option>Obligatorio</option><option>Condicional</option><option>Según categoría</option></select></label>
@@ -203,7 +213,7 @@ function AlertsTab({ rules, onChange }: Readonly<{ rules: AlertRule[]; onChange:
       {open ? (
         <form className="inline-editor alert-editor" onSubmit={submit}>
           <label><span>Nombre</span><input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Ej. Temperatura fuera de rango" /></label>
-          <label><span>Origen</span><select value={draft.source} onChange={(event) => setDraft({ ...draft, source: event.target.value })}><option>Inventario</option><option>Reactivos</option><option>Equipos</option><option>Resultados</option><option>Bitácoras</option><option>Educativo</option><option>Documentos</option></select></label>
+          <label><span>Origen</span><select value={draft.source} onChange={(event) => setDraft({ ...draft, source: event.target.value })}><option>Inventario</option><option>Equipos</option><option>Prácticas</option><option>Reservas</option></select></label>
           <label><span>Condición sencilla</span><input required value={draft.trigger} onChange={(event) => setDraft({ ...draft, trigger: event.target.value })} placeholder="Ej. Temperatura > 8 °C" /></label>
           <label><span>Severidad</span><select value={draft.severity} onChange={(event) => setDraft({ ...draft, severity: event.target.value as AlertRule["severity"] })}><option>Informativa</option><option>Baja</option><option>Media</option><option>Alta</option><option>Crítica</option></select></label>
           <button className="primary-button" type="submit"><Save size={15} /> Agregar</button>

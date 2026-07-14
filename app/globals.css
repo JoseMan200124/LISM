@@ -142,6 +142,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .checkbox-line input { accent-color: var(--primary); }
 .text-button { display: inline-flex; align-items: center; gap: 4px; border: 0; color: var(--primary); background: transparent; font-size: 12px; font-weight: 760; }
 .form-error { margin: 0; padding: 9px 11px; border: 1px solid #eed2cf; border-radius: 8px; color: #994b45; background: #fdf5f4; font-size: 12px; }
+.profile-card-locked { opacity: .68; cursor: not-allowed; }
+.profile-card-locked:hover { opacity: .85; }
+.profile-card-lock { display: inline-flex; align-items: center; gap: 6px; color: #9a7a3f; font-style: normal; font-size: 10.5px; font-weight: 700; }
 .filter-active-chip { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 12px; padding: 6px 12px; border: 1px solid #cfe3dd; border-radius: 999px; background: #eef7f4; color: #3a5a54; font-size: 12px; }
 .filter-active-chip strong { color: #216d66; }
 .filter-active-chip button { border: 0; background: transparent; color: #6a8580; cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
