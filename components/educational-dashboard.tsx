@@ -1,108 +1,77 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
-  BookOpenCheck,
+  Bell,
   Boxes,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
-  Clock,
   FileDown,
   FlaskConical,
   GraduationCap,
-  MapPin,
   Microscope,
   PackageCheck,
-  QrCode,
   RefreshCw,
-  TriangleAlert,
 } from "lucide-react";
+import { ErrorState, SkeletonKpiGrid, SkeletonTable } from "@/components/lims-ui";
 import { Toast, useToast } from "@/components/action-kit";
 import { renderReportDocument, type ReportBranding } from "@/lib/report-template";
 import type { UserSession } from "@/lib/session";
 
 type Role = UserSession["role"];
 
-type KpiItem = {
-  label: string;
-  value: string;
-  delta: string;
-  tone: "primary" | "sage" | "amber" | "rose";
+type PracticeSummary = { id: string; practice_code: string; title: string; course_name: string | null; teacher_name: string | null; starts_at: string; status: string };
+type AlertSummary = { id: string; title: string; details: string | null; severity: string; status: string; source_type: string | null; source_id: string | null; created_at: string };
+type DashboardData = {
+  upcomingPractices: number; pendingReservations: number; lowStockItems: number; nearExpiryItems: number;
+  maintenanceDueEquipment: number; recentQrScans: number; operationalEquipment: number; totalEquipment: number;
+  upcomingPracticesList: PracticeSummary[]; attentionAlerts: AlertSummary[];
 };
 
-type AlertItem = {
-  title: string;
-  detail: string;
-  severity: "Alta" | "Media" | "Baja";
-  when: string;
-};
+const PRACTICE_STATUS_LABEL: Record<string, string> = { DRAFT: "Borrador", PLANNED: "Planificada", PREPARING: "En preparación", READY: "Lista", EXECUTED: "Ejecutada", CLOSED: "Cerrada", CANCELLED: "Cancelada" };
+const statusBadge: Record<string, string> = { Lista: "status-pill-success", "En preparación": "status-pill-warning", Planificada: "status-pill-info", Borrador: "status-pill-neutral", Ejecutada: "status-pill-dark", Cerrada: "status-pill-dark", Cancelada: "status-pill-danger" };
 
-type PracticeItem = {
-  code: string;
-  title: string;
-  course: string;
-  teacher: string;
-  date: string;
-  status: string;
-};
+function fmtDate(value: unknown): string {
+  if (!value) return "—";
+  try { return new Date(String(value)).toLocaleString("es-GT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch { return String(value); }
+}
+function severityLabel(sev: string): "Alta" | "Media" | "Baja" {
+  if (sev === "CRITICAL" || sev === "HIGH") return "Alta";
+  if (sev === "WARNING") return "Media";
+  return "Baja";
+}
+// Ruta a la entidad origen de una alerta, para navegación cruzada (§4.5).
+function alertSourceHref(alert: AlertSummary): string {
+  switch (alert.source_type) {
+    case "INVENTORY_ITEM": return "/app/inventory";
+    case "EQUIPMENT": return "/app/equipment";
+    case "EDUCATIONAL_PRACTICE": return "/app/education?tab=practices";
+    case "RESOURCE_RESERVATION": return "/app/education?tab=reservations";
+    default: return "/app/alerts";
+  }
+}
 
-const adminKpis: KpiItem[] = [
-  { label: "Prácticas próximas", value: "6", delta: "Esta semana", tone: "primary" },
-  { label: "Reservas pendientes", value: "4", delta: "Por preparar", tone: "amber" },
-  { label: "Inventario bajo mínimo", value: "2", delta: "Reponer urgente", tone: "rose" },
-  { label: "Equipos operativos", value: "9/10", delta: "1 en mantenimiento", tone: "sage" },
-];
-
-const professorKpis: KpiItem[] = [
-  { label: "Mis prácticas esta semana", value: "2", delta: "Próxima: mañana", tone: "primary" },
-  { label: "Reservas pendientes", value: "3", delta: "Por confirmar", tone: "amber" },
-  { label: "Recursos faltantes", value: "1", delta: "Verificar disponibilidad", tone: "rose" },
-  { label: "Avisos enviados", value: "4", delta: "Esta semana", tone: "sage" },
-];
-
-const studentKpis: KpiItem[] = [
-  { label: "Próxima práctica", value: "Mañana", delta: "10:00 h · Laboratorio A", tone: "primary" },
-  { label: "Avisos sin leer", value: "2", delta: "Revisa antes de llegar", tone: "amber" },
-  { label: "Instrucciones pendientes", value: "1", delta: "Guía disponible", tone: "sage" },
-  { label: "Prácticas este período", value: "6", delta: "2 completadas", tone: "primary" },
-];
-
-const adminAlerts: AlertItem[] = [
-  { title: "Ácido sulfúrico próximo a vencer", detail: "RQ-0003 · vence en 12 días · stock: 500 mL", severity: "Alta", when: "Hace 2 h" },
-  { title: "Microscopio EQ-MIC-004 en mantenimiento", detail: "Fuera de servicio desde ayer", severity: "Media", when: "Ayer" },
-  { title: "Reserva RES-2026-088 sin preparar", detail: "Práctica de tinción de Gram · mañana 09:30", severity: "Alta", when: "Hace 30 min" },
-];
-
-const upcomingPractices: PracticeItem[] = [
-  { code: "PRA-2026-021", title: "Tinción de Gram", course: "Microbiología I", teacher: "Dra. Ana García", date: "Mañana · 10:00", status: "Lista" },
-  { code: "PRA-2026-022", title: "Verificación de microscopio", course: "Laboratorio básico", teacher: "Prof. Luis Torres", date: "12/06 · 14:00", status: "Preparación" },
-  { code: "PRA-2026-023", title: "Cultivo en placa", course: "Microbiología II", teacher: "Dra. Ana García", date: "14/06 · 09:00", status: "Programada" },
-  { code: "PRA-2026-024", title: "Titulación ácido-base", course: "Química analítica", teacher: "Prof. Luis Torres", date: "16/06 · 11:00", status: "Borrador" },
-];
-
-const myPractices: PracticeItem[] = [
-  { code: "PRA-2026-021", title: "Tinción de Gram", course: "Microbiología I", teacher: "Yo", date: "Mañana · 10:00", status: "Lista" },
-  { code: "PRA-2026-022", title: "Verificación de microscopio", course: "Laboratorio básico", teacher: "Yo", date: "12/06 · 14:00", status: "Preparación" },
-];
-
-const studentPractices: PracticeItem[] = [
-  { code: "PRA-2026-021", title: "Tinción de Gram", course: "Microbiología I · Sección B", teacher: "Dra. Ana García", date: "Mañana · 10:00", status: "Lista" },
-];
-
-const statusBadge: Record<string, string> = {
-  Lista: "status-pill-success",
-  Preparación: "status-pill-warning",
-  Programada: "status-pill-info",
-  Borrador: "status-pill-neutral",
-  Ejecutada: "status-pill-dark",
-  Cancelada: "status-pill-danger",
-};
+function useDashboardData() {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [state, setState] = useState<"loading" | "error" | "ready">("loading");
+  const load = useCallback(async () => {
+    setState("loading");
+    try {
+      const res = await fetch("/api/dashboard/educational");
+      if (!res.ok) { setState("error"); return; }
+      const payload = await res.json() as { data?: DashboardData };
+      setData(payload.data ?? null);
+      setState("ready");
+    } catch { setState("error"); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  return { data, state, reload: load };
+}
 
 async function fetchReportBranding(): Promise<ReportBranding & { laboratoryName: string }> {
   try {
@@ -111,40 +80,8 @@ async function fetchReportBranding(): Promise<ReportBranding & { laboratoryName:
     const payload = await response.json() as { data: ReportBranding & { laboratoryName: string } };
     return payload.data;
   } catch {
-    // Fallback seguro: sin nombre de institución ni logo (el propio
-    // renderReportDocument ya maneja logoDataUri vacío mostrando la marca
-    // "NL" de respaldo) — nunca bloquea la generación del PDF.
-    return { organizationName: null, logoDataUri: "", laboratoryName: "Laboratorio Central" };
+    return { organizationName: null, logoDataUri: "", laboratoryName: "Laboratorio" };
   }
-}
-
-function buildReportHtml(
-  reportTitle: string,
-  roleLabel: string,
-  branding: ReportBranding,
-  laboratoryName: string,
-  kpis: KpiItem[],
-  practices: PracticeItem[],
-  alerts: AlertItem[],
-): string {
-  return renderReportDocument({
-    reportTitle,
-    roleLabel,
-    branding,
-    laboratoryName,
-    kpis: kpis.map((k) => ({ label: k.label, value: k.value, delta: k.delta })),
-    tableSectionTitle: "Prácticas programadas",
-    tableColumns: [
-      { key: "code", label: "Código" },
-      { key: "title", label: "Práctica" },
-      { key: "course", label: "Curso" },
-      { key: "teacher", label: "Responsable" },
-      { key: "date", label: "Fecha" },
-      { key: "status", label: "Estado" },
-    ],
-    tableRows: practices.map((p) => ({ code: p.code, title: p.title, course: p.course, teacher: p.teacher, date: p.date, status: p.status })),
-    alerts: alerts.map((a) => ({ title: a.title, detail: a.detail, severity: a.severity, when: a.when })),
-  });
 }
 
 function openReportWindow(html: string): boolean {
@@ -156,66 +93,107 @@ function openReportWindow(html: string): boolean {
   return true;
 }
 
-function PracticesTable({ rows }: Readonly<{ rows: PracticeItem[] }>) {
+// ─── KPI card clicable ───────────────────────────────────────────────────────
+
+function KpiCard({ href, value, label, delta, tone, Icon, urgency }: Readonly<{ href: string; value: string; label: string; delta: string; tone: string; Icon: typeof CalendarDays; urgency?: string }>) {
   return (
-    <div className="table-scroll">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Código</th>
-            <th>Práctica</th>
-            <th>Curso</th>
-            <th>Responsable</th>
-            <th>Fecha</th>
-            <th>Estado</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.code}>
-              <td><strong className="table-id">{row.code}</strong></td>
-              <td>{row.title}</td>
-              <td>{row.course}</td>
-              <td>{row.teacher}</td>
-              <td>{row.date}</td>
-              <td><span className={`status-pill ${statusBadge[row.status] ?? ""}`}>{row.status}</span></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Link href={href} className={`kpi-card kpi-card-link ${urgency ?? ""}`}>
+      <div className="kpi-card-head"><div className={`kpi-icon kpi-icon-${tone}`}><Icon size={19} /></div><ArrowUpRight size={15} className="kpi-card-go" /></div>
+      <strong>{value}</strong>
+      <span>{label}</span>
+      <small className={`kpi-delta kpi-delta-${tone}`}>{delta}</small>
+    </Link>
   );
 }
 
+function PracticesPanel({ practices }: Readonly<{ practices: PracticeSummary[] }>) {
+  return (
+    <article className="panel table-panel">
+      <div className="panel-header">
+        <div><h2>Próximas prácticas</h2><p>Cronograma y estado de preparación.</p></div>
+        <Link href="/app/education?tab=practices" className="text-button">Ver programa <ChevronRight size={14} /></Link>
+      </div>
+      {practices.length === 0 ? (
+        <div className="empty-state"><div className="empty-icon"><CalendarDays size={22} /></div><h3>No hay prácticas próximas</h3><p>Crea una nueva práctica en Programa para comenzar.</p></div>
+      ) : (
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead><tr><th>Código</th><th>Práctica</th><th>Curso</th><th>Responsable</th><th>Fecha</th><th>Estado</th></tr></thead>
+            <tbody>
+              {practices.map((p) => {
+                const label = PRACTICE_STATUS_LABEL[p.status] ?? p.status;
+                return (
+                  <tr key={p.id} className="data-row-clickable" role="button" tabIndex={0}
+                    onClick={() => { window.location.href = "/app/education?tab=practices"; }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = "/app/education?tab=practices"; } }}>
+                    <td><strong className="table-id">{p.practice_code}</strong></td>
+                    <td>{p.title}</td>
+                    <td>{p.course_name ?? "—"}</td>
+                    <td>{p.teacher_name ?? "—"}</td>
+                    <td>{fmtDate(p.starts_at)}</td>
+                    <td><span className={`status-pill ${statusBadge[label] ?? "status-pill-neutral"}`}>{label}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function AlertsPanel({ alerts }: Readonly<{ alerts: AlertSummary[] }>) {
+  return (
+    <article className="panel alerts-panel">
+      <div className="panel-header"><div><h2>Requiere atención</h2><p>Alertas activas del laboratorio.</p></div></div>
+      {alerts.length === 0 ? (
+        <div className="empty-state"><div className="empty-icon"><CheckCircle2 size={22} /></div><h3>Nada pendiente por ahora</h3><p>No hay alertas activas en este momento.</p></div>
+      ) : (
+        <div className="alert-list">
+          {alerts.map((a) => (
+            <Link key={a.id} href={alertSourceHref(a)} className="alert-item alert-item-link">
+              <span className={`severity-dot severity-${severityLabel(a.severity).toLowerCase()}`} />
+              <div><strong>{a.title}</strong>{a.details ? <p>{a.details}</p> : null}<small>{fmtDate(a.created_at)}</small></div>
+              <ChevronRight size={15} />
+            </Link>
+          ))}
+        </div>
+      )}
+      <Link href="/app/alerts" className="panel-footer-button">Ver todas las alertas <ArrowUpRight size={14} /></Link>
+    </article>
+  );
+}
+
+// ─── Admin ───────────────────────────────────────────────────────────────────
+
 function AdminDashboard() {
-  const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
+  const { data, state, reload } = useDashboardData();
   const [exportingPdf, setExportingPdf] = useState(false);
   const { message, toastType, showToast, showError, clearToast } = useToast();
 
-  function refresh() {
-    setRefreshing(true);
-    window.setTimeout(() => {
-      setRefreshing(false);
-      showToast(`Resumen actualizado a las ${new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.`);
-    }, 450);
-  }
-
   async function handleExportPdf() {
+    if (!data) return;
     setExportingPdf(true);
     try {
       const branding = await fetchReportBranding();
-      const html = buildReportHtml(
-        "Reporte de resumen — Laboratorio educativo",
-        "Administrador",
+      const html = renderReportDocument({
+        reportTitle: "Reporte de resumen — Laboratorio educativo",
+        roleLabel: "Administrador",
         branding,
-        branding.laboratoryName,
-        adminKpis,
-        upcomingPractices,
-        adminAlerts,
-      );
-      const opened = openReportWindow(html);
-      if (!opened) showError("Activa las ventanas emergentes del navegador para generar el PDF.");
+        laboratoryName: branding.laboratoryName,
+        kpis: [
+          { label: "Prácticas próximas", value: String(data.upcomingPractices), delta: "Planificadas" },
+          { label: "Reservas pendientes", value: String(data.pendingReservations), delta: "Por preparar" },
+          { label: "Inventario bajo mínimo", value: String(data.lowStockItems), delta: "Reponer" },
+          { label: "Equipos operativos", value: `${data.operationalEquipment}/${data.totalEquipment}`, delta: `${data.maintenanceDueEquipment} en mantenimiento` },
+        ],
+        tableSectionTitle: "Próximas prácticas",
+        tableColumns: [{ key: "code", label: "Código" }, { key: "title", label: "Práctica" }, { key: "course", label: "Curso" }, { key: "teacher", label: "Responsable" }, { key: "date", label: "Fecha" }, { key: "status", label: "Estado" }],
+        tableRows: data.upcomingPracticesList.map((p) => ({ code: p.practice_code, title: p.title, course: p.course_name ?? "—", teacher: p.teacher_name ?? "—", date: fmtDate(p.starts_at), status: PRACTICE_STATUS_LABEL[p.status] ?? p.status })),
+        alerts: data.attentionAlerts.map((a) => ({ title: a.title, detail: a.details ?? "", severity: severityLabel(a.severity), when: fmtDate(a.created_at) })),
+      });
+      if (!openReportWindow(html)) showError("Activa las ventanas emergentes del navegador para generar el PDF.");
       else showToast("Generando PDF… usa «Guardar como PDF» en el diálogo de impresión.");
     } catch {
       showError("No se pudo generar el reporte. Intenta de nuevo.");
@@ -233,271 +211,116 @@ function AdminDashboard() {
           <p>Supervisa prácticas, inventario y equipos. Atiende primero lo que requiere acción.</p>
         </div>
         <div className="header-actions">
-          <button className="primary-button" data-tutorial="dashboard-export-pdf" onClick={() => void handleExportPdf()} disabled={exportingPdf}>
+          <button className="primary-button" data-tutorial="dashboard-export-pdf" onClick={() => void handleExportPdf()} disabled={exportingPdf || !data}>
             {exportingPdf ? <RefreshCw size={15} className="spin" /> : <FileDown size={15} />} {exportingPdf ? "Generando…" : "Exportar PDF"}
           </button>
-          <button className="secondary-button icon-only" aria-label="Actualizar" onClick={refresh}><RefreshCw className={refreshing ? "spin" : ""} size={15} /></button>
+          <button className="secondary-button icon-only" aria-label="Actualizar" onClick={() => void reload()}><RefreshCw size={15} /></button>
         </div>
       </header>
 
-      <section className="kpi-grid">
-        {adminKpis.map((kpi, index) => {
-          const urgencyClass = index === 2 ? "kpi-card-urgent" : index === 1 ? "kpi-card-caution" : "";
-          const Icon = [CalendarDays, PackageCheck, Boxes, Microscope][index];
-          return (
-            <article className={`kpi-card ${urgencyClass}`} key={kpi.label}>
-              <div className="kpi-card-head">
-                <div className={`kpi-icon kpi-icon-${kpi.tone}`}><Icon size={19} /></div>
-              </div>
-              <strong>{kpi.value}</strong>
-              <span>{kpi.label}</span>
-              <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
-            </article>
-          );
-        })}
-      </section>
+      {state === "loading" ? (<><SkeletonKpiGrid cols={4} /><SkeletonTable rows={4} cols={6} /></>) : null}
+      {state === "error" ? <ErrorState description="No se pudo cargar el resumen. Verifica tu conexión e intenta de nuevo." onRetry={() => void reload()} /> : null}
+      {state === "ready" && data ? (
+        <>
+          <section className="kpi-grid">
+            <KpiCard href="/app/education?tab=practices&filter=upcoming" value={String(data.upcomingPractices)} label="Prácticas próximas" delta="Planificadas" tone="primary" Icon={CalendarDays} />
+            <KpiCard href="/app/education?tab=reservations&status=PENDING" value={String(data.pendingReservations)} label="Reservas pendientes" delta="Por preparar" tone="amber" Icon={PackageCheck} urgency={data.pendingReservations > 0 ? "kpi-card-caution" : ""} />
+            <KpiCard href="/app/inventory?filter=low-stock" value={String(data.lowStockItems)} label="Inventario bajo mínimo" delta={data.lowStockItems > 0 ? "Reponer" : "Sin alertas"} tone="rose" Icon={Boxes} urgency={data.lowStockItems > 0 ? "kpi-card-urgent" : ""} />
+            <KpiCard href="/app/equipment?filter=operational" value={`${data.operationalEquipment}/${data.totalEquipment}`} label="Equipos operativos" delta={`${data.maintenanceDueEquipment} en mantenimiento`} tone="sage" Icon={Microscope} />
+          </section>
 
-      <section className="content-grid content-grid-wide">
-        <article className="panel table-panel">
-          <div className="panel-header">
-            <div><h2>Próximas prácticas</h2><p>Cronograma de la semana y estado de preparación.</p></div>
-            <button className="text-button" onClick={() => router.push("/app/education")}>Ver programa <ChevronRight size={14} /></button>
-          </div>
-          <PracticesTable rows={upcomingPractices} />
-        </article>
+          <section className="content-grid content-grid-wide">
+            <PracticesPanel practices={data.upcomingPracticesList} />
+            <AlertsPanel alerts={data.attentionAlerts} />
+          </section>
 
-        <article className="panel alerts-panel">
-          <div className="panel-header">
-            <div><h2>Requiere atención</h2><p>Alertas activas del laboratorio.</p></div>
-          </div>
-          <div className="alert-list">
-            {adminAlerts.map((alert) => (
-              <div className="alert-item" key={alert.title}>
-                <span className={`severity-dot severity-${alert.severity.toLowerCase()}`} />
-                <div><strong>{alert.title}</strong><p>{alert.detail}</p><small>{alert.when}</small></div>
-              </div>
-            ))}
-          </div>
-          <button className="panel-footer-button" onClick={() => router.push("/app/alerts")}>Ver todas las alertas <ArrowUpRight size={14} /></button>
-        </article>
-      </section>
-
-      <section className="dashboard-governance-grid">
-        <Link href="/app/inventory" className="governance-card"><Boxes size={18} /><div><h2>Inventario</h2><p>Reactivos, materiales, insumos y QR seguro.</p></div><ChevronRight size={15} /></Link>
-        <Link href="/app/equipment" className="governance-card"><Microscope size={18} /><div><h2>Equipos</h2><p>Estado, mantenimiento, calibración y certificados.</p></div><ChevronRight size={15} /></Link>
-        <Link href="/app/education" className="governance-card"><GraduationCap size={18} /><div><h2>Programa</h2><p>Prácticas, reservas y avisos para estudiantes.</p></div><ChevronRight size={15} /></Link>
-        <Link href="/app/administration" className="governance-card"><ClipboardList size={18} /><div><h2>Usuarios</h2><p>Roles, permisos y accesos por laboratorio.</p></div><ChevronRight size={15} /></Link>
-      </section>
+          <section className="dashboard-governance-grid">
+            <Link href="/app/inventory" className="governance-card"><Boxes size={18} /><div><h2>Inventario</h2><p>Reactivos, materiales, insumos y QR seguro.</p></div><ChevronRight size={15} /></Link>
+            <Link href="/app/equipment" className="governance-card"><Microscope size={18} /><div><h2>Equipos</h2><p>Estado, mantenimiento, calibración y certificados.</p></div><ChevronRight size={15} /></Link>
+            <Link href="/app/education" className="governance-card"><GraduationCap size={18} /><div><h2>Programa</h2><p>Prácticas, reservas y avisos para estudiantes.</p></div><ChevronRight size={15} /></Link>
+            <Link href="/app/administration" className="governance-card"><ClipboardList size={18} /><div><h2>Usuarios</h2><p>Roles, permisos y accesos por laboratorio.</p></div><ChevronRight size={15} /></Link>
+          </section>
+        </>
+      ) : null}
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
 }
+
+// ─── Profesor ────────────────────────────────────────────────────────────────
 
 function ProfessorDashboard() {
-  const router = useRouter();
-  const [exportingPdf, setExportingPdf] = useState(false);
-  const { message, toastType, showToast, showError, clearToast } = useToast();
-
-  async function handleExportPdf() {
-    setExportingPdf(true);
-    try {
-      const branding = await fetchReportBranding();
-      const html = buildReportHtml(
-        "Reporte docente — Mis prácticas",
-        "Docente",
-        branding,
-        branding.laboratoryName,
-        professorKpis,
-        myPractices,
-        [],
-      );
-      const opened = openReportWindow(html);
-      if (!opened) showError("Activa las ventanas emergentes del navegador para generar el PDF.");
-      else showToast("Generando PDF… usa «Guardar como PDF» en el diálogo de impresión.");
-    } catch {
-      showError("No se pudo generar el reporte. Intenta de nuevo.");
-    } finally {
-      setExportingPdf(false);
-    }
-  }
-
+  const { data, state, reload } = useDashboardData();
+  const { message, toastType, clearToast } = useToast();
   return (
     <div className="page-stack">
       <header className="page-header">
-        <div>
-          <p className="eyebrow">PERFIL DOCENTE</p>
-          <h1>Mis prácticas y recursos</h1>
-          <p>Consulta el estado de tus prácticas, reservas y recursos disponibles.</p>
-        </div>
-        <div className="header-actions">
-          <button className="secondary-button" onClick={() => void handleExportPdf()} disabled={exportingPdf}>
-            {exportingPdf ? <RefreshCw size={15} className="spin" /> : <FileDown size={15} />} {exportingPdf ? "Generando…" : "Exportar PDF"}
-          </button>
-          <button className="primary-button" onClick={() => router.push("/app/education")}>
-            <CalendarDays size={15} /> Nueva práctica
-          </button>
-        </div>
+        <div><p className="eyebrow">PERFIL DOCENTE</p><h1>Mis prácticas y recursos</h1><p>Consulta el estado de tus prácticas, reservas y recursos disponibles.</p></div>
+        <div className="header-actions"><Link href="/app/education" className="primary-button"><CalendarDays size={15} /> Nueva práctica</Link></div>
       </header>
-
-      <section className="kpi-grid">
-        {professorKpis.map((kpi, index) => {
-          const Icon = [CalendarDays, PackageCheck, TriangleAlert, CheckCircle2][index];
-          return (
-            <article className="kpi-card" key={kpi.label}>
-              <div className="kpi-card-head">
-                <div className={`kpi-icon kpi-icon-${kpi.tone}`}><Icon size={19} /></div>
-              </div>
-              <strong>{kpi.value}</strong>
-              <span>{kpi.label}</span>
-              <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
-            </article>
-          );
-        })}
-      </section>
-
-      <article className="panel table-panel">
-        <div className="panel-header">
-          <div><h2>Mis prácticas programadas</h2><p>Prácticas asignadas a tu cuenta esta semana.</p></div>
-          <button className="text-button" onClick={() => router.push("/app/education")}>Ver todas <ChevronRight size={14} /></button>
-        </div>
-        <PracticesTable rows={myPractices} />
-      </article>
-
-      <section className="dashboard-governance-grid">
-        <Link href="/app/education" className="governance-card"><CalendarDays size={18} /><div><h2>Programa</h2><p>Cronograma, reservas y avisos.</p></div><ChevronRight size={15} /></Link>
-        <Link href="/app/inventory" className="governance-card"><FlaskConical size={18} /><div><h2>Inventario</h2><p>Consulta disponibilidad de reactivos y materiales.</p></div><ChevronRight size={15} /></Link>
-        <Link href="/app/equipment" className="governance-card"><Microscope size={18} /><div><h2>Equipos</h2><p>Estado y disponibilidad de equipos.</p></div><ChevronRight size={15} /></Link>
-        <Link href="/app/alerts" className="governance-card"><AlertTriangle size={18} /><div><h2>Alertas</h2><p>Avisos y notificaciones del laboratorio.</p></div><ChevronRight size={15} /></Link>
-      </section>
+      {state === "loading" ? (<><SkeletonKpiGrid cols={3} /><SkeletonTable rows={3} cols={6} /></>) : null}
+      {state === "error" ? <ErrorState description="No se pudo cargar el resumen. Intenta de nuevo." onRetry={() => void reload()} /> : null}
+      {state === "ready" && data ? (
+        <>
+          <section className="kpi-grid">
+            <KpiCard href="/app/education?tab=practices" value={String(data.upcomingPractices)} label="Prácticas próximas" delta="Planificadas" tone="primary" Icon={CalendarDays} />
+            <KpiCard href="/app/education?tab=reservations&status=PENDING" value={String(data.pendingReservations)} label="Reservas pendientes" delta="Por confirmar" tone="amber" Icon={PackageCheck} />
+            <KpiCard href="/app/inventory?filter=low-stock" value={String(data.lowStockItems)} label="Inventario bajo mínimo" delta={data.lowStockItems > 0 ? "Revisar disponibilidad" : "Sin alertas"} tone="rose" Icon={Boxes} />
+          </section>
+          <PracticesPanel practices={data.upcomingPracticesList} />
+          <section className="dashboard-governance-grid">
+            <Link href="/app/education" className="governance-card"><CalendarDays size={18} /><div><h2>Programa</h2><p>Cronograma, reservas y avisos.</p></div><ChevronRight size={15} /></Link>
+            <Link href="/app/inventory" className="governance-card"><FlaskConical size={18} /><div><h2>Inventario</h2><p>Consulta disponibilidad de reactivos y materiales.</p></div><ChevronRight size={15} /></Link>
+            <Link href="/app/equipment" className="governance-card"><Microscope size={18} /><div><h2>Equipos</h2><p>Estado y disponibilidad de equipos.</p></div><ChevronRight size={15} /></Link>
+            <Link href="/app/alerts" className="governance-card"><AlertTriangle size={18} /><div><h2>Alertas</h2><p>Avisos y notificaciones del laboratorio.</p></div><ChevronRight size={15} /></Link>
+          </section>
+        </>
+      ) : null}
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
 }
 
-const studentNotifications = [
-  {
-    id: "n1",
-    avatar: "AG",
-    avatarTone: "notif-avatar-teal" as const,
-    author: "Dra. Ana García",
-    time: "Hoy · 14:00",
-    title: "Mañana tienes práctica de tinción de Gram",
-    body: "Revisa la guía antes de llegar. El equipo estará disponible desde las 09:45 h.",
-    badge: "Recordatorio",
-    badgeTone: "notification-badge-info",
-    unread: true,
-  },
-  {
-    id: "n2",
-    avatar: "LT",
-    avatarTone: "notif-avatar-amber" as const,
-    author: "Prof. Luis Torres",
-    time: "Hoy · 10:30",
-    title: "Guía de preparación disponible",
-    body: "El docente publicó la guía de tinción de Gram. Descárgala antes de la clase.",
-    badge: "Instrucción previa",
-    badgeTone: "notification-badge-warning",
-    unread: true,
-  },
-];
+// ─── Estudiante ──────────────────────────────────────────────────────────────
 
 function StudentDashboard() {
-  const router = useRouter();
+  const { data, state, reload } = useDashboardData();
   const { message, toastType, clearToast } = useToast();
-
-  const nextPractice = studentPractices[0];
-
+  const next = data?.upcomingPracticesList[0];
   return (
     <div className="page-stack">
       <header className="page-header">
-        <div>
-          <p className="eyebrow">PERFIL ESTUDIANTE</p>
-          <h1>Mi próxima práctica</h1>
-          <p>Revisa los avisos y prepárate antes de llegar al laboratorio.</p>
-        </div>
+        <div><p className="eyebrow">PERFIL ESTUDIANTE</p><h1>Mi próxima práctica</h1><p>Revisa los avisos y prepárate antes de llegar al laboratorio.</p></div>
       </header>
-
-      <section className="kpi-grid">
-        {studentKpis.slice(0, 3).map((kpi, index) => {
-          const urgencyClass = index === 1 ? "kpi-card-caution" : "";
-          const Icon = [CalendarDays, AlertTriangle, GraduationCap][index];
-          return (
-            <article className={`kpi-card ${urgencyClass}`} key={kpi.label}>
-              <div className="kpi-card-head">
-                <div className={`kpi-icon kpi-icon-${kpi.tone}`}><Icon size={19} /></div>
-              </div>
-              <strong>{kpi.value}</strong>
-              <span>{kpi.label}</span>
-              <small className={`kpi-delta kpi-delta-${kpi.tone}`}>{kpi.delta}</small>
-            </article>
-          );
-        })}
-      </section>
-
-      <article className="panel">
-        <div className="panel-header">
-          <div><h2>Próxima práctica</h2><p>Prepárate antes de llegar al laboratorio.</p></div>
-          <button className="text-button" onClick={() => router.push("/app/education")}>Ver todas <ChevronRight size={14} /></button>
-        </div>
-        {nextPractice ? (
-          <>
-            <div className="practice-hero">
-              <div className="practice-hero-icon"><FlaskConical size={26} /></div>
-              <div>
-                <h2>{nextPractice.title}</h2>
-                <p>{nextPractice.course}</p>
-                <div className="practice-hero-chips">
-                  <span className="practice-chip"><CalendarDays size={13} />{nextPractice.date}</span>
-                  <span className="practice-chip"><MapPin size={13} />Laboratorio A</span>
-                  <span className="practice-chip"><Clock size={13} />Dra. {nextPractice.teacher.replace("Dra. ", "")}</span>
-                  <span className={`status-pill ${statusBadge[nextPractice.status] ?? "status-pill-neutral"}`}>{nextPractice.status}</span>
+      {state === "loading" ? <SkeletonKpiGrid cols={3} /> : null}
+      {state === "error" ? <ErrorState description="No se pudo cargar tu información. Intenta de nuevo." onRetry={() => void reload()} /> : null}
+      {state === "ready" && data ? (
+        <>
+          <section className="kpi-grid">
+            <KpiCard href="/app/education?tab=practices" value={next ? next.practice_code : "Ninguna"} label="Próxima práctica" delta={next ? fmtDate(next.starts_at) : "Sin prácticas próximas"} tone="primary" Icon={CalendarDays} />
+            <KpiCard href="/app/education" value={String(data.upcomingPracticesList.length)} label="Prácticas próximas" delta="Este período" tone="sage" Icon={GraduationCap} />
+            <KpiCard href="/app/alerts" value="Avisos" label="Avisos del docente" delta="Revisa antes de llegar" tone="amber" Icon={Bell} />
+          </section>
+          <article className="panel">
+            <div className="panel-header"><div><h2>Próxima práctica</h2><p>Prepárate antes de llegar al laboratorio.</p></div><Link href="/app/education" className="text-button">Ver todas <ChevronRight size={14} /></Link></div>
+            {next ? (
+              <div className="practice-hero">
+                <div className="practice-hero-icon"><FlaskConical size={26} /></div>
+                <div>
+                  <h2>{next.title}</h2>
+                  <p>{next.course_name ?? "—"}</p>
+                  <div className="practice-hero-chips">
+                    <span className="practice-chip"><CalendarDays size={13} />{fmtDate(next.starts_at)}</span>
+                    <span className={`status-pill ${statusBadge[PRACTICE_STATUS_LABEL[next.status] ?? ""] ?? "status-pill-neutral"}`}>{PRACTICE_STATUS_LABEL[next.status] ?? next.status}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <hr className="practice-divider" />
-            <div className="practice-actions-bar">
-              <button className="secondary-button" onClick={() => router.push("/app/education")}><BookOpenCheck size={15} /> Ver instrucciones</button>
-              <button className="secondary-button" onClick={() => router.push("/app/resources")}><QrCode size={15} /> Escanear QR</button>
-            </div>
-          </>
-        ) : (
-          <div className="no-practice-banner">
-            <CheckCircle2 size={30} />
-            <div>
-              <h2>Sin prácticas próximas</h2>
-              <p>Cuando tu docente programe una práctica aparecerá aquí.</p>
-            </div>
-          </div>
-        )}
-      </article>
-
-      <article className="panel">
-        <div className="panel-header">
-          <div><h2>Avisos recientes</h2><p>Mensajes de tu docente y del administrador.</p></div>
-          <button className="text-button" onClick={() => router.push("/app/alerts")}>Ver todos <ChevronRight size={14} /></button>
-        </div>
-        <div className="notif-feed">
-          {studentNotifications.map((n) => (
-            <div key={n.id} className={`notif-item ${n.unread ? "notif-item-unread" : ""}`}>
-              <div className={`notif-avatar ${n.avatarTone}`}>{n.avatar}</div>
-              <div>
-                <div className="notif-row-top">
-                  <span className="notif-author">{n.author}</span>
-                  <span className="notif-sep">·</span>
-                  <span className="notif-time">{n.time}</span>
-                  {n.unread ? <span className="notif-unread-dot" aria-label="No leído" /> : null}
-                </div>
-                <p className="notif-title">{n.title}</p>
-                <p className="notif-body">{n.body}</p>
-                <div className="notif-foot">
-                  <span className={`notification-badge ${n.badgeTone}`}>{n.badge}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </article>
-
+            ) : (
+              <div className="no-practice-banner"><CheckCircle2 size={30} /><div><h2>Sin prácticas próximas</h2><p>Cuando tu docente programe una práctica aparecerá aquí.</p></div></div>
+            )}
+          </article>
+        </>
+      ) : null}
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );

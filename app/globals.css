@@ -142,6 +142,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .checkbox-line input { accent-color: var(--primary); }
 .text-button { display: inline-flex; align-items: center; gap: 4px; border: 0; color: var(--primary); background: transparent; font-size: 12px; font-weight: 760; }
 .form-error { margin: 0; padding: 9px 11px; border: 1px solid #eed2cf; border-radius: 8px; color: #994b45; background: #fdf5f4; font-size: 12px; }
+.filter-active-chip { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 12px; padding: 6px 12px; border: 1px solid #cfe3dd; border-radius: 999px; background: #eef7f4; color: #3a5a54; font-size: 12px; }
+.filter-active-chip strong { color: #216d66; }
+.filter-active-chip button { border: 0; background: transparent; color: #6a8580; cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+.filter-active-chip button:hover { color: #b3453d; }
 .approval-strip { display: grid; gap: 8px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid #e0ded0; border-radius: 10px; background: #fbfaf3; }
 .approval-strip-title { margin: 0 0 2px; color: #7a6a2f; font-size: 11px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase; }
 .approval-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 12px; color: #53686c; }
@@ -253,6 +257,15 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   transition: box-shadow .18s ease, transform .18s ease;
 }
 .kpi-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+/* Tarjeta KPI como enlace accesible: hereda el look de .kpi-card pero es
+   clicable y navega a su listado filtrado. */
+.kpi-card-link { text-decoration: none; cursor: pointer; color: inherit; }
+.kpi-card-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.kpi-card-go { color: var(--muted); opacity: 0; transition: opacity .15s ease; margin-left: auto; }
+.kpi-card-link:hover .kpi-card-go { opacity: 1; }
+.alert-item-link { text-decoration: none; color: inherit; grid-template-columns: 8px minmax(0,1fr) auto; align-items: center; cursor: pointer; }
+.alert-item-link > svg:last-child { color: var(--muted); }
+.alert-item-link:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .kpi-card-head {
   display: flex;
   align-items: center;

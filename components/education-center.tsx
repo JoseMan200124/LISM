@@ -119,8 +119,16 @@ function resourceTypeLabel(type: string | undefined | null): string {
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
+// Lee filtros de la URL (?tab=&status=) enviados desde el dashboard clicable.
+function readEducationQuery(): { tab?: string; status?: string } {
+  if (typeof window === "undefined") return {};
+  const params = new URLSearchParams(window.location.search);
+  return { tab: params.get("tab") ?? undefined, status: params.get("status")?.toUpperCase() ?? undefined };
+}
+
 function AdminEducationCenter() {
   const [tab, setTab] = useState("practices");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [addTarget, setAddTarget] = useState<AddTarget>(null);
   const [notifModal, setNotifModal] = useState<ModalOpen>(null);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
@@ -163,6 +171,12 @@ function AdminEducationCenter() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const { tab: t, status } = readEducationQuery();
+    if (t === "practices" || t === "reservations" || t === "notifications") setTab(t);
+    if (status) setStatusFilter(status);
+  }, []);
 
   async function createPractice(payload: PracticePayload): Promise<boolean> {
     try {
@@ -250,7 +264,8 @@ function AdminEducationCenter() {
     status: statusLabel(p.status),
   }));
 
-  const reservationRows: TableRow[] = reservations.map((r) => ({
+  const shownReservations = statusFilter ? reservations.filter((r) => String(r.status) === statusFilter) : reservations;
+  const reservationRows: TableRow[] = shownReservations.map((r) => ({
     code: r.reservation_code ?? "—",
     resource: r.resource_name ?? "—",
     type: resourceTypeLabel(r.resource_type),
@@ -325,6 +340,9 @@ function AdminEducationCenter() {
                 <div><h2>Solicitudes de recursos</h2><p>Aprueba, rechaza o prepara materiales y equipos para cada práctica.</p></div>
                 <button className="secondary-button" onClick={() => setAddTarget("reservation")}><Plus size={15} /> Nueva reserva</button>
               </div>
+              {statusFilter ? (
+                <div className="filter-active-chip">Filtrando por estado: <strong>{statusLabel(statusFilter)}</strong><button type="button" onClick={() => setStatusFilter(null)} aria-label="Quitar filtro">✕</button></div>
+              ) : null}
               <PendingReservations reservations={reservations} onDecide={updateReservationStatus} />
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "resource", label: "Recurso" }, { key: "type", label: "Tipo" }, { key: "quantity", label: "Cantidad" }, { key: "practice", label: "Práctica" }, { key: "status", label: "Estado" }]}

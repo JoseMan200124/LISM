@@ -72,6 +72,12 @@ type EquipmentRaw = {
 
 type LoadState = "loading" | "error" | "ready";
 
+// Lee ?filter= de la URL (enviado desde el dashboard clicable).
+function readFilterQuery(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("filter");
+}
+
 // ─── Inventario ──────────────────────────────────────────────────────────────
 
 export function InventoryCenter() {
@@ -84,7 +90,10 @@ export function InventoryCenter() {
   const [locations, setLocations] = useState<TableRow[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
+  const [lowStockOnly, setLowStockOnly] = useState(false);
   const { message, toastType, showToast, showError, clearToast } = useToast();
+
+  useEffect(() => { if (readFilterQuery() === "low-stock") setLowStockOnly(true); }, []);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -142,15 +151,20 @@ export function InventoryCenter() {
   const watchCount = items.filter((item) => item.status === "Vigilar").length;
 
   const filteredItems = useMemo(() => {
-    if (activeCategory === "ALL") return items;
-    const cat = categories.find((c) => c.code === activeCategory);
-    if (!cat) return items;
-    return items.filter((item) => {
-      const sku = String(item.sku ?? "").toUpperCase();
-      const category = String(item.category ?? "").toLowerCase();
-      return sku.startsWith(cat.prefix.toUpperCase()) || category.includes(cat.name.toLowerCase().slice(0, 6));
-    });
-  }, [items, activeCategory, categories]);
+    let result = items;
+    if (lowStockOnly) result = result.filter((item) => item.status === "Reponer");
+    if (activeCategory !== "ALL") {
+      const cat = categories.find((c) => c.code === activeCategory);
+      if (cat) {
+        result = result.filter((item) => {
+          const sku = String(item.sku ?? "").toUpperCase();
+          const category = String(item.category ?? "").toLowerCase();
+          return sku.startsWith(cat.prefix.toUpperCase()) || category.includes(cat.name.toLowerCase().slice(0, 6));
+        });
+      }
+    }
+    return result;
+  }, [items, activeCategory, categories, lowStockOnly]);
 
   async function addItem(payload: Record<string, unknown>): Promise<boolean> {
     try {
@@ -236,6 +250,9 @@ export function InventoryCenter() {
                 <div><h2>Existencias por lote</h2><p>Cada lote conserva proveedor, vencimiento, ubicación, ficha de seguridad y trazabilidad de uso.</p></div>
                 <button className="secondary-button" onClick={() => setModal("movement")} disabled={items.length === 0}><Plus size={15} /> Registrar consumo</button>
               </div>
+              {lowStockOnly ? (
+                <div className="filter-active-chip">Mostrando solo <strong>bajo mínimo</strong><button type="button" onClick={() => setLowStockOnly(false)} aria-label="Quitar filtro">✕</button></div>
+              ) : null}
               <div className="filter-chip-row" role="group" aria-label="Filtrar por categoría">
                 <button type="button" className={`filter-chip${activeCategory === "ALL" ? " filter-chip-active" : ""}`} onClick={() => setActiveCategory("ALL")}>Todos</button>
                 {categories.map((cat) => (
@@ -278,7 +295,10 @@ export function EquipmentCenter() {
   const [plans, setPlans] = useState<TableRow[]>([]);
   const [certificates, setCertificates] = useState<TableRow[]>([]);
   const [editing, setEditing] = useState<EquipmentRaw | null>(null);
+  const [operationalOnly, setOperationalOnly] = useState(false);
   const { message, toastType, showToast, showError, clearToast } = useToast();
+
+  useEffect(() => { if (readFilterQuery() === "operational") setOperationalOnly(true); }, []);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -323,7 +343,8 @@ export function EquipmentCenter() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const equipmentRows: TableRow[] = equipment.map((e) => ({
+  const shownEquipment = operationalOnly ? equipment.filter((e) => e.status === "OPERATIONAL") : equipment;
+  const equipmentRows: TableRow[] = shownEquipment.map((e) => ({
     id: e.id,
     code: e.code,
     name: e.name,
@@ -432,6 +453,9 @@ export function EquipmentCenter() {
         <div className="configuration-body">
           {tab === "master" ? (
             <ResourceSection title="Equipos" copy="Haz clic en un equipo para ver detalle y editar. Las próximas fechas provienen de sus planes." action="Registrar evento" onAction={() => setModal("event")} disabled={equipment.length === 0}>
+              {operationalOnly ? (
+                <div className="filter-active-chip">Mostrando solo <strong>operativos</strong><button type="button" onClick={() => setOperationalOnly(false)} aria-label="Quitar filtro">✕</button></div>
+              ) : null}
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "name", label: "Equipo" }, { key: "area", label: "Ubicación" }, { key: "status", label: "Estado" }, { key: "calibration", label: "Próx. calibración" }, { key: "maintenance", label: "Próx. mantenimiento" }, { key: "qualification", label: "Próx. calificación" }, { key: "responsible", label: "Responsable" }]}
                 rows={equipmentRows}
