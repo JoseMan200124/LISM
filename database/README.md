@@ -48,4 +48,6 @@ Con las migraciones aplicadas, define la contraseña sin escribirla en argumento
 CLEAN_TENANT_ADMIN_PASSWORD='<contraseña-de-12-o-más-caracteres>' npm run tenant:create-clean-educational -- --name 'Institución' --slug 'institucion-educativa' --admin-email 'admin@institucion.edu'
 ```
 
+Para cuentas controladas de QA puede asignarse una suscripción local activa con `--plan academic_starter`, `--plan professional` o `--plan multi_site`. Esta opción no crea clientes ni cobros en Recurrente y deja el origen de aprovisionamiento identificado en la suscripción y en auditoría.
+
 `--include-rules` agrega tres reglas base opcionales. El comando rechaza slugs o correos existentes, usa una transacción y no crea artículos, equipos, prácticas, reservas, alertas ficticias ni logo. Nunca se ejecuta automáticamente.
