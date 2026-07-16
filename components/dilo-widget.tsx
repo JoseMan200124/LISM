@@ -106,10 +106,10 @@ export function DiloWidget({ session }: Readonly<{ session: UserSession }>) {
         className={`dilo-fab ${open ? "dilo-fab-open" : ""}`}
         aria-label={open ? "Cerrar el asistente Dilo" : "Habla con Dilo por WhatsApp"}
         aria-expanded={open}
+        title="Habla con Dilo por WhatsApp"
         onClick={() => setOpen((value) => !value)}
       >
-        {open ? <X size={22} /> : <MessageCircle size={22} />}
-        {!open ? <span className="dilo-fab-label">Dilo</span> : null}
+        {open ? <X size={20} /> : <MessageCircle size={20} />}
       </button>
 
       {open ? (
