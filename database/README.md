@@ -53,3 +53,12 @@ Para cuentas controladas de QA puede asignarse una suscripción local activa con
 En un job pueden utilizarse los equivalentes `CLEAN_TENANT_NAME`, `CLEAN_TENANT_SLUG`, `CLEAN_TENANT_ADMIN_EMAIL`, `CLEAN_TENANT_ADMIN_NAME`, `CLEAN_TENANT_LABORATORY`, `CLEAN_TENANT_PLAN` y `CLEAN_TENANT_INCLUDE_RULES`, manteniendo la contraseña en `CLEAN_TENANT_ADMIN_PASSWORD` como referencia a un secreto.
 
 `--include-rules` agrega tres reglas base opcionales. El comando rechaza slugs o correos existentes, usa una transacción y no crea artículos, equipos, prácticas, reservas, alertas ficticias ni logo. Nunca se ejecuta automáticamente.
+
+Para convertir un laboratorio existente sin borrar sus datos, primero inspecciona y después confirma explícitamente:
+
+```bash
+TARGET_USER_EMAIL='admin@institucion.edu' npm run tenant:set-educational-profile
+TARGET_USER_EMAIL='admin@institucion.edu' APPLY_PROFILE_CHANGE=true npm run tenant:set-educational-profile
+```
+
+El comando utiliza la primera membresía activa, conserva el rol y el plan, actualiza únicamente `laboratory_settings.profile_code` y registra el cambio en auditoría.

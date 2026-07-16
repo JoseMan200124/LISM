@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tenant:create-clean-educational": "node scripts/create-clean-educational-tenant.mjs"
+    "tenant:create-clean-educational": "node scripts/create-clean-educational-tenant.mjs",
+    "tenant:set-educational-profile": "node scripts/set-educational-profile.mjs"
   },
   "engines": {
     "node": "22.x"
