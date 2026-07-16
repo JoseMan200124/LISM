@@ -20,6 +20,7 @@ import { PricingSection } from "@/components/pricing-section";
 import { FaqSection } from "@/components/faq-section";
 import { JsonLd } from "@/components/structured-data";
 import { PublicThemeToggle } from "@/components/public-theme-toggle";
+import { DeveloperCredit } from "@/components/developer-credit";
 
 const softwareApplicationJsonLd = {
   "@context": "https://schema.org",
@@ -332,6 +333,7 @@ export function LandingPage() {
         <div className="landing-container landing-footer-inner">
           <BrandLogo compact />
           <p>Sistema de gestión de laboratorio educativo · Operación clara y trazable.</p>
+          <DeveloperCredit />
           <Link href="/login">Ingresar</Link>
         </div>
       </footer>

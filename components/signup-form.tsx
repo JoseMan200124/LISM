@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowRight, Building2, Eye, EyeOff, LockKeyhole, Mail, User } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { formatPlanAmount } from "@/lib/billing-plans";
+import { DeveloperCredit } from "@/components/developer-credit";
 
 type PublicPlan = {
   id: string;
@@ -176,6 +177,7 @@ export function SignupForm() {
       </form>
       <p className="login-footer">¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></p>
       <p className="login-footer">NexaLab · Entorno protegido · v0.1</p>
+      <DeveloperCredit variant="compact" className="login-developer-credit" />
     </div>
   );
 }

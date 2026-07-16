@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { DeveloperCredit } from "@/components/developer-credit";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -79,6 +80,7 @@ export function LoginForm() {
         ¿No tienes cuenta? <a href="/#precios">Ver planes y crear una cuenta</a>
       </p>
       <p className="login-footer">NexaLab · Entorno protegido · v0.1</p>
+      <DeveloperCredit variant="compact" className="login-developer-credit" />
     </div>
   );
 }

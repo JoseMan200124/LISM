@@ -33,6 +33,7 @@ import { TutorialTriggerButton } from "@/components/tutorial/tutorial-trigger-bu
 import { isEducationalProfile } from "@/lib/lab-profile";
 import { SidebarAlertCount } from "@/components/sidebar-alert-count";
 import { isThemePreference, resolveTheme, type ThemePreference } from "@/lib/theme";
+import { DeveloperCredit } from "@/components/developer-credit";
 
 type DialogKey = "laboratory" | "help" | "preferences" | null;
 
@@ -239,6 +240,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
           <TutorialTriggerButton />
           <button className="sidebar-link" onClick={() => setDialog("help")}><CircleHelp size={17} /><span>Centro de ayuda</span></button>
           <button className="sidebar-link" onClick={() => setDialog("preferences")}><Settings size={17} /><span>Preferencias</span></button>
+          <DeveloperCredit variant="compact" className="sidebar-developer-credit" />
         </div>
       </aside>
 
