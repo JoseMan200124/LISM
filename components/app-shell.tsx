@@ -34,6 +34,7 @@ import { isEducationalProfile } from "@/lib/lab-profile";
 import { SidebarAlertCount } from "@/components/sidebar-alert-count";
 import { isThemePreference, resolveTheme, type ThemePreference } from "@/lib/theme";
 import { DeveloperCredit } from "@/components/developer-credit";
+import { DiloWidget } from "@/components/dilo-widget";
 
 type DialogKey = "laboratory" | "help" | "preferences" | null;
 
@@ -301,6 +302,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         <div className="modal-form"><fieldset className="theme-options"><legend>Tema</legend><label><input type="radio" name="theme" checked={theme === "light"} onChange={() => { setTheme("light"); applyTheme("light"); }} /> Claro</label><label><input type="radio" name="theme" checked={theme === "dark"} onChange={() => { setTheme("dark"); applyTheme("dark"); }} /> Oscuro</label><label><input type="radio" name="theme" checked={theme === "system"} onChange={() => { setTheme("system"); applyTheme("system"); }} /> Usar configuración del sistema</label></fieldset><label className="check-line"><input type="checkbox" checked={compactTables} onChange={(event) => setCompactTables(event.target.checked)} /> <span>Usar tablas compactas</span></label><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cancelar</button><button className="primary-button" disabled={preferencesSaving} onClick={() => void savePreferences()}>{preferencesSaving ? "Guardando…" : "Guardar"}</button></footer></div>
       </ActionModal>
       <Toast message={message} type={toastType} onClose={clearToast} />
+      <DiloWidget session={session} />
       <TutorialOverlay />
       <TutorialPrompt />
     </div>
