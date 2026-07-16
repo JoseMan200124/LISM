@@ -3,6 +3,10 @@
   --surface: #ffffff;
   --surface-soft: #fafcfb;
   --surface-tint: #eef4f1;
+  --surface-input: #ffffff;
+  --surface-hover: #f4f9f7;
+  --surface-elevated: #ffffff;
+  --header-background: rgba(255,255,255,.92);
   --line: #e0e9e6;
   --line-strong: #d0ddd9;
   --text: #1a3038;
@@ -80,6 +84,10 @@
   --surface: #152125;
   --surface-soft: #18272a;
   --surface-tint: #1c2d30;
+  --surface-input: #101b1e;
+  --surface-hover: #203438;
+  --surface-elevated: #1a292d;
+  --header-background: rgba(14,23,25,.92);
   --line: #2b3d40;
   --line-strong: #3a5054;
   --text: #e8f0ef;
@@ -104,6 +112,11 @@
   --nexa-ink-strong: #f4f8f7;
   --nexa-text-soft: #87999c;
   --nexa-neutral-soft: #253438;
+  --nexa-success: #8fd0b4;
+  --nexa-warning: #f0bd73;
+  --nexa-danger: #f19a94;
+  --nexa-info: #9fc8d5;
+  --nexa-neutral: #c0cdcd;
 }
 
 :root[data-theme="dark"] body,
@@ -2109,4 +2122,283 @@ html { scroll-behavior: smooth; }
 
 @media (max-width: 900px) {
   .landing-faq-item summary { font-size: 14px; }
+}
+
+/* ─── TEMAS: SUPERFICIES Y CONTRASTE ─────────────────────────────────────────
+   Los componentes históricos usaban blancos y grises literales. En modo oscuro
+   eso dejaba tarjetas blancas con texto claro. Estas reglas finales usan tokens
+   semánticos y, por estar al final, cubren también módulos cargados más arriba. */
+.public-theme-toggle {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--muted-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
+}
+.public-theme-toggle:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+}
+.login-theme-toggle { position: fixed; top: 22px; right: 22px; z-index: 20; }
+
+:root[data-theme="dark"] .brand-wordmark { filter: brightness(0) invert(1); }
+:root[data-theme="dark"] .organization-logo-mark { filter: none; }
+
+:root[data-theme="dark"] .workspace,
+:root[data-theme="dark"] .modal-card,
+:root[data-theme="dark"] .tutorial-tooltip,
+:root[data-theme="dark"] .tutorial-prompt {
+  color: var(--text);
+}
+:root[data-theme="dark"] .workspace :is(h1, h2, h3, strong),
+:root[data-theme="dark"] .modal-card :is(h1, h2, h3, strong),
+:root[data-theme="dark"] .tutorial-tooltip :is(h1, h2, h3, strong),
+:root[data-theme="dark"] .tutorial-prompt :is(h1, h2, h3, strong) { color: var(--text); }
+:root[data-theme="dark"] .workspace :is(p, small, label, li, dd, td, th),
+:root[data-theme="dark"] .modal-card :is(p, small, label, li, dd),
+:root[data-theme="dark"] .tutorial-tooltip p,
+:root[data-theme="dark"] .tutorial-prompt p { color: var(--muted); }
+
+:root[data-theme="dark"] :is(
+  .module-stat,
+  .report-card,
+  .profile-card,
+  .definition-row,
+  .workflow-selector button,
+  .workflow-detail article,
+  .role-card,
+  .compliance-card,
+  .qr-demo-card,
+  .qr-permission-card,
+  .mini-card-grid article,
+  .governance-card,
+  .details-grid > div,
+  .qr-label-option,
+  .public-qr-shell,
+  .filter-chip,
+  .tutorial-tooltip,
+  .tutorial-prompt,
+  .account-profile-card,
+  .bc-plan-card,
+  .approval-row
+) {
+  border-color: var(--line);
+  color: var(--text);
+  background: var(--surface);
+}
+:root[data-theme="dark"] :is(
+  .laboratory-switcher,
+  .global-search kbd,
+  .tabs,
+  .inline-notice,
+  .inline-editor,
+  .qr-placeholder,
+  .qr-loading,
+  .qr-security-card,
+  .account-profile-card,
+  .details-grid > div,
+  .bc-change-compare
+) { background: var(--surface-soft); border-color: var(--line); }
+:root[data-theme="dark"] :is(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .input-with-icon,
+  .table-search
+) {
+  color: var(--text);
+  background-color: var(--surface-input);
+  border-color: var(--line-strong);
+}
+:root[data-theme="dark"] :is(input, textarea)::placeholder { color: var(--nexa-text-soft); }
+:root[data-theme="dark"] :is(
+  .secondary-button,
+  .filter-button,
+  .table-footer button,
+  .compact-popover,
+  .profile-dropdown,
+  .profile-dropdown button
+) {
+  color: var(--muted-strong);
+  background: var(--surface);
+  border-color: var(--line-strong);
+}
+:root[data-theme="dark"] :is(
+  .secondary-button:hover,
+  .filter-button:hover,
+  .filter-chip:hover,
+  .compact-popover button:hover,
+  .compact-popover a:hover,
+  .profile-dropdown button:hover,
+  .alert-item:hover,
+  .panel-footer-button:hover
+) { color: var(--text); background: var(--surface-hover); border-color: var(--line-strong); }
+:root[data-theme="dark"] .data-table th { color: var(--muted); background: var(--surface-soft); }
+:root[data-theme="dark"] .data-table td { color: var(--muted-strong); }
+:root[data-theme="dark"] :is(
+  .nav-item,
+  .sidebar-link,
+  .nav-group h2,
+  .laboratory-switcher span,
+  .laboratory-switcher > svg,
+  .icon-button,
+  .global-search,
+  .global-search input::placeholder,
+  .profile-copy small,
+  .profile-button svg
+) { color: var(--muted); }
+:root[data-theme="dark"] :is(.laboratory-switcher strong, .profile-copy strong) { color: var(--text); }
+:root[data-theme="dark"] :is(.nav-item:hover, .sidebar-link:hover, .icon-button:hover) { color: var(--text); background: var(--surface-hover); }
+:root[data-theme="dark"] .nav-item-active { color: var(--primary-dark); background: var(--primary-soft) !important; }
+:root[data-theme="dark"] :is(.notif-item:hover, .data-table tbody tr:hover) { background: var(--surface-hover); }
+:root[data-theme="dark"] .notif-item-unread { background: var(--surface-tint); }
+:root[data-theme="dark"] :is(.bar-track, .skel) { background: var(--surface-tint); }
+:root[data-theme="dark"] .notification-button span { border-color: var(--surface); }
+:root[data-theme="dark"] .public-qr-page { background: var(--bg); }
+:root[data-theme="dark"] .qr-print-zone {
+  border-color: #d0ddd9;
+  color: #1a3038;
+  background: #fff;
+}
+:root[data-theme="dark"] .qr-print-zone :is(h1, h2, h3, strong) { color: #1a3038; }
+:root[data-theme="dark"] .qr-print-zone :is(p, small, span) { color: #586f73; }
+:root[data-theme="dark"] .qr-print-zone :is(.qr-print-brand, .qr-print-note) { border-color: #d0ddd9; }
+:root[data-theme="dark"] .modal-form .modal-actions { background: var(--surface); }
+:root[data-theme="dark"] .profile-card-active,
+:root[data-theme="dark"] .workflow-selector-active,
+:root[data-theme="dark"] .qr-label-option-active { background: var(--surface-tint) !important; border-color: var(--primary) !important; }
+:root[data-theme="dark"] .kpi-card-urgent {
+  border-color: #754541 !important;
+  background: linear-gradient(135deg, var(--surface), var(--red-soft)) !important;
+}
+:root[data-theme="dark"] .kpi-card-caution {
+  border-color: #705532 !important;
+  background: linear-gradient(135deg, var(--surface), var(--amber-soft)) !important;
+}
+:root[data-theme="dark"] :is(.status-pill-success, .notification-badge-success, .state-implemented, .bc-pill-green) { color: var(--nexa-success); }
+:root[data-theme="dark"] :is(.status-pill-warning, .state-configure, .bc-pill-amber) { color: var(--nexa-warning); }
+:root[data-theme="dark"] :is(.status-pill-error, .bc-pill-red, .form-error, .error-state h3) { color: var(--nexa-danger); }
+:root[data-theme="dark"] :is(.status-pill-info, .state-procedure) { color: var(--nexa-info); }
+:root[data-theme="dark"] .app-toast { border-color: var(--line-strong); color: var(--nexa-success); background: var(--sage-soft); }
+:root[data-theme="dark"] .app-toast-error { color: var(--nexa-danger); background: var(--red-soft); }
+:root[data-theme="dark"] .app-toast-warning { color: var(--nexa-warning); background: var(--amber-soft); }
+:root[data-theme="dark"] .app-toast-info { color: var(--nexa-info); background: var(--slate-soft); }
+
+/* Landing y acceso público */
+:root[data-theme="dark"] .landing-page { color: var(--text); background: var(--bg); }
+:root[data-theme="dark"] .landing-header {
+  border-color: var(--line);
+  background: var(--header-background);
+}
+:root[data-theme="dark"] .landing-hero {
+  background:
+    radial-gradient(circle at 87% 10%, rgba(85,181,169,.12), transparent 31%),
+    radial-gradient(circle at 1% 90%, rgba(224,168,95,.07), transparent 24%),
+    var(--bg);
+}
+:root[data-theme="dark"] .landing-hero::after {
+  border-color: rgba(85,181,169,.10);
+  box-shadow: 0 0 0 48px rgba(85,181,169,.025), 0 0 0 96px rgba(85,181,169,.014);
+}
+:root[data-theme="dark"] :is(
+  .landing-section,
+  .landing-cta-section
+) { background: var(--bg); }
+:root[data-theme="dark"] :is(
+  .landing-audience,
+  .landing-section-tinted,
+  .landing-footer
+) { border-color: var(--line); background: var(--surface-soft); }
+:root[data-theme="dark"] :is(
+  .landing-product-frame,
+  .landing-preview-kpis article,
+  .landing-preview-chart,
+  .landing-preview-status,
+  .landing-benefit-card,
+  .landing-workflow-list article,
+  .landing-capability-grid article,
+  .landing-pricing-card,
+  .landing-faq-item
+) {
+  border-color: var(--line);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+:root[data-theme="dark"] .landing-product-frame { box-shadow: var(--shadow-lg); }
+:root[data-theme="dark"] :is(.landing-product-topbar, .landing-product-sidebar) {
+  border-color: var(--line);
+  background: var(--surface-soft);
+}
+:root[data-theme="dark"] .landing-product-content { background: var(--bg); }
+:root[data-theme="dark"] .landing-product-sidebar i { background: var(--line-strong); }
+:root[data-theme="dark"] .landing-mini-chart { border-color: var(--line); }
+:root[data-theme="dark"] .landing-mini-chart i { background: linear-gradient(180deg, var(--primary), #244d49); }
+:root[data-theme="dark"] :is(
+  .landing-hero-copy h1,
+  .landing-section-heading h2,
+  .landing-benefit-card h3,
+  .landing-workflow-list h3,
+  .landing-capability-grid h3,
+  .landing-pricing-card h3,
+  .landing-faq-item summary,
+  .landing-product-heading strong,
+  .landing-preview-kpis strong,
+  .landing-preview-card-title strong,
+  .landing-preview-status b
+) { color: var(--text); }
+:root[data-theme="dark"] :is(
+  .landing-nav a,
+  .landing-login-link,
+  .landing-hero-description,
+  .landing-hero-note,
+  .landing-audience p,
+  .landing-audience span,
+  .landing-section-heading > p:not(.landing-eyebrow),
+  .landing-benefit-card p,
+  .landing-workflow-list p,
+  .landing-capability-grid p,
+  .landing-pricing-description,
+  .landing-pricing-features li,
+  .landing-faq-item p,
+  .landing-footer-inner p,
+  .landing-preview-kpis small,
+  .landing-preview-card-title small,
+  .landing-preview-status > div:not(.landing-preview-card-title),
+  .landing-product-topbar p
+) { color: var(--muted); }
+:root[data-theme="dark"] .landing-capability-grid article:hover,
+:root[data-theme="dark"] .landing-benefit-card:hover,
+:root[data-theme="dark"] .landing-pricing-card:hover { border-color: var(--line-strong); background: var(--surface-hover); }
+:root[data-theme="dark"] .landing-secondary-button {
+  border-color: var(--line-strong);
+  color: var(--text);
+  background: var(--surface);
+}
+:root[data-theme="dark"] .landing-secondary-button:hover { border-color: var(--primary); color: var(--primary-dark); background: var(--surface-hover); }
+:root[data-theme="dark"] .landing-cta-card h2 { color: #fff; }
+:root[data-theme="dark"] .landing-cta-card > div > p:not(.landing-eyebrow) { color: rgba(241,251,248,.82); }
+:root[data-theme="dark"] .landing-button-light,
+:root[data-theme="dark"] .landing-button-light:hover { border-color: #fff; color: #145250; background: #fff; }
+:root[data-theme="dark"] .login-side-content > p:not(.eyebrow),
+:root[data-theme="dark"] .login-feature-grid span,
+:root[data-theme="dark"] .login-caption,
+:root[data-theme="dark"] .login-subtitle,
+:root[data-theme="dark"] .login-form label > span,
+:root[data-theme="dark"] .login-footer { color: var(--muted); }
+:root[data-theme="dark"] .login-page .brand-subtitle { color: var(--muted); }
+:root[data-theme="dark"] .signup-plan-summary :is(strong, span) { color: var(--text); }
+
+@media (max-width: 620px) {
+  .landing-header-actions { gap: 8px; }
+  .public-theme-toggle { width: 35px; height: 35px; }
+  .login-theme-toggle { top: 14px; right: 14px; }
 }

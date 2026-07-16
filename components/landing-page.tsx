@@ -19,6 +19,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { PricingSection } from "@/components/pricing-section";
 import { FaqSection } from "@/components/faq-section";
 import { JsonLd } from "@/components/structured-data";
+import { PublicThemeToggle } from "@/components/public-theme-toggle";
 
 const softwareApplicationJsonLd = {
   "@context": "https://schema.org",
@@ -109,6 +110,7 @@ export function LandingPage() {
             <a href="#faq">FAQ</a>
           </nav>
           <div className="landing-header-actions">
+            <PublicThemeToggle />
             <Link className="landing-login-link" href="/login">
               Ingresar
             </Link>

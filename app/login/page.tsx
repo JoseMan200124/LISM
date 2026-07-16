@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "@/components/login-form";
 import { BrandLogo } from "@/components/brand-logo";
+import { PublicThemeToggle } from "@/components/public-theme-toggle";
 
 export const metadata: Metadata = {
   title: "Ingresar",
@@ -15,6 +16,7 @@ export default async function LoginPage() {
 
   return (
     <main className="login-page">
+      <PublicThemeToggle className="login-theme-toggle" />
       <section className="login-side-panel">
         <BrandLogo className="brand-lockup-light" subtitle="Laboratorio Educativo" priority />
         <div className="login-side-content">
