@@ -12,6 +12,7 @@ import { missingRequiredFields, type CustomFieldDefinition } from "@/lib/custom-
 const inventorySchema = z.object({
   sku: z.string().min(2).max(80),
   name: z.string().min(2).max(180),
+  itemType: z.enum(["REAGENT", "MATERIAL", "CONSUMABLE", "CULTURE_MEDIA", "OTHER"]),
   categoryId: databaseIdSchema.optional(),
   categoryName: z.string().min(2).max(120).optional(),
   storageLocationId: databaseIdSchema.optional().nullable(),
@@ -24,6 +25,20 @@ const inventorySchema = z.object({
   receivedAt: z.string().date().optional().nullable(),
   vendor: z.string().max(180).optional().default(""),
   internalFormula: z.string().max(220).optional().default(""),
+  concentration: z.string().max(120).optional().default(""),
+  brand: z.string().max(120).optional().default(""),
+  model: z.string().max(160).optional().default(""),
+  presentation: z.string().max(160).optional().default(""),
+  manufacturingMaterial: z.string().max(160).optional().default(""),
+  isReusable: z.boolean().optional().default(false),
+  storageConditions: z.string().max(1000).optional().default(""),
+  cultureMediaType: z.string().max(120).optional().default(""),
+  preparationType: z.enum(["PREPARED", "COMMERCIAL"]).optional(),
+  trackStock: z.boolean().optional().default(true),
+  alertLowStock: z.boolean().optional().default(true),
+  alertExpiry: z.boolean().optional().default(true),
+  allowDirectDiscard: z.boolean().optional().default(false),
+  notes: z.string().max(2000).optional().default(""),
   safetySheetUrl: z.string().url().optional().or(z.literal("")),
   // No se fuerza a true (§3.6): el control de consumo es opcional por artículo.
   // La UI decide el valor por defecto según el tipo (reactivo/medio -> true).
@@ -56,6 +71,7 @@ export async function GET() {
       i.id,
       i.sku,
       i.name,
+      i.item_type,
       c.name AS category,
       i.lot_number,
       COALESCE(l.name, 'Sin ubicación') AS location,
@@ -64,9 +80,14 @@ export async function GET() {
       i.unit,
       i.expires_at,
       i.custom_values,
+      i.requires_usage_log,
+      i.track_stock,
+      i.alert_low_stock,
+      i.alert_expiry,
+      i.allow_direct_discard,
       CASE
-        WHEN i.quantity <= i.reorder_point THEN 'REORDER'
-        WHEN i.expires_at IS NOT NULL AND i.expires_at <= current_date + interval '30 day' THEN 'WATCH'
+        WHEN i.alert_low_stock AND i.track_stock AND i.quantity <= i.reorder_point THEN 'REORDER'
+        WHEN i.alert_expiry AND i.expires_at IS NOT NULL AND i.expires_at <= current_date + interval '30 day' THEN 'WATCH'
         ELSE 'AVAILABLE'
       END AS status
     FROM inventory_items i
@@ -151,11 +172,15 @@ export async function POST(request: Request) {
     INSERT INTO inventory_items (
       laboratory_id, category_id, storage_location_id, sku, name, vendor, lot_number,
       quantity, reorder_point, unit, expires_at, received_at, safety_sheet_url, internal_formula,
-      requires_usage_log, custom_values, created_by
+      requires_usage_log, custom_values, created_by, item_type, concentration, brand, model,
+      presentation, manufacturing_material, is_reusable, storage_conditions, culture_media_type,
+      preparation_type, track_stock, alert_low_stock, alert_expiry, allow_direct_discard, notes
     ) VALUES (
       ${session.laboratoryId}, ${categoryId}, ${storageLocationId ?? null}, ${payload.sku}, ${payload.name}, ${payload.vendor || null}, ${payload.lotNumber},
       ${payload.quantity}, ${payload.reorderPoint}, ${payload.unit}, ${payload.expiresAt ?? null}, ${payload.receivedAt ?? null}, ${payload.safetySheetUrl || null}, ${payload.internalFormula || null},
-      ${payload.requiresUsageLog}, ${JSON.stringify(customValues)}::jsonb, ${session.userId}
+      ${payload.requiresUsageLog}, ${JSON.stringify(customValues)}::jsonb, ${session.userId}, ${payload.itemType}, ${payload.concentration || null}, ${payload.brand || null}, ${payload.model || null},
+      ${payload.presentation || null}, ${payload.manufacturingMaterial || null}, ${payload.isReusable}, ${payload.storageConditions || null}, ${payload.cultureMediaType || null},
+      ${payload.preparationType ?? null}, ${payload.trackStock}, ${payload.alertLowStock}, ${payload.alertExpiry}, ${payload.allowDirectDiscard}, ${payload.notes || null}
     )
     RETURNING id, sku, name, quantity, reorder_point, unit, status
   `;

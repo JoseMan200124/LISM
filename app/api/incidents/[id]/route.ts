@@ -13,6 +13,9 @@ const patchSchema = z.object({
   assignedTo: databaseIdSchema.optional().nullable(),
   actionsTaken: z.string().max(4000).optional().nullable(),
   resolution: z.string().max(4000).optional().nullable(),
+  title: z.string().min(3).max(200).optional(),
+  description: z.string().max(4000).optional().nullable(),
+  location: z.string().max(160).optional().nullable(),
 }).refine((v) => Object.keys(v).length > 0, { message: "No hay cambios que aplicar." });
 
 async function resolveId(context: { params: Promise<{ id: string }> }): Promise<string | null> {
@@ -37,7 +40,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       WHERE i.id = ${id} AND i.laboratory_id = ${session.laboratoryId} LIMIT 1
     `;
     if (rows.length === 0) return NextResponse.json({ message: "Incidencia no encontrada." }, { status: 404 });
-    return NextResponse.json({ data: rows[0], mode: "database" });
+    const comments = await sql`SELECT ic.id, ic.body, ic.comment_type, ic.attachment_id, ic.created_at, u.full_name AS created_name FROM incident_comments ic LEFT JOIN users u ON u.id = ic.created_by WHERE ic.incident_id = ${id} AND ic.laboratory_id = ${session.laboratoryId} ORDER BY ic.created_at ASC`;
+    return NextResponse.json({ data: { ...rows[0], comments }, mode: "database" });
   } catch (error) {
     if (isMissingRelationError(error)) return NextResponse.json({ message: "Incidencia no encontrada." }, { status: 404 });
     console.error("[api/incidents/[id]] GET", error);
@@ -59,7 +63,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const previous = await sql`SELECT * FROM incidents WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
     if (previous.length === 0) return NextResponse.json({ message: "Incidencia no encontrada." }, { status: 404 });
+    if (payload.assignedTo) {
+      const membership = await sql`SELECT 1 FROM memberships WHERE user_id = ${payload.assignedTo} AND laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE' LIMIT 1`;
+      if (!membership.length) return NextResponse.json({ message: "El responsable no pertenece a este laboratorio." }, { status: 400 });
+    }
     const resolving = payload.status === "RESOLVED" || payload.status === "CLOSED";
+    const reopening = payload.status === "OPEN" && ["RESOLVED", "CLOSED", "ARCHIVED"].includes(String(previous[0].status));
     const rows = await sql`
       UPDATE incidents SET
         status = COALESCE(${payload.status ?? null}, status),
@@ -67,7 +76,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         assigned_to = COALESCE(${payload.assignedTo ?? null}, assigned_to),
         actions_taken = COALESCE(${payload.actionsTaken ?? null}, actions_taken),
         resolution = COALESCE(${payload.resolution ?? null}, resolution),
+        title = COALESCE(${payload.title ?? null}, title),
+        description = COALESCE(${payload.description ?? null}, description),
+        location = COALESCE(${payload.location ?? null}, location),
         resolved_at = CASE WHEN ${resolving} THEN COALESCE(resolved_at, now()) ELSE resolved_at END,
+        reopened_at = CASE WHEN ${reopening} THEN now() ELSE reopened_at END,
+        archived_at = CASE WHEN ${payload.status === "ARCHIVED"} THEN now() ELSE archived_at END,
         updated_at = now()
       WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}
       RETURNING *

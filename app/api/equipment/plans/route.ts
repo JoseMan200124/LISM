@@ -43,13 +43,16 @@ export async function POST(request: Request) {
   if (!hasDatabase()) return NextResponse.json({ data: { id: crypto.randomUUID(), ...parsed.data }, mode: "demo" }, { status: 201 });
   const payload = parsed.data;
   const sql = getSql();
+  const equipment = await sql`SELECT id FROM equipment WHERE id = ${payload.equipmentId} AND laboratory_id = ${session.laboratoryId} AND status <> 'RETIRED' LIMIT 1`;
+  if (!equipment.length) return NextResponse.json({ message: "Equipo no encontrado o retirado." }, { status: 404 });
+  if (payload.frequencyUnit !== "USE" && !payload.nextDueAt) return NextResponse.json({ message: "Indica la próxima fecha para una frecuencia de calendario." }, { status: 400 });
   const rows = await sql`
     INSERT INTO equipment_plans (
       laboratory_id, equipment_id, plan_type, name, frequency_value, frequency_unit,
       next_due_at, reminder_days, blocks_use_when_overdue
     ) VALUES (
       ${session.laboratoryId}, ${payload.equipmentId}, ${payload.planType}, ${payload.name}, ${payload.frequencyValue ?? null}, ${payload.frequencyUnit ?? null},
-      ${payload.nextDueAt ?? null}, ${JSON.stringify(payload.reminderDays)}::jsonb, ${payload.blocksUseWhenOverdue}
+      ${payload.frequencyUnit === "USE" ? null : payload.nextDueAt ?? null}, ${JSON.stringify(payload.reminderDays)}::jsonb, ${payload.blocksUseWhenOverdue}
     ) RETURNING *
   `;
   await writeAuditEvent(session, { action: "EQUIPMENT_PLAN_CREATED", entityType: "equipment_plan", entityId: String(rows[0].id), newValue: rows[0], request });

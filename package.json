@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tenant:create-clean-educational": "node scripts/create-clean-educational-tenant.mjs"
   },
   "engines": {
     "node": "22.x"

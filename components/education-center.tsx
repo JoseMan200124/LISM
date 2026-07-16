@@ -57,6 +57,10 @@ type PracticePayload = {
   endsAt?: string;
   instructions?: string;
   status?: string;
+  groupId?: string | null;
+  location?: string;
+  resources?: Array<{ resourceType: "INVENTORY_ITEM" | "EQUIPMENT"; resourceId: string; quantity: number; unit: string; neededAt: string }>;
+  externalLinks?: Array<{ title: string; url: string; description?: string }>;
 };
 
 type ReservationPayload = {
@@ -133,18 +137,28 @@ function resourceTypeLabel(type: string | undefined | null): string {
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 // Lee filtros de la URL (?tab=&status=) enviados desde el dashboard clicable.
-function readEducationQuery(): { tab?: string; status?: string } {
+function normalizeEducationTab(tab: string | null): string | undefined {
+  if (tab === "schedule") return "practices";
+  if (tab === "notices") return "notifications";
+  if (tab === "practices" || tab === "reservations" || tab === "notifications" || tab === "instructions") return tab;
+  return undefined;
+}
+
+function readEducationQuery(): { tab?: string; status?: string; filter?: string; practiceId?: string; reservationId?: string; noticeId?: string; action?: string } {
   if (typeof window === "undefined") return {};
   const params = new URLSearchParams(window.location.search);
-  return { tab: params.get("tab") ?? undefined, status: params.get("status")?.toUpperCase() ?? undefined };
+  return { tab: normalizeEducationTab(params.get("tab")), status: params.get("status")?.toUpperCase() ?? undefined, filter: params.get("filter") ?? undefined, practiceId: params.get("practiceId") ?? undefined, reservationId: params.get("reservationId") ?? undefined, noticeId: params.get("noticeId") ?? undefined, action: params.get("action") ?? undefined };
 }
 
 function AdminEducationCenter() {
   const [tab, setTab] = useState("practices");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [practiceFilter, setPracticeFilter] = useState<string | null>(null);
   const [addTarget, setAddTarget] = useState<AddTarget>(null);
   const [notifModal, setNotifModal] = useState<ModalOpen>(null);
   const [practiceDetail, setPracticeDetail] = useState<PracticeDetail | null>(null);
+  const [reservationDetail, setReservationDetail] = useState<Record<string, unknown> | null>(null);
+  const [noticeDetail, setNoticeDetail] = useState<Record<string, unknown> | null>(null);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -187,9 +201,14 @@ function AdminEducationCenter() {
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    const { tab: t, status } = readEducationQuery();
+    const { tab: t, status, filter, practiceId, reservationId, noticeId, action } = readEducationQuery();
     if (t === "practices" || t === "reservations" || t === "notifications") setTab(t);
     if (status) setStatusFilter(status);
+    if (filter) setPracticeFilter(filter);
+    if (practiceId) void openPracticeDetail(practiceId);
+    if (reservationId) void openEducationDetail("reservations", reservationId, setReservationDetail);
+    if (noticeId) void openEducationDetail("notifications", noticeId, setNoticeDetail);
+    if (action === "create") setAddTarget("practice");
   }, []);
 
   async function createPractice(payload: PracticePayload): Promise<boolean> {
@@ -200,9 +219,11 @@ function AdminEducationCenter() {
         body: JSON.stringify(payload),
       });
       if (response.ok) {
+        const created = await response.json() as { data?: { id?: string } };
         setAddTarget(null);
         showToast("Práctica creada correctamente.");
         await load();
+        if (created.data?.id) await openPracticeDetail(created.data.id);
         return true;
       }
       showError(await apiErrorMessage(response, "No se pudo crear la práctica. Revisa los campos e intenta de nuevo."));
@@ -243,6 +264,10 @@ function AdminEducationCenter() {
     } catch { showError("No se pudo conectar con el servidor."); }
   }
 
+  async function openEducationDetail(resource: "reservations" | "notifications", id: string, setter: (value: Record<string, unknown> | null) => void) {
+    try { const response = await fetch(`/api/education/${resource}/${id}`); if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo abrir el registro.")); return; } const payload = await response.json() as { data?: Record<string, unknown> }; setter(payload.data ?? null); } catch { showError("No se pudo conectar con el servidor."); }
+  }
+
   async function updateReservationStatus(id: string, status: "APPROVED" | "REJECTED") {
     try {
       const response = await fetch("/api/education/reservations", {
@@ -267,7 +292,7 @@ function AdminEducationCenter() {
     const response = await fetch("/api/education/notifications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: String(data.get("title")), body: String(data.get("body")), audience: String(data.get("audience")) }),
+      body: JSON.stringify({ notificationType: String(data.get("notificationType") ?? "GENERAL"), practiceId: String(data.get("practiceId") ?? "") || null, title: String(data.get("title")), body: String(data.get("body")), audience: String(data.get("audience")) }),
     });
     if (response.ok) {
       showToast("Aviso publicado. Los destinatarios ya pueden verlo.");
@@ -278,7 +303,8 @@ function AdminEducationCenter() {
     }
   }
 
-  const practiceRows: TableRow[] = practices.map((p) => ({
+  const shownPractices = practiceFilter === "upcoming" ? practices.filter((p) => Boolean(p.starts_at) && new Date(String(p.starts_at)) >= new Date() && ["PLANNED", "PREPARING", "READY"].includes(String(p.status))) : practices;
+  const practiceRows: TableRow[] = shownPractices.map((p) => ({
     id: p.id ?? "",
     code: p.practice_code ?? p.code ?? "—",
     title: p.title ?? "—",
@@ -290,6 +316,7 @@ function AdminEducationCenter() {
 
   const shownReservations = statusFilter ? reservations.filter((r) => String(r.status) === statusFilter) : reservations;
   const reservationRows: TableRow[] = shownReservations.map((r) => ({
+    id: r.id ?? "",
     code: r.reservation_code ?? "—",
     resource: r.resource_name ?? "—",
     type: resourceTypeLabel(r.resource_type),
@@ -299,6 +326,7 @@ function AdminEducationCenter() {
   }));
 
   const notifRows: TableRow[] = notifications.map((n) => ({
+    id: n.id ?? "",
     title: n.title ?? "—",
     audience: n.audience === "STUDENTS" ? "Estudiantes" : n.audience === "PROFESSORS" ? "Profesores" : "Todos",
     practice: n.practice_title ?? "—",
@@ -349,14 +377,17 @@ function AdminEducationCenter() {
             <section>
               <div className="section-heading">
                 <div><h2>Cronograma de prácticas</h2><p>Cada práctica puede reservar materiales, equipos y reactivos con antelación.</p></div>
-                <button className="secondary-button" onClick={() => setAddTarget("practice")}><Plus size={15} /> Nueva práctica</button>
               </div>
+              {practiceFilter ? <div className="filter-active-chip">Filtro activo: <strong>Próximas prácticas</strong><button type="button" onClick={() => setPracticeFilter(null)} aria-label="Quitar filtro">✕</button></div> : null}
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "title", label: "Práctica" }, { key: "course", label: "Curso" }, { key: "teacher", label: "Responsable" }, { key: "scheduled", label: "Fecha inicio" }, { key: "status", label: "Estado" }]}
                 rows={practiceRows}
                 onRowClick={(row) => { if (row.id) void openPracticeDetail(String(row.id)); }}
                 searchPlaceholder="Buscar práctica o curso…"
+                emptyTitle="No hay prácticas programadas."
+                emptyMessage="Crea una nueva práctica para comenzar a organizar fechas, recursos, equipos y estudiantes."
               />
+              {practices.length === 0 ? <div className="empty-state-actions"><button type="button" className="primary-button" onClick={() => setAddTarget("practice")}><Plus size={15} /> Crear nueva práctica</button></div> : null}
             </section>
           ) : null}
           {tab === "reservations" ? (
@@ -372,6 +403,7 @@ function AdminEducationCenter() {
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "resource", label: "Recurso" }, { key: "type", label: "Tipo" }, { key: "quantity", label: "Cantidad" }, { key: "practice", label: "Práctica" }, { key: "status", label: "Estado" }]}
                 rows={reservationRows}
+                onRowClick={(row) => { if (row.id) void openEducationDetail("reservations", String(row.id), setReservationDetail); }}
                 searchPlaceholder="Buscar reserva…"
               />
             </section>
@@ -385,6 +417,7 @@ function AdminEducationCenter() {
               <SimpleTable
                 columns={[{ key: "title", label: "Título" }, { key: "audience", label: "Destinatario" }, { key: "practice", label: "Práctica" }, { key: "from", label: "Publicado por" }, { key: "published", label: "Fecha" }]}
                 rows={notifRows}
+                onRowClick={(row) => { if (row.id) void openEducationDetail("notifications", String(row.id), setNoticeDetail); }}
                 searchPlaceholder="Buscar aviso…"
               />
             </section>
@@ -398,7 +431,9 @@ function AdminEducationCenter() {
         <ReservationModal practices={practices} onClose={() => setAddTarget(null)} onSave={createReservation} />
       ) : null}
       <PracticeDetailModal detail={practiceDetail} onClose={() => setPracticeDetail(null)} />
-      <NotificationModal open={notifModal === "notification"} onClose={() => setNotifModal(null)} onSave={createNotification} />
+      <ReservationDetailModal detail={reservationDetail} onClose={() => setReservationDetail(null)} onChanged={async () => { setReservationDetail(null); await load(); }} />
+      <NoticeDetailModal detail={noticeDetail} onClose={() => setNoticeDetail(null)} onChanged={async () => { setNoticeDetail(null); await load(); }} />
+      <NotificationModal open={notifModal === "notification"} practices={practices} onClose={() => setNotifModal(null)} onSave={createNotification} />
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
@@ -409,6 +444,7 @@ function AdminEducationCenter() {
 function ProfessorEducationCenter() {
   const [tab, setTab] = useState("practices");
   const [notifModal, setNotifModal] = useState<ModalOpen>(null);
+  const [practiceModal, setPracticeModal] = useState(false);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -449,6 +485,15 @@ function ProfessorEducationCenter() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const query = readEducationQuery(); if (query.tab) setTab(query.tab); if (query.action === "create") setPracticeModal(true); }, []);
+
+  async function createPractice(payload: PracticePayload): Promise<boolean> {
+    try {
+      const response = await fetch("/api/education/practices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo crear la práctica.")); return false; }
+      setPracticeModal(false); showToast("Práctica creada correctamente."); await load(); return true;
+    } catch { showError("No se pudo conectar con el servidor."); return false; }
+  }
 
   async function createNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -456,7 +501,7 @@ function ProfessorEducationCenter() {
     const response = await fetch("/api/education/notifications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: String(data.get("title")), body: String(data.get("body")), audience: String(data.get("audience")) }),
+      body: JSON.stringify({ notificationType: String(data.get("notificationType") ?? "GENERAL"), practiceId: String(data.get("practiceId") ?? "") || null, title: String(data.get("title")), body: String(data.get("body")), audience: String(data.get("audience")) }),
     });
     if (response.ok) {
       showToast("Aviso publicado. Los destinatarios ya pueden verlo.");
@@ -505,6 +550,7 @@ function ProfessorEducationCenter() {
   return (
     <div className="page-stack">
       <PageIntro eyebrow="MI PROGRAMA" title="Mis prácticas" description="Consulta el cronograma, tus reservas de recursos y publica avisos para tus grupos.">
+        <button className="primary-button" data-tutorial="education-new-practice" onClick={() => setPracticeModal(true)}><Plus size={15} /> Nueva práctica</button>
         <button className="secondary-button" data-tutorial="education-new-notification" onClick={() => setNotifModal("notification")}><Bell size={15} /> Publicar aviso</button>
       </PageIntro>
       <StatGrid items={[
@@ -563,7 +609,8 @@ function ProfessorEducationCenter() {
           ) : null}
         </div>
       </article>
-      <NotificationModal open={notifModal === "notification"} onClose={() => setNotifModal(null)} onSave={createNotification} />
+      {practiceModal ? <PracticeModal onClose={() => setPracticeModal(false)} onSave={createPractice} /> : null}
+      <NotificationModal open={notifModal === "notification"} practices={practices} onClose={() => setNotifModal(null)} onSave={createNotification} />
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
@@ -575,9 +622,11 @@ function StudentEducationCenter() {
   const [tab, setTab] = useState("practices");
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [noticeDetail, setNoticeDetail] = useState<Record<string, unknown> | null>(null);
+  const [practiceDetail, setPracticeDetail] = useState<PracticeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { message, toastType, clearToast } = useToast();
+  const { message, toastType, showError, clearToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -609,6 +658,10 @@ function StudentEducationCenter() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const query = readEducationQuery(); if (query.tab) setTab(query.tab); if (query.noticeId) void openNotice(query.noticeId); if (query.practiceId) void openStudentPractice(query.practiceId); }, []);
+
+  async function openNotice(id: string) { try { const response = await fetch(`/api/education/notifications/${id}`); if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo abrir el aviso.")); return; } const payload = await response.json() as { data?: Record<string, unknown> }; setNoticeDetail(payload.data ?? null); } catch { showError("No se pudo conectar con el servidor."); } }
+  async function openStudentPractice(id: string) { try { const response = await fetch(`/api/education/practices/${id}`); if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo abrir la práctica.")); return; } const payload = await response.json() as { data?: PracticeDetail }; setPracticeDetail(payload.data ?? null); } catch { showError("No se pudo conectar con el servidor."); } }
 
   const next = practices.find((p) => ["READY", "IN_PROGRESS", "PLANNED"].includes(String(p.status)));
 
@@ -659,12 +712,14 @@ function StudentEducationCenter() {
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "title", label: "Práctica" }, { key: "course", label: "Curso" }, { key: "starts", label: "Inicio" }, { key: "status", label: "Estado" }]}
                 rows={practices.map((p) => ({
+                  id: p.id ?? "",
                   code: p.practice_code ?? p.code ?? "—",
                   title: p.title ?? "—",
                   course: p.course_name ?? "—",
                   starts: formatDate(p.starts_at),
                   status: statusLabel(p.status),
                 }))}
+                onRowClick={(row) => { if (row.id) void openStudentPractice(String(row.id)); }}
                 searchPlaceholder="Buscar práctica…"
               />
             </section>
@@ -685,7 +740,7 @@ function StudentEducationCenter() {
                   {notifications.map((n, i) => {
                     const initials = (n.created_by_name ?? "D").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
                     return (
-                      <div key={String(n.id)} className={`notif-item ${i < 2 ? "notif-item-unread" : ""}`}>
+                      <button type="button" key={String(n.id)} className={`notif-item ${i < 2 ? "notif-item-unread" : ""}`} onClick={() => { if (n.id) void openNotice(String(n.id)); }}>
                         <div className="notif-avatar notif-avatar-teal">{initials}</div>
                         <div>
                           <div className="notif-row-top">
@@ -701,7 +756,7 @@ function StudentEducationCenter() {
                             {n.practice_title ? <span className="notification-badge notification-badge-success">{n.practice_title}</span> : null}
                           </div>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -734,6 +789,8 @@ function StudentEducationCenter() {
           ) : null}
         </div>
       </article>
+      <PracticeDetailModal detail={practiceDetail} onClose={() => setPracticeDetail(null)} />
+      <NoticeDetailModal detail={noticeDetail} readOnly onClose={() => setNoticeDetail(null)} onChanged={async () => setNoticeDetail(null)} />
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
@@ -787,6 +844,25 @@ function PracticeModal({
 }>) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [step, setStep] = useState(1);
+  const [resourceType, setResourceType] = useState<"INVENTORY_ITEM" | "EQUIPMENT">("INVENTORY_ITEM");
+  const [inventory, setInventory] = useState<ResourceOption[]>([]);
+  const [equipment, setEquipment] = useState<ResourceOption[]>([]);
+  const [groups, setGroups] = useState<ResourceOption[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([fetch("/api/inventory"), fetch("/api/equipment"), fetch("/api/education/groups")]).then(async ([inventoryResponse, equipmentResponse, groupsResponse]) => {
+      const inventoryData = inventoryResponse.ok ? await inventoryResponse.json() as { data?: Array<{ id?: string; sku?: string; name?: string }> } : { data: [] };
+      const equipmentData = equipmentResponse.ok ? await equipmentResponse.json() as { data?: Array<{ id?: string; code?: string; name?: string }> } : { data: [] };
+      const groupData = groupsResponse.ok ? await groupsResponse.json() as { data?: Array<{ id?: string; code?: string; name?: string }> } : { data: [] };
+      if (!active) return;
+      setInventory((inventoryData.data ?? []).filter((item) => item.id).map((item) => ({ id: String(item.id), label: `${item.sku ?? ""} · ${item.name ?? ""}` })));
+      setEquipment((equipmentData.data ?? []).filter((item) => item.id).map((item) => ({ id: String(item.id), label: `${item.code ?? ""} · ${item.name ?? ""}` })));
+      setGroups((groupData.data ?? []).filter((item) => item.id).map((item) => ({ id: String(item.id), label: `${item.code ?? ""} · ${item.name ?? ""}` })));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -808,6 +884,8 @@ function PracticeModal({
     }
 
     setSaving(true);
+    const resourceId = String(data.get("resourceId") ?? "");
+    const documentUrl = String(data.get("documentUrl") ?? "").trim();
     const ok = await onSave({
       title,
       courseName: String(data.get("course") ?? "").trim() || undefined,
@@ -815,16 +893,21 @@ function PracticeModal({
       endsAt,
       instructions: String(data.get("instructions") ?? "").trim() || undefined,
       status: String(data.get("status") ?? "PLANNED"),
+      groupId: String(data.get("groupId") ?? "") || null,
+      location: String(data.get("location") ?? "").trim() || undefined,
+      resources: resourceId ? [{ resourceType, resourceId, quantity: Number(data.get("resourceQuantity") ?? 1), unit: String(data.get("resourceUnit") ?? "unidades") || "unidades", neededAt: startsAt }] : [],
+      externalLinks: documentUrl ? [{ title: String(data.get("documentTitle") ?? "Guía de práctica").trim() || "Guía de práctica", url: documentUrl, description: String(data.get("documentDescription") ?? "").trim() || undefined }] : [],
     });
     setSaving(false);
     if (!ok) return;
   }
 
   return (
-    <ActionModal open title="Nueva práctica" description="El código se genera automáticamente. Programa la fecha, el horario y el curso." onClose={onClose}>
+    <ActionModal open title="Nueva práctica" description={`Paso ${step} de 5 · ${["Información general", "Recursos y reservas", "Documentos e instrucciones", "Participantes", "Revisar y publicar"][step - 1]}`} onClose={onClose} wide>
       <form className="modal-form" onSubmit={submit}>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <div className="form-grid form-grid-two">
+        <div className="tutorial-dots" aria-label={`Paso ${step} de 5`}>{[1, 2, 3, 4, 5].map((number) => <span key={number} className={`tutorial-dot ${number === step ? "tutorial-dot-active" : ""}`} />)}</div>
+        <div className="form-grid form-grid-two" hidden={step !== 1}>
           <label className="field-span-two"><span>Título de la práctica</span><input name="title" required minLength={3} placeholder="Tinción de Gram" /></label>
           <label><span>Curso o asignatura</span><input name="course" placeholder="Microbiología I · Sección A" /></label>
           <label><span>Estado</span>
@@ -838,11 +921,16 @@ function PracticeModal({
           <label><span>Fecha</span><input name="date" type="date" required /></label>
           <label><span>Hora de inicio</span><input name="startTime" type="time" required /></label>
           <label><span>Hora de finalización</span><input name="endTime" type="time" /></label>
-          <label className="field-span-two"><span>Instrucciones (opcional)</span><textarea name="instructions" rows={3} placeholder="Objetivos, materiales de referencia, indicaciones previas…" /></label>
+          <label className="field-span-two"><span>Ubicación</span><input name="location" placeholder="Laboratorio B" /></label>
         </div>
+        <div className="form-grid form-grid-two" hidden={step !== 2}><label><span>Tipo de recurso</span><select value={resourceType} onChange={(event) => setResourceType(event.target.value as typeof resourceType)}><option value="INVENTORY_ITEM">Artículo de inventario</option><option value="EQUIPMENT">Equipo</option></select></label><label><span>Recurso (opcional)</span><select name="resourceId" defaultValue=""><option value="">Sin recurso inicial</option>{(resourceType === "INVENTORY_ITEM" ? inventory : equipment).map((resource) => <option key={resource.id} value={resource.id}>{resource.label}</option>)}</select></label><label><span>Cantidad</span><input name="resourceQuantity" type="number" min="0.001" step="0.001" defaultValue="1" /></label><label><span>Unidad</span><input name="resourceUnit" defaultValue="unidades" /></label><p className="modal-note field-span-two">La disponibilidad y pertenencia al laboratorio se validan en el servidor. La reserva se crea en la misma transacción.</p></div>
+        <div className="form-grid" hidden={step !== 3}><label><span>Instrucciones</span><textarea name="instructions" rows={4} placeholder="Objetivos, indicaciones previas y procedimiento…" /></label><label><span>Título del documento o enlace</span><input name="documentTitle" placeholder="Guía de la práctica" /></label><label><span>Enlace externo (opcional)</span><input name="documentUrl" type="url" placeholder="https://…" /></label><label><span>Descripción</span><textarea name="documentDescription" rows={2} /></label></div>
+        <div className="form-grid" hidden={step !== 4}><label><span>Grupo educativo (opcional)</span><select name="groupId" defaultValue=""><option value="">Sin grupo</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.label}</option>)}</select></label><p className="modal-note">Los estudiantes del grupo verán la práctica y sus avisos publicados. Los participantes individuales pueden administrarse desde la ficha.</p></div>
+        <div className="modal-form" hidden={step !== 5}><InlineNotice title="Lista para crear">Se generará el código automáticamente y se guardarán la práctica, la reserva inicial, el documento enlazado y la auditoría de forma transaccional.</InlineNotice><p>Después podrás ver la práctica, copiar el enlace seguro, compartir por correo o WhatsApp y crear un aviso relacionado.</p></div>
         <footer className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Crear práctica"}</button>
+          {step > 1 ? <button type="button" className="secondary-button" onClick={() => setStep((current) => current - 1)}>Atrás</button> : null}
+          {step < 5 ? <button type="button" className="primary-button" onClick={(event) => { if (step === 1 && !event.currentTarget.form?.reportValidity()) return; setStep((current) => current + 1); }}>Siguiente</button> : <button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Crear práctica"}</button>}
         </footer>
       </form>
     </ActionModal>
@@ -1007,19 +1095,38 @@ function PracticeDetailModal({ detail, onClose }: Readonly<{ detail: PracticeDet
   );
 }
 
+function ReservationDetailModal({ detail, onClose, onChanged }: Readonly<{ detail: Record<string, unknown> | null; onClose: () => void; onChanged: () => Promise<void> }>) {
+  const [busy, setBusy] = useState(false);
+  if (!detail) return null;
+  async function update(status: string) { setBusy(true); try { const response = await fetch(`/api/education/reservations/${detail!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }); if (response.ok) await onChanged(); } finally { setBusy(false); } }
+  return <ActionModal open title={`Reserva ${String(detail.reservation_code ?? "")}`} description="Detalle, preparación y estado de la reserva." onClose={onClose}><div className="modal-form"><div className="details-grid"><div><small>Tipo de recurso</small><strong>{resourceTypeLabel(String(detail.resource_type ?? ""))}</strong></div><div><small>Cantidad</small><strong>{String(detail.quantity ?? "—")} {String(detail.unit ?? "")}</strong></div><div><small>Necesaria el</small><strong>{formatDate(String(detail.needed_at ?? ""))}</strong></div><div><small>Estado</small><strong>{statusLabel(String(detail.status ?? ""))}</strong></div>{detail.notes ? <div className="field-span-two"><small>Notas</small><strong>{String(detail.notes)}</strong></div> : null}</div><footer className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => void update("REJECTED")}>Rechazar</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void update("PREPARING")}>Preparar</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void update("READY")}>Marcar lista</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void update("CANCELLED")}>Cancelar</button><button type="button" className="primary-button" disabled={busy} onClick={() => void update("APPROVED")}>Aprobar</button></footer></div></ActionModal>;
+}
+
+function NoticeDetailModal({ detail, onClose, onChanged, readOnly = false }: Readonly<{ detail: Record<string, unknown> | null; onClose: () => void; onChanged: () => Promise<void>; readOnly?: boolean }>) {
+  const [busy, setBusy] = useState(false);
+  if (!detail) return null;
+  async function action(actionName: "CANCEL" | "ARCHIVE") { setBusy(true); try { const response = await fetch(`/api/education/notifications/${detail!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: actionName }) }); if (response.ok) await onChanged(); } finally { setBusy(false); } }
+  return <ActionModal open title={String(detail.title ?? "Aviso")} description={detail.practice_title ? `Relacionado con ${String(detail.practice_title)}` : "Aviso educativo general"} onClose={onClose}><div className="modal-form"><p>{String(detail.body ?? "")}</p><div className="details-grid"><div><small>Audiencia</small><strong>{String(detail.audience ?? "—")}</strong></div><div><small>Publicación</small><strong>{formatDate(String(detail.publish_at ?? ""))}</strong></div><div><small>Estado</small><strong>{String(detail.status ?? "PUBLICADO")}</strong></div></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cerrar</button>{!readOnly ? <><button type="button" className="secondary-button" disabled={busy} onClick={() => void action("CANCEL")}>Cancelar programación</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void action("ARCHIVE")}>Archivar</button></> : null}</footer></div></ActionModal>;
+}
+
 function NotificationModal({
   open,
+  practices,
   onClose,
   onSave,
 }: Readonly<{
   open: boolean;
+  practices: PracticeRow[];
   onClose: () => void;
   onSave: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
 }>) {
+  const [notificationType, setNotificationType] = useState<"GENERAL" | "PRACTICE">("GENERAL");
   return (
     <ActionModal open={open} title="Publicar aviso" description="El aviso será visible inmediatamente para los destinatarios seleccionados." onClose={onClose}>
       <form className="modal-form" onSubmit={onSave}>
         <div className="form-grid">
+          <label><span>Tipo de aviso</span><select name="notificationType" value={notificationType} onChange={(event) => setNotificationType(event.target.value as "GENERAL" | "PRACTICE")}><option value="GENERAL">Aviso general</option><option value="PRACTICE">Relacionado con una práctica</option></select></label>
+          {notificationType === "PRACTICE" ? <label><span>Práctica relacionada</span><select name="practiceId" required defaultValue=""><option value="">Selecciona…</option>{practices.filter((practice) => practice.id).map((practice) => <option key={String(practice.id)} value={String(practice.id)}>{practice.practice_code ?? practice.code} · {practice.title}</option>)}</select></label> : null}
           <label><span>Título</span><input name="title" required placeholder="Recordatorio: práctica mañana" /></label>
           <label>
             <span>Destinatarios</span>

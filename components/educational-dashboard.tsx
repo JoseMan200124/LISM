@@ -22,6 +22,7 @@ import { ErrorState, SkeletonKpiGrid, SkeletonTable } from "@/components/lims-ui
 import { Toast, useToast } from "@/components/action-kit";
 import { renderReportDocument, type ReportBranding } from "@/lib/report-template";
 import type { UserSession } from "@/lib/session";
+import { sourceRecordHref } from "@/lib/deep-links";
 
 type Role = UserSession["role"];
 
@@ -47,13 +48,7 @@ function severityLabel(sev: string): "Alta" | "Media" | "Baja" {
 }
 // Ruta a la entidad origen de una alerta, para navegación cruzada (§4.5).
 function alertSourceHref(alert: AlertSummary): string {
-  switch (alert.source_type) {
-    case "INVENTORY_ITEM": return "/app/inventory";
-    case "EQUIPMENT": return "/app/equipment";
-    case "EDUCATIONAL_PRACTICE": return "/app/education?tab=practices";
-    case "RESOURCE_RESERVATION": return "/app/education?tab=reservations";
-    default: return "/app/alerts";
-  }
+  return sourceRecordHref(alert.source_type, alert.source_id, alert.id) ?? "/app/alerts";
 }
 
 function useDashboardData() {
@@ -106,15 +101,15 @@ function KpiCard({ href, value, label, delta, tone, Icon, urgency }: Readonly<{ 
   );
 }
 
-function PracticesPanel({ practices }: Readonly<{ practices: PracticeSummary[] }>) {
+function PracticesPanel({ practices, canCreate = false }: Readonly<{ practices: PracticeSummary[]; canCreate?: boolean }>) {
   return (
     <article className="panel table-panel">
       <div className="panel-header">
         <div><h2>Próximas prácticas</h2><p>Cronograma y estado de preparación.</p></div>
-        <Link href="/app/education?tab=practices" className="text-button">Ver programa <ChevronRight size={14} /></Link>
+        <Link href="/app/education?tab=schedule" className="text-button">Ver programa <ChevronRight size={14} /></Link>
       </div>
       {practices.length === 0 ? (
-        <div className="empty-state"><div className="empty-icon"><CalendarDays size={22} /></div><h3>No hay prácticas próximas</h3><p>Crea una nueva práctica en Programa para comenzar.</p></div>
+        <div className="empty-state"><div className="empty-icon"><CalendarDays size={22} /></div><h3>No hay prácticas programadas.</h3><p>Crea una nueva práctica para comenzar a organizar fechas, recursos, equipos y estudiantes.</p>{canCreate ? <Link href="/app/education?tab=schedule&action=create" className="primary-button">Crear nueva práctica</Link> : null}</div>
       ) : (
         <div className="table-scroll">
           <table className="data-table">
@@ -123,11 +118,9 @@ function PracticesPanel({ practices }: Readonly<{ practices: PracticeSummary[] }
               {practices.map((p) => {
                 const label = PRACTICE_STATUS_LABEL[p.status] ?? p.status;
                 return (
-                  <tr key={p.id} className="data-row-clickable" role="button" tabIndex={0}
-                    onClick={() => { window.location.href = "/app/education?tab=practices"; }}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = "/app/education?tab=practices"; } }}>
+                  <tr key={p.id}>
                     <td><strong className="table-id">{p.practice_code}</strong></td>
-                    <td>{p.title}</td>
+                    <td><Link className="text-button" href={`/app/education?tab=schedule&practiceId=${encodeURIComponent(p.id)}`}>{p.title}</Link></td>
                     <td>{p.course_name ?? "—"}</td>
                     <td>{p.teacher_name ?? "—"}</td>
                     <td>{fmtDate(p.starts_at)}</td>
@@ -223,14 +216,14 @@ function AdminDashboard() {
       {state === "ready" && data ? (
         <>
           <section className="kpi-grid">
-            <KpiCard href="/app/education?tab=practices&filter=upcoming" value={String(data.upcomingPractices)} label="Prácticas próximas" delta="Planificadas" tone="primary" Icon={CalendarDays} />
+            <KpiCard href="/app/education?tab=schedule&filter=upcoming" value={String(data.upcomingPractices)} label="Prácticas próximas" delta="Planificadas" tone="primary" Icon={CalendarDays} />
             <KpiCard href="/app/education?tab=reservations&status=PENDING" value={String(data.pendingReservations)} label="Reservas pendientes" delta="Por preparar" tone="amber" Icon={PackageCheck} urgency={data.pendingReservations > 0 ? "kpi-card-caution" : ""} />
-            <KpiCard href="/app/inventory?filter=low-stock" value={String(data.lowStockItems)} label="Inventario bajo mínimo" delta={data.lowStockItems > 0 ? "Reponer" : "Sin alertas"} tone="rose" Icon={Boxes} urgency={data.lowStockItems > 0 ? "kpi-card-urgent" : ""} />
-            <KpiCard href="/app/equipment?filter=operational" value={`${data.operationalEquipment}/${data.totalEquipment}`} label="Equipos operativos" delta={`${data.maintenanceDueEquipment} en mantenimiento`} tone="sage" Icon={Microscope} />
+            <KpiCard href="/app/inventory?tab=lots&stock=low" value={String(data.lowStockItems)} label="Inventario bajo mínimo" delta={data.lowStockItems > 0 ? "Reponer" : "Sin alertas"} tone="rose" Icon={Boxes} urgency={data.lowStockItems > 0 ? "kpi-card-urgent" : ""} />
+            <KpiCard href="/app/equipment?tab=equipment&status=OPERATIONAL" value={`${data.operationalEquipment}/${data.totalEquipment}`} label="Equipos operativos" delta={`${data.maintenanceDueEquipment} en mantenimiento`} tone="sage" Icon={Microscope} />
           </section>
 
           <section className="content-grid content-grid-wide">
-            <PracticesPanel practices={data.upcomingPracticesList} />
+            <PracticesPanel practices={data.upcomingPracticesList} canCreate />
             <AlertsPanel alerts={data.attentionAlerts} />
           </section>
 
@@ -263,11 +256,11 @@ function ProfessorDashboard() {
       {state === "ready" && data ? (
         <>
           <section className="kpi-grid">
-            <KpiCard href="/app/education?tab=practices" value={String(data.upcomingPractices)} label="Prácticas próximas" delta="Planificadas" tone="primary" Icon={CalendarDays} />
+            <KpiCard href="/app/education?tab=schedule&filter=upcoming" value={String(data.upcomingPractices)} label="Prácticas próximas" delta="Planificadas" tone="primary" Icon={CalendarDays} />
             <KpiCard href="/app/education?tab=reservations&status=PENDING" value={String(data.pendingReservations)} label="Reservas pendientes" delta="Por confirmar" tone="amber" Icon={PackageCheck} />
-            <KpiCard href="/app/inventory?filter=low-stock" value={String(data.lowStockItems)} label="Inventario bajo mínimo" delta={data.lowStockItems > 0 ? "Revisar disponibilidad" : "Sin alertas"} tone="rose" Icon={Boxes} />
+            <KpiCard href="/app/inventory?tab=lots&stock=low" value={String(data.lowStockItems)} label="Inventario bajo mínimo" delta={data.lowStockItems > 0 ? "Revisar disponibilidad" : "Sin alertas"} tone="rose" Icon={Boxes} />
           </section>
-          <PracticesPanel practices={data.upcomingPracticesList} />
+          <PracticesPanel practices={data.upcomingPracticesList} canCreate />
           <section className="dashboard-governance-grid">
             <Link href="/app/education" className="governance-card"><CalendarDays size={18} /><div><h2>Programa</h2><p>Cronograma, reservas y avisos.</p></div><ChevronRight size={15} /></Link>
             <Link href="/app/inventory" className="governance-card"><FlaskConical size={18} /><div><h2>Inventario</h2><p>Consulta disponibilidad de reactivos y materiales.</p></div><ChevronRight size={15} /></Link>
@@ -297,9 +290,9 @@ function StudentDashboard() {
       {state === "ready" && data ? (
         <>
           <section className="kpi-grid">
-            <KpiCard href="/app/education?tab=practices" value={next ? next.practice_code : "Ninguna"} label="Próxima práctica" delta={next ? fmtDate(next.starts_at) : "Sin prácticas próximas"} tone="primary" Icon={CalendarDays} />
+            <KpiCard href={next ? `/app/education?tab=schedule&practiceId=${encodeURIComponent(next.id)}` : "/app/education?tab=schedule"} value={next ? next.practice_code : "Ninguna"} label="Próxima práctica" delta={next ? fmtDate(next.starts_at) : "Sin prácticas próximas"} tone="primary" Icon={CalendarDays} />
             <KpiCard href="/app/education" value={String(data.upcomingPracticesList.length)} label="Prácticas próximas" delta="Este período" tone="sage" Icon={GraduationCap} />
-            <KpiCard href="/app/alerts" value="Avisos" label="Avisos del docente" delta="Revisa antes de llegar" tone="amber" Icon={Bell} />
+            <KpiCard href="/app/education?tab=notices" value="Avisos" label="Avisos del docente" delta="Revisa antes de llegar" tone="amber" Icon={Bell} />
           </section>
           <article className="panel">
             <div className="panel-header"><div><h2>Próxima práctica</h2><p>Prepárate antes de llegar al laboratorio.</p></div><Link href="/app/education" className="text-button">Ver todas <ChevronRight size={14} /></Link></div>

@@ -211,8 +211,8 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       title: "Estudiante",
       items: [
         { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
-        { key: "education", label: "Mis prácticas", icon: GraduationCap, href: "/app/education" },
-        { key: "alerts", label: "Avisos", icon: Bell, href: "/app/alerts" },
+        { key: "education", label: "Mis prácticas", icon: GraduationCap, href: "/app/education?tab=schedule" },
+        { key: "education", label: "Avisos", icon: Bell, href: "/app/education?tab=notices" },
       ],
     },
   ],
@@ -236,7 +236,7 @@ export const educationalNavigationFallback: EducationalNavGroup[] = [
     items: [
       { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
       { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
-      { key: "alerts", label: "Avisos", icon: Bell, href: "/app/alerts" },
+      { key: "education", label: "Avisos", icon: Bell, href: "/app/education?tab=notices" },
     ],
   },
 ];

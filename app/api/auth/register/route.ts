@@ -75,6 +75,12 @@ export async function POST(request: Request) {
   const laboratoryId = labRows[0].id as string;
   const laboratoryName = labRows[0].name as string;
 
+  await sql`
+    INSERT INTO laboratory_settings (laboratory_id, profile_code, strict_mode)
+    VALUES (${laboratoryId}, 'EDUCATIONAL_SMALL_LAB', FALSE)
+    ON CONFLICT (laboratory_id) DO NOTHING
+  `;
+
   const userRows = await sql`
     INSERT INTO users (full_name, email, password_hash)
     VALUES (${fullName}, ${normalizedEmail}, ${passwordHash})
@@ -95,6 +101,7 @@ export async function POST(request: Request) {
     organizationId,
     laboratoryId,
     laboratoryName,
+    profileCode: "EDUCATIONAL_SMALL_LAB",
     sessionMode: "database",
   };
 

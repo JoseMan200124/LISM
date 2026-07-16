@@ -62,6 +62,17 @@ export async function POST(request: Request) {
   if (!hasDatabase()) return NextResponse.json({ data: { id: crypto.randomUUID(), incident_code: "INC-0001", ...payload, status: "OPEN" }, mode: "demo" }, { status: 201 });
   const sql = getSql();
   try {
+    if (payload.assignedTo) {
+      const membership = await sql`SELECT 1 FROM memberships WHERE user_id = ${payload.assignedTo} AND laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE' LIMIT 1`;
+      if (!membership.length) return NextResponse.json({ message: "El responsable no pertenece a este laboratorio." }, { status: 400 });
+    }
+    if (payload.relatedType && payload.relatedId) {
+      const related = payload.relatedType === "EQUIPMENT" ? await sql`SELECT 1 FROM equipment WHERE id = ${payload.relatedId} AND laboratory_id = ${session.laboratoryId}`
+        : payload.relatedType === "INVENTORY_ITEM" ? await sql`SELECT 1 FROM inventory_items WHERE id = ${payload.relatedId} AND laboratory_id = ${session.laboratoryId}`
+        : payload.relatedType === "RESOURCE_RESERVATION" ? await sql`SELECT 1 FROM resource_reservations WHERE id = ${payload.relatedId} AND laboratory_id = ${session.laboratoryId}`
+        : await sql`SELECT 1 FROM educational_practices WHERE id = ${payload.relatedId} AND laboratory_id = ${session.laboratoryId}`;
+      if (!related.length) return NextResponse.json({ message: "El registro relacionado no pertenece a este laboratorio." }, { status: 400 });
+    }
     const code = await nextIncidentCode(sql, session.laboratoryId);
     const rows = await sql`
       INSERT INTO incidents (

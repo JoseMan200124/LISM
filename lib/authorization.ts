@@ -22,13 +22,15 @@ export type PermissionKey =
   | "education.manage"
   | "incidents.view"
   | "incidents.manage"
+  | "alerts.view"
+  | "alerts.manage"
   | "signatures.create";
 
 const allPermissions: PermissionKey[] = [
   "configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage",
   "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter",
   "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view",
-  "education.view", "education.manage", "incidents.view", "incidents.manage", "signatures.create",
+  "education.view", "education.manage", "incidents.view", "incidents.manage", "alerts.view", "alerts.manage", "signatures.create",
 ];
 
 const permissionsByRole: Record<UserSession["role"], PermissionKey[]> = {
@@ -43,7 +45,7 @@ const permissionsByRole: Record<UserSession["role"], PermissionKey[]> = {
   ASSISTANT: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "education.view"],
   AUDITOR: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "audit.view", "compliance.view", "education.view", "incidents.view"],
   CONSULTATION: ["inventory.view", "equipment.view", "specimens.view", "education.view"],
-  PROFESSOR: ["inventory.view", "equipment.view", "education.view", "education.manage", "incidents.view", "incidents.manage"],
+  PROFESSOR: ["inventory.view", "equipment.view", "education.view", "education.manage", "incidents.view", "incidents.manage", "alerts.view"],
   STUDENT: ["inventory.view", "equipment.view", "education.view"],
 };
 
@@ -71,7 +73,7 @@ const modulePermissions: Partial<Record<ModuleKey, PermissionKey[]>> = {
   documents: ["quality.view"],
   logbooks: ["quality.view", "equipment.view"],
   training: ["quality.view", "compliance.view"],
-  alerts: ["quality.view", "inventory.view", "equipment.view"],
+  alerts: ["alerts.view"],
   reports: ["results.view", "quality.view", "inventory.view"],
   integrations: ["configuration.manage"],
   audit: ["audit.view"],

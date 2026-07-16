@@ -90,7 +90,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   const appVersion = process.env.APP_VERSION ?? "dev";
 
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('nexalab.theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.dataset.themePreference=t}catch(e){document.documentElement.dataset.theme='light'}})();` }} />
+      </head>
       <body>
         <JsonLd data={organizationJsonLd} />
         {children}

@@ -16,12 +16,18 @@ const schema = z.object({
   note: z.string().max(1000).optional().default(""),
   referenceType: z.string().max(80).optional(),
   referenceId: databaseIdSchema.optional(),
+  fromLocationId: databaseIdSchema.optional(),
+  toLocationId: databaseIdSchema.optional(),
+}).superRefine((value, ctx) => {
+  if (value.movementType === "TRANSFER" && (!value.fromLocationId || !value.toLocationId || value.fromLocationId === value.toLocationId)) {
+    ctx.addIssue({ code: "custom", path: ["toLocationId"], message: "La transferencia requiere ubicaciones de origen y destino diferentes." });
+  }
 });
 
 function signedQuantity(payload: z.infer<typeof schema>) {
   if (payload.movementType === "RECEIPT") return payload.quantity;
   if (payload.movementType === "ADJUSTMENT") return payload.direction === "IN" ? payload.quantity : -payload.quantity;
-  if (payload.movementType === "TRANSFER") return payload.direction === "IN" ? payload.quantity : -payload.quantity;
+  if (payload.movementType === "TRANSFER") return 0;
   return -payload.quantity;
 }
 
@@ -55,21 +61,27 @@ export async function POST(request: Request) {
 
   if (!hasDatabase()) return NextResponse.json({ data: { id: crypto.randomUUID(), ...payload, quantityDelta }, mode: "demo" }, { status: 201 });
   const sql = getSql();
-  const items = await sql`SELECT id, sku, name, quantity, requires_usage_log FROM inventory_items WHERE id = ${payload.inventoryItemId} AND laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'`;
+  const items = await sql`SELECT id, sku, name, quantity, requires_usage_log, storage_location_id FROM inventory_items WHERE id = ${payload.inventoryItemId} AND laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'`;
   const item = items[0] as Record<string, unknown> | undefined;
   if (!item) return NextResponse.json({ message: "Artículo no encontrado." }, { status: 404 });
   if (item.requires_usage_log && payload.movementType === "CONSUMPTION" && payload.note.trim().length < 3) {
     return NextResponse.json({ message: "Este reactivo requiere indicar el uso o práctica relacionada." }, { status: 400 });
   }
+  if (payload.movementType === "TRANSFER") {
+    const locations = await sql`SELECT id FROM storage_locations WHERE laboratory_id = ${session.laboratoryId} AND id = ANY(${[payload.fromLocationId!, payload.toLocationId!]})`;
+    if (locations.length !== 2 || String(item.storage_location_id ?? "") !== payload.fromLocationId) return NextResponse.json({ message: "Verifica la ubicación actual y la ubicación de destino." }, { status: 400 });
+    if (payload.quantity > Number(item.quantity)) return NextResponse.json({ message: "La cantidad a transferir supera la existencia." }, { status: 400 });
+  }
   const rows = await sql`
     INSERT INTO inventory_movements (
       laboratory_id, inventory_item_id, movement_type, quantity_delta, note,
-      performed_by, reference_type, reference_id, reason_code
+      performed_by, responsible_user_id, reference_type, reference_id, reason_code, from_location_id, to_location_id, transferred_quantity
     ) VALUES (
       ${session.laboratoryId}, ${payload.inventoryItemId}, ${payload.movementType}, ${quantityDelta}, ${payload.note},
-      ${session.userId}, ${payload.referenceType ?? null}, ${payload.referenceId ?? null}, ${payload.reasonCode}
+      ${session.userId}, ${session.userId}, ${payload.referenceType ?? null}, ${payload.referenceId ?? null}, ${payload.reasonCode}, ${payload.fromLocationId ?? null}, ${payload.toLocationId ?? null}, ${payload.movementType === "TRANSFER" ? payload.quantity : null}
     ) RETURNING *
   `;
+  if (payload.movementType === "TRANSFER") await sql`UPDATE inventory_items SET storage_location_id = ${payload.toLocationId!}, updated_at = now() WHERE id = ${payload.inventoryItemId} AND laboratory_id = ${session.laboratoryId}`;
   await writeAuditEvent(session, { action: "INVENTORY_MOVEMENT_CREATED", entityType: "inventory_item", entityId: payload.inventoryItemId, previousValue: { quantity: rows[0].previous_quantity }, newValue: { quantity: rows[0].resulting_quantity }, reason: payload.note || payload.reasonCode, metadata: { movementId: rows[0].id, movementType: payload.movementType }, request });
   return NextResponse.json({ data: rows[0] }, { status: 201 });
 }

@@ -18,7 +18,7 @@ export function useCustomFieldDefs(module: CustomFieldModule) {
 }
 
 /** Renderiza los inputs de los campos personalizados dentro de un formulario. */
-export function CustomFieldInputs({ defs }: Readonly<{ defs: CustomFieldDefinition[] }>) {
+export function CustomFieldInputs({ defs, values = {} }: Readonly<{ defs: CustomFieldDefinition[]; values?: Record<string, unknown> }>) {
   if (defs.length === 0) return null;
   return (
     <>
@@ -28,11 +28,11 @@ export function CustomFieldInputs({ defs }: Readonly<{ defs: CustomFieldDefiniti
         const help = d.validation_rule?.help;
         const options = d.validation_rule?.options ?? [];
         const label = <span>{d.label}{required ? " *" : ""}</span>;
-        if (d.field_type === "TEXTAREA") return <label key={d.id} className="field-span-two">{label}<textarea name={d.field_key} rows={2} required={required} />{help ? <small className="field-help">{help}</small> : null}</label>;
-        if (d.field_type === "BOOLEAN") return <label key={d.id} className="checkbox-line field-span-two"><input type="checkbox" name={d.field_key} /><span>{d.label}</span></label>;
-        if (d.field_type === "SELECT") return <label key={d.id}>{label}<select name={d.field_key} defaultValue="" required={required}><option value="">Selecciona…</option>{options.map((o) => <option key={o} value={o}>{o}</option>)}</select>{help ? <small className="field-help">{help}</small> : null}</label>;
+        if (d.field_type === "TEXTAREA") return <label key={d.id} className="field-span-two">{label}<textarea name={d.field_key} rows={2} required={required} defaultValue={String(values[d.field_key] ?? "")} />{help ? <small className="field-help">{help}</small> : null}</label>;
+        if (d.field_type === "BOOLEAN") return <label key={d.id} className="checkbox-line field-span-two"><input type="checkbox" name={d.field_key} defaultChecked={Boolean(values[d.field_key])} /><span>{d.label}</span></label>;
+        if (d.field_type === "SELECT") return <label key={d.id}>{label}<select name={d.field_key} defaultValue={String(values[d.field_key] ?? "")} required={required}><option value="">Selecciona…</option>{options.map((o) => <option key={o} value={o}>{o}</option>)}</select>{help ? <small className="field-help">{help}</small> : null}</label>;
         const type = d.field_type === "NUMBER" ? "number" : d.field_type === "DATE" ? "date" : "text";
-        return <label key={d.id}>{label}<input type={type} name={d.field_key} required={required} step={type === "number" ? "any" : undefined} />{help ? <small className="field-help">{help}</small> : null}</label>;
+        return <label key={d.id}>{label}<input type={type} name={d.field_key} required={required} step={type === "number" ? "any" : undefined} defaultValue={String(values[d.field_key] ?? "")} />{help ? <small className="field-help">{help}</small> : null}</label>;
       })}
     </>
   );

@@ -83,6 +83,12 @@ psql "$DIRECT_URL" -f database/0005_seed_configurable_demo.sql
 | `/app/administration` | Usuarios, permisos, competencia y sesiones |
 | `/app/audit` | Audit trail append-only |
 
+Para `EDUCATIONAL_SMALL_LAB`, el servidor restringe esas rutas al dashboard educativo, Inventario, Equipos, Programa, Alertas, Incidencias, Bitácora, Configuración, Usuarios y Mi Plan. El perfil se resuelve desde `laboratory_settings.profile_code` y viaja en la sesión; no depende de una constante del frontend.
+
+Los enlaces profundos admitidos incluyen `?itemId=`, `?equipmentId=`, `?tab=plans&planId=`, `?tab=schedule&practiceId=`, `?tab=reservations&reservationId=`, `?tab=notices&noticeId=` e `?incidentId=`. Las preferencias Claro/Oscuro/Sistema se persisten por usuario y se aplican antes del primer render.
+
+Para crear un tenant educativo vacío y seguro, consulta [database/README.md](database/README.md#tenant-educativo-vacío). El script no se ejecuta automáticamente y no modifica tenants existentes.
+
 ## APIs añadidas
 
 | Endpoint | Uso |

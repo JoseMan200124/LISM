@@ -49,6 +49,7 @@ import { EducationCenter } from "@/components/education-center";
 import { QualityCenter } from "@/components/quality-center";
 import { EquipmentCenter, InventoryCenter } from "@/components/resources-center";
 import { ActionModal, DetailsModal, QuickRecordModal, Toast, downloadCsv, useToast } from "@/components/action-kit";
+import type { UserSession } from "@/lib/session";
 
 
 type Row = Record<string, string | number>;
@@ -166,7 +167,8 @@ function displayCell(key: string, value: string | number) {
   return normalized;
 }
 
-export function ModuleView({ module, role }: { module: Exclude<ModuleKey, "dashboard">; role?: string }) {
+export function ModuleView({ module, session }: { module: Exclude<ModuleKey, "dashboard">; session?: UserSession }) {
+  const role = session?.role;
   if (module === "inventory") return <InventoryCenter />;
   if (module === "equipment") return <EquipmentCenter />;
   if (module === "education") return <EducationCenter role={role as Parameters<typeof EducationCenter>[0]["role"]} />;
@@ -174,10 +176,10 @@ export function ModuleView({ module, role }: { module: Exclude<ModuleKey, "dashb
   if (module === "documents") return <QualityCenter initialTab="documents" />;
   if (module === "logbooks") return <QualityCenter initialTab="logbooks" />;
   if (module === "training") return <QualityCenter initialTab="training" />;
-  if (module === "alerts") return <AlertsCenter />;
+  if (module === "alerts") return <AlertsCenter role={role as Parameters<typeof AlertsCenter>[0]["role"]} />;
   if (module === "incidents") return <IncidentsCenter role={role as Parameters<typeof IncidentsCenter>[0]["role"]} />;
   if (module === "compliance") return <ComplianceCenter />;
-  if (module === "configuration") return <ConfigurationCenter role={role as Parameters<typeof ConfigurationCenter>[0]["role"]} />;
+  if (module === "configuration") return <ConfigurationCenter session={session} />;
   if (module === "administration") return <AdministrationCenter />;
   if (module === "billing") return <BillingCenter />;
   if (module === "reports") return <ReportsView />;

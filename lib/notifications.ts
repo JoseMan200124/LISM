@@ -1,4 +1,4 @@
-import { hasAnyPermission, hasPermission } from "@/lib/authorization";
+import { hasPermission } from "@/lib/authorization";
 import { getSql, hasDatabase } from "@/lib/db";
 import { incidentRows } from "@/lib/demo-data";
 import { isEducationalProfile } from "@/lib/lab-profile";
@@ -64,12 +64,21 @@ export async function resolveNotifications(
   const sql = getSql();
   const items: NotificationItem[] = [];
 
-  if (hasAnyPermission(session, ["quality.view", "inventory.view", "equipment.view"])) {
-    const alertRows = await sql`
-      SELECT id, severity, title, details, created_at
+  if (hasPermission(session, "alerts.view")) {
+    const alertRows = session.role === "PROFESSOR" ? await sql`
+      SELECT DISTINCT a.id, a.severity, a.title, a.details, a.source_type, a.source_id, a.created_at
+      FROM alerts a
+      LEFT JOIN educational_practices ep ON ep.id = a.source_id AND a.source_type = 'EDUCATIONAL_PRACTICE' AND ep.laboratory_id = a.laboratory_id
+      LEFT JOIN resource_reservations rr ON rr.id = a.source_id AND a.source_type = 'RESOURCE_RESERVATION' AND rr.laboratory_id = a.laboratory_id
+      LEFT JOIN educational_practices rp ON rp.id = rr.practice_id AND rp.laboratory_id = a.laboratory_id
+      WHERE a.laboratory_id = ${session.laboratoryId} AND a.status IN ('OPEN','ACKNOWLEDGED','ASSIGNED','IN_REVIEW')
+        AND (ep.teacher_user_id = ${session.userId} OR rp.teacher_user_id = ${session.userId})
+      ORDER BY a.created_at DESC LIMIT 30
+    ` : await sql`
+      SELECT id, severity, title, details, source_type, source_id, created_at
       FROM alerts
       WHERE laboratory_id = ${session.laboratoryId}
-        AND status IN ('OPEN', 'ASSIGNED')
+        AND status IN ('OPEN', 'ACKNOWLEDGED', 'ASSIGNED', 'IN_REVIEW')
       ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'WARNING' THEN 3 ELSE 4 END, created_at DESC
       LIMIT 30
     `;
@@ -80,21 +89,30 @@ export async function resolveNotifications(
         severity: (row.severity as NotificationSeverity) ?? "INFO",
         title: String(row.title ?? "Alerta"),
         body: row.details ? String(row.details) : null,
-        targetUrl: "/app/alerts",
+        targetUrl: `/app/alerts?alertId=${row.id}`,
         createdAt: toIso(row.created_at),
         isRead: false,
       });
     }
   }
 
-  if (isEducationalProfile() && hasPermission(session, "education.view")) {
+  if (isEducationalProfile(session.profileCode) && hasPermission(session, "education.view")) {
     const audiences = educationalAudienceFilter(session.role);
-    const notifRows = audiences
-      ? await sql`
+    const notifRows = session.role === "STUDENT" ? await sql`
+          SELECT DISTINCT n.id, n.title, n.body, n.publish_at
+          FROM educational_notifications n
+          LEFT JOIN educational_practices ep ON ep.id = n.practice_id AND ep.laboratory_id = n.laboratory_id
+          LEFT JOIN educational_practice_participants pp ON pp.practice_id = ep.id AND pp.laboratory_id = n.laboratory_id AND pp.user_id = ${session.userId} AND pp.status = 'ACTIVE'
+          LEFT JOIN educational_group_members gm ON gm.group_id = COALESCE(n.group_id, ep.group_id) AND gm.laboratory_id = n.laboratory_id AND gm.user_id = ${session.userId} AND gm.status = 'ACTIVE'
+          WHERE n.laboratory_id = ${session.laboratoryId} AND n.audience IN ('STUDENTS','ALL') AND n.publish_at <= now() AND n.status IN ('PUBLISHED','SCHEDULED')
+            AND (n.practice_id IS NULL AND n.group_id IS NULL OR pp.id IS NOT NULL OR gm.id IS NOT NULL)
+          ORDER BY n.publish_at DESC LIMIT 30
+        ` : audiences ? await sql`
           SELECT id, title, body, publish_at
           FROM educational_notifications
           WHERE laboratory_id = ${session.laboratoryId}
             AND audience = ANY(${audiences})
+            AND publish_at <= now() AND status IN ('PUBLISHED','SCHEDULED')
           ORDER BY publish_at DESC
           LIMIT 30
         `
@@ -102,6 +120,7 @@ export async function resolveNotifications(
           SELECT id, title, body, publish_at
           FROM educational_notifications
           WHERE laboratory_id = ${session.laboratoryId}
+            AND publish_at <= now() AND status IN ('PUBLISHED','SCHEDULED')
           ORDER BY publish_at DESC
           LIMIT 30
         `;
@@ -112,7 +131,7 @@ export async function resolveNotifications(
         severity: "INFO",
         title: String(row.title ?? "Aviso"),
         body: row.body ? String(row.body) : null,
-        targetUrl: "/app/education",
+        targetUrl: `/app/education?tab=notices&noticeId=${row.id}`,
         createdAt: toIso(row.publish_at),
         isRead: false,
       });

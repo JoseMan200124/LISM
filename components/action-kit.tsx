@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Clipboard, FileDown, Info, TriangleAlert, X } from "lucide-react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
@@ -22,20 +22,40 @@ export function ActionModal({
   eyebrow?: string;
   wide?: boolean;
 }>) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!open) return;
-    function escape(event: KeyboardEvent) {
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => {
+      dialogRef.current?.querySelector<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])')?.focus();
+    }, 0);
+    function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
-    window.addEventListener("keydown", escape);
-    return () => window.removeEventListener("keydown", escape);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus();
+    };
   }, [onClose, open]);
 
   if (!open) return null;
   return (
     <div className="modal-layer" role="dialog" aria-modal="true" aria-label={title}>
       <button className="modal-backdrop" aria-label="Cerrar" onClick={onClose} />
-      <section className={`modal-card ${wide ? "modal-card-wide" : ""}`}>
+      <section ref={dialogRef} className={`modal-card ${wide ? "modal-card-wide" : ""}`}>
         <header className="modal-header">
           <div className="modal-icon"><Info size={18} /></div>
           <div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2>{description ? <p className="modal-description">{description}</p> : null}</div>

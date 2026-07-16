@@ -4,7 +4,7 @@
 export const INCIDENT_CATEGORIES = ["ACCIDENT", "EQUIPMENT_DAMAGE", "SPILL", "FINDING", "DEVIATION", "NONCOMPLIANCE", "OTHER"] as const;
 export const INCIDENT_SEVERITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export const INCIDENT_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED", "ARCHIVED"] as const;
-export const INCIDENT_RELATED_TYPES = ["EQUIPMENT", "INVENTORY_ITEM", "EDUCATIONAL_PRACTICE"] as const;
+export const INCIDENT_RELATED_TYPES = ["EQUIPMENT", "INVENTORY_ITEM", "EDUCATIONAL_PRACTICE", "RESOURCE_RESERVATION"] as const;
 
 export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
 export type IncidentSeverity = (typeof INCIDENT_SEVERITIES)[number];

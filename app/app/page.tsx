@@ -8,7 +8,7 @@ export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  if (isEducationalProfile()) {
+  if (isEducationalProfile(session.profileCode)) {
     return <EducationalDashboard role={session.role} />;
   }
 

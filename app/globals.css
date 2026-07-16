@@ -74,6 +74,79 @@
   --status-neutral-bg: var(--nexa-neutral-soft);
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1719;
+  --surface: #152125;
+  --surface-soft: #18272a;
+  --surface-tint: #1c2d30;
+  --line: #2b3d40;
+  --line-strong: #3a5054;
+  --text: #e8f0ef;
+  --muted: #a4b5b6;
+  --muted-strong: #c0cdcd;
+  --primary: #55b5a9;
+  --primary-dark: #70c8bd;
+  --primary-soft: #173a38;
+  --sage: #79aa91;
+  --sage-soft: #1c3329;
+  --amber: #e0a85f;
+  --amber-soft: #382a18;
+  --red: #e58680;
+  --red-soft: #3b2020;
+  --slate: #8eb1bd;
+  --slate-soft: #203238;
+  --shadow-xs: 0 1px 4px rgba(0,0,0,.28);
+  --shadow-sm: 0 3px 12px rgba(0,0,0,.32);
+  --shadow: 0 10px 30px rgba(0,0,0,.38);
+  --shadow-lg: 0 22px 54px rgba(0,0,0,.46);
+  --nexa-surface-strong: #203438;
+  --nexa-ink-strong: #f4f8f7;
+  --nexa-text-soft: #87999c;
+  --nexa-neutral-soft: #253438;
+}
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .workspace,
+:root[data-theme="dark"] .main-content { background: var(--bg); color: var(--text); }
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .topbar,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .modal-card,
+:root[data-theme="dark"] .compact-popover,
+:root[data-theme="dark"] .profile-dropdown,
+:root[data-theme="dark"] .login-form-panel,
+:root[data-theme="dark"] .login-card,
+:root[data-theme="dark"] .share-card { background: var(--surface); color: var(--text); border-color: var(--line); }
+:root[data-theme="dark"] .login-page,
+:root[data-theme="dark"] .login-side-panel { background: linear-gradient(145deg, #111d20, #142427); border-color: var(--line); }
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] strong,
+:root[data-theme="dark"] .login-side-content h1,
+:root[data-theme="dark"] .login-card h2 { color: var(--text); }
+:root[data-theme="dark"] .modal-form input,
+:root[data-theme="dark"] .modal-form select,
+:root[data-theme="dark"] .modal-form textarea,
+:root[data-theme="dark"] .input-with-icon,
+:root[data-theme="dark"] .global-search,
+:root[data-theme="dark"] .table-toolbar input { background: #101b1e; color: var(--text); border-color: var(--line-strong); }
+:root[data-theme="dark"] .modal-form .modal-actions,
+:root[data-theme="dark"] .help-guide article,
+:root[data-theme="dark"] .approval-row { background: var(--surface); border-color: var(--line); }
+:root[data-theme="dark"] table tbody tr:hover,
+:root[data-theme="dark"] .nav-item:hover { background: var(--surface-tint); }
+:root[data-theme="dark"] .modal-backdrop,
+:root[data-theme="dark"] .mobile-backdrop { background: rgba(0,0,0,.68); }
+
+.theme-options { display: grid; gap: 9px; margin: 0; padding: 0 0 12px; border: 0; }
+.theme-options legend { margin-bottom: 8px; color: var(--text); font-size: 12px; font-weight: 760; }
+.theme-options label { display: flex; align-items: center; gap: 9px; color: var(--muted-strong); }
+.theme-options input { width: auto !important; accent-color: var(--primary); }
+:root[data-compact-tables="true"] table th,
+:root[data-compact-tables="true"] table td { padding-top: 7px; padding-bottom: 7px; }
+
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 * { box-sizing: border-box; }

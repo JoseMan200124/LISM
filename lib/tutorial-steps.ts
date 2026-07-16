@@ -56,11 +56,15 @@ export const tutorialsByModule: Partial<Record<ModuleKey, TutorialDefinition>> =
     ],
   },
   alerts: {
-    version: 2,
+    version: 3,
     steps: [
       { id: "intro", selector: ".page-header, .page-stack > header", title: "Alertas automáticas", body: "El sistema genera estas alertas solo: stock bajo, vencimientos, mantenimientos y calibraciones próximas o vencidas, y reservas sin preparar.", placement: "bottom" },
-      { id: "tabs", selector: ".configuration-panel .tabs, .configuration-panel [role='tablist']", title: "Alertas, reglas y escalamientos", body: "En «Alertas» ves cada aviso y abres el registro que lo originó. En «Reglas» defines qué se vigila y a quién se avisa. En «Escalamientos», a quién se informa si nadie atiende a tiempo.", placement: "top" },
+      { id: "tabs", selector: "[data-tutorial='alerts-tabs']", title: "Alertas, reglas y escalamientos", body: "En «Alertas» ves cada aviso y abres el registro que lo originó. En «Reglas» defines qué se vigila y a quién se avisa. En «Escalamientos», a quién se informa si nadie atiende a tiempo.", placement: "top" },
       { id: "incidents-vs", selector: ".inline-notice", title: "¿Y las incidencias?", body: "Lo que ocurre en el laboratorio y registras a mano (accidentes, daños, derrames, hallazgos) va en el módulo «Incidencias», no aquí. El Centro de ayuda explica la diferencia.", placement: "bottom" },
+      { id: "rule-origin", selector: "[data-tutorial='alert-rules-list']", title: "Origen y condición", body: "Una regla comienza con el origen —inventario, equipo, plan, práctica, reserva o incidencia— y una condición entendible que se evalúa sobre datos actuales.", placement: "top", preAction: { click: "[data-tutorial='alerts-tabs'] [role='tab']:nth-child(2)" } },
+      { id: "rule-severity", selector: "[data-tutorial='alert-rules-list']", title: "Severidad y destinatarios", body: "Define la prioridad y los roles que deben atenderla. Los profesores solo reciben alertas relacionadas con sus prácticas.", placement: "top" },
+      { id: "rule-channel", selector: "[data-tutorial='alert-rules-list']", title: "Canal y escalamiento", body: "Selecciona Panel, correo o WhatsApp y establece cuánto esperar antes de escalar una alerta sin atención.", placement: "top" },
+      { id: "rule-active", selector: "[data-tutorial='alert-rules-list']", title: "Prueba y activación", body: "Prueba la regla para ver coincidencias sin crear alertas. Después puedes activarla, desactivarla, duplicarla o archivarla.", placement: "top" },
     ],
   },
   incidents: {

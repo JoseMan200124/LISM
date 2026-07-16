@@ -91,9 +91,10 @@ export function TutorialProvider({ children }: Readonly<{ children: ReactNode }>
   }, [activeModule, persistCompletion]);
 
   const close = useCallback(() => {
-    if (activeModule) void persistCompletion(activeModule);
+    // Cerrar pausa la guía; solo Finalizar u Omitir la marcan completada.
+    // Así Escape o un clic accidental no consumen pasos pendientes.
     setActiveModule(null);
-  }, [activeModule, persistCompletion]);
+  }, []);
 
   const isModuleCompleted = useCallback((moduleKey: ModuleKey) => {
     const definition = tutorialsByModule[moduleKey];

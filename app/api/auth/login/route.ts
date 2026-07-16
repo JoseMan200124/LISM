@@ -18,6 +18,7 @@ const demoSession: UserSession = {
   organizationId: "00000000-0000-0000-0000-000000000001",
   laboratoryId: "00000000-0000-0000-0000-000000000011",
   laboratoryName: "Laboratorio Central",
+  profileCode: "EDUCATIONAL_SMALL_LAB",
   sessionMode: "demo",
 };
 
@@ -60,10 +61,14 @@ export async function POST(request: Request) {
           o.id          AS organization_id,
           l.id          AS laboratory_id,
           l.name        AS laboratory_name
+          ,COALESCE(ls.profile_code, CASE WHEN bp.slug = 'academic_starter' OR o.plan_code = 'EDUCATIONAL' THEN 'EDUCATIONAL_SMALL_LAB' ELSE 'PHARMA_QC' END) AS profile_code
         FROM users u
         JOIN memberships m  ON m.user_id       = u.id AND m.status = 'ACTIVE'
         JOIN organizations o ON o.id           = m.organization_id AND o.status = 'ACTIVE'
         JOIN laboratories  l ON l.id           = m.laboratory_id   AND l.status = 'ACTIVE'
+        LEFT JOIN laboratory_settings ls ON ls.laboratory_id = l.id
+        LEFT JOIN billing_subscriptions bs ON bs.organization_id = o.id AND bs.status IN ('active','trialing','cancel_scheduled','payment_failed')
+        LEFT JOIN billing_plans bp ON bp.id = bs.plan_id
         WHERE lower(u.email) = lower(${email})
           AND u.status = 'ACTIVE'
         ORDER BY m.created_at ASC
@@ -80,6 +85,7 @@ export async function POST(request: Request) {
           organizationId: user.organization_id,
           laboratoryId: user.laboratory_id,
           laboratoryName: user.laboratory_name,
+          profileCode: user.profile_code,
           sessionMode: "database",
         };
         authenticatedFromDatabase = true;

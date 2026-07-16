@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Bell, CheckCheck, CircleAlert, GraduationCap, Info } from "lucide-react";
 import type { NotificationItem, NotificationSeverity } from "@/lib/notifications";
+import { notifyNotificationCountChanged } from "@/components/sidebar-alert-count";
 
 function severityIcon(item: NotificationItem) {
   if (item.type === "education") return <GraduationCap size={15} />;
@@ -118,6 +119,7 @@ export function NotificationCenter() {
   async function markAllRead() {
     setItems((prev) => prev.map((item) => ({ ...item, isRead: true })));
     setUnreadCount(0);
+    notifyNotificationCountChanged();
     try {
       await fetch("/api/notifications/read", {
         method: "POST",
@@ -134,6 +136,7 @@ export function NotificationCenter() {
     if (!item.isRead) {
       setItems((prev) => prev.map((n) => (n.key === item.key ? { ...n, isRead: true } : n)));
       setUnreadCount((count) => Math.max(0, count - 1));
+      notifyNotificationCountChanged();
       try {
         await fetch("/api/notifications/read", {
           method: "POST",

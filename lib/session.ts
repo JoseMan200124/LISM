@@ -11,6 +11,7 @@ export type UserSession = {
   organizationId: string;
   laboratoryId: string;
   laboratoryName: string;
+  profileCode: string;
   sessionMode?: "demo" | "database";
 };
 

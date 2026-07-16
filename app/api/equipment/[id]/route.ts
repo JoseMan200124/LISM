@@ -9,6 +9,7 @@ import { hasPermission } from "@/lib/authorization";
 const EQUIPMENT_STATUSES = ["OPERATIONAL", "MAINTENANCE_DUE", "OUT_OF_SERVICE", "RETIRED"] as const;
 
 const patchSchema = z.object({
+  action: z.enum(["UPDATE", "ARCHIVE", "RETIRE", "OUT_OF_SERVICE"]).default("UPDATE"),
   name: z.string().min(2).max(180).optional(),
   manufacturer: z.string().max(120).optional().nullable(),
   model: z.string().max(120).optional().nullable(),
@@ -17,6 +18,9 @@ const patchSchema = z.object({
   storageLocationId: databaseIdSchema.optional().nullable(),
   status: z.enum(EQUIPMENT_STATUSES).optional(),
   notes: z.string().max(2000).optional().nullable(),
+  area: z.string().max(160).optional().nullable(),
+  customValues: z.record(z.string(), z.unknown()).optional(),
+  reason: z.string().min(3).max(1000).optional(),
 }).refine((value) => Object.keys(value).length > 0, { message: "No hay cambios que aplicar." });
 
 async function resolveId(context: { params: Promise<{ id: string }> }): Promise<string | null> {
@@ -36,7 +40,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const rows = await sql`
     SELECT e.id, e.code, e.name, e.manufacturer, e.model, e.serial_number,
       COALESCE(l.name, 'Sin ubicación') AS location, e.storage_location_id, e.status,
-      e.last_calibration_at, e.next_maintenance_at, e.notes,
+      e.last_calibration_at, e.next_maintenance_at, e.notes, e.area, e.custom_values,
       e.responsible_user_id, COALESCE(u.full_name, 'Sin responsable') AS responsible
     FROM equipment e
     LEFT JOIN storage_locations l ON l.id = e.storage_location_id AND l.laboratory_id = e.laboratory_id
@@ -92,20 +96,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       serial_number = COALESCE(${payload.serialNumber ?? null}, serial_number),
       responsible_user_id = COALESCE(${payload.responsibleUserId ?? null}, responsible_user_id),
       storage_location_id = COALESCE(${payload.storageLocationId ?? null}, storage_location_id),
-      status = COALESCE(${payload.status ?? null}, status),
+      status = CASE WHEN ${payload.action} IN ('ARCHIVE','RETIRE') THEN 'RETIRED'::equipment_status WHEN ${payload.action} = 'OUT_OF_SERVICE' THEN 'OUT_OF_SERVICE'::equipment_status ELSE COALESCE(${payload.status ?? null}, status) END,
       notes = COALESCE(${payload.notes ?? null}, notes),
+      area = COALESCE(${payload.area ?? null}, area),
+      custom_values = COALESCE(${payload.customValues ? JSON.stringify(payload.customValues) : null}::jsonb, custom_values),
+      archived_at = CASE WHEN ${payload.action} = 'ARCHIVE' THEN now() ELSE archived_at END,
+      retired_at = CASE WHEN ${payload.action} = 'RETIRE' THEN now() ELSE retired_at END,
       updated_at = now()
     WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}
-    RETURNING id, code, name, manufacturer, model, serial_number, status, notes, responsible_user_id
+    RETURNING id, code, name, manufacturer, model, serial_number, status, notes, area, responsible_user_id, custom_values
   `;
-  const statusChanged = payload.status && payload.status !== previous[0].status;
+  const statusChanged = payload.action !== "UPDATE" || (payload.status && payload.status !== previous[0].status);
   await writeAuditEvent(session, {
     action: statusChanged ? "EQUIPMENT_STATUS_CHANGED" : "EQUIPMENT_UPDATED",
     entityType: "equipment",
     entityId: id,
     previousValue: previous[0],
     newValue: rows[0],
-    reason: "Edición de equipo",
+    reason: payload.reason ?? "Edición de equipo",
     request,
   });
   return NextResponse.json({ data: rows[0] });

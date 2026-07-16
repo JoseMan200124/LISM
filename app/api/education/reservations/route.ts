@@ -38,7 +38,17 @@ export async function GET() {
   if (!hasDatabase()) return NextResponse.json({ data: educationalReservations, mode: "demo" });
 
   const sql = getSql();
-  const rows = await sql`
+  const rows = session.role === "PROFESSOR" ? await sql`
+    SELECT r.id, r.reservation_code, r.resource_type, r.resource_id, r.quantity, r.unit, r.needed_at, r.status, r.created_at,
+      ep.title AS practice_title, ep.practice_code, u.full_name AS requester_name, ua.full_name AS approver_name,
+      COALESCE(i.name, eq.name, 'Sin recurso') AS resource_name
+    FROM resource_reservations r JOIN educational_practices ep ON ep.id = r.practice_id AND ep.laboratory_id = r.laboratory_id
+    LEFT JOIN users u ON u.id = r.requested_by LEFT JOIN users ua ON ua.id = r.approved_by
+    LEFT JOIN inventory_items i ON i.id = r.resource_id AND r.resource_type = 'INVENTORY_ITEM' AND i.laboratory_id = r.laboratory_id
+    LEFT JOIN equipment eq ON eq.id = r.resource_id AND r.resource_type = 'EQUIPMENT' AND eq.laboratory_id = r.laboratory_id
+    WHERE r.laboratory_id = ${session.laboratoryId} AND ep.teacher_user_id = ${session.userId}
+    ORDER BY r.needed_at ASC NULLS LAST, r.created_at DESC LIMIT 250
+  ` : session.role === "STUDENT" ? [] : await sql`
     SELECT
       r.id, r.reservation_code, r.resource_type, r.resource_id, r.quantity, r.unit,
       r.needed_at, r.status, r.created_at,
@@ -84,6 +94,16 @@ export async function POST(request: Request) {
   }
 
   const sql = getSql();
+  if (payload.practiceId) {
+    const practices = await sql`SELECT id, teacher_user_id FROM educational_practices WHERE id = ${payload.practiceId} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
+    if (!practices.length || (session.role === "PROFESSOR" && String(practices[0].teacher_user_id) !== session.userId)) return NextResponse.json({ message: "La práctica no pertenece a tu laboratorio o cuenta." }, { status: 400 });
+  }
+  if (payload.resourceId) {
+    const resources = payload.resourceType === "INVENTORY_ITEM"
+      ? await sql`SELECT id FROM inventory_items WHERE id = ${payload.resourceId} AND laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE' LIMIT 1`
+      : payload.resourceType === "EQUIPMENT" ? await sql`SELECT id FROM equipment WHERE id = ${payload.resourceId} AND laboratory_id = ${session.laboratoryId} AND status <> 'RETIRED' LIMIT 1` : [];
+    if (payload.resourceType !== "OTHER" && !resources.length) return NextResponse.json({ message: "El recurso no pertenece al laboratorio o no está activo." }, { status: 400 });
+  }
   const countRows = await sql`SELECT COUNT(*) AS total FROM resource_reservations WHERE laboratory_id = ${session.laboratoryId}`;
   const reservationCode = nextReservationCode(Number(countRows[0].total));
 
@@ -131,7 +151,12 @@ export async function PATCH(request: Request) {
   const rows = await sql`
     UPDATE resource_reservations
     SET status = ${payload.status},
-        approved_by = COALESCE(${approvedBy}, approved_by)
+        approved_by = COALESCE(${approvedBy}, approved_by),
+        approved_quantity = COALESCE(${payload.approvedQuantity ?? null}, approved_quantity),
+        notes = COALESCE(${payload.note ?? null}, notes),
+        rejection_reason = CASE WHEN ${payload.status} = 'REJECTED' THEN ${payload.note ?? null} ELSE rejection_reason END,
+        cancelled_at = CASE WHEN ${payload.status} = 'CANCELLED' THEN now() ELSE cancelled_at END,
+        updated_at = now()
     WHERE id = ${payload.id} AND laboratory_id = ${session.laboratoryId}
     RETURNING id, reservation_code, resource_type, quantity, unit, needed_at, status
   `;

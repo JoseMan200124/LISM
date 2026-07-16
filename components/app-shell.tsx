@@ -31,8 +31,20 @@ import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay";
 import { TutorialPrompt } from "@/components/tutorial/tutorial-prompt";
 import { TutorialTriggerButton } from "@/components/tutorial/tutorial-trigger-button";
 import { isEducationalProfile } from "@/lib/lab-profile";
+import { SidebarAlertCount } from "@/components/sidebar-alert-count";
+import { isThemePreference, resolveTheme, type ThemePreference } from "@/lib/theme";
 
 type DialogKey = "laboratory" | "help" | "preferences" | null;
+
+const HELP_BY_MODULE = {
+  dashboard: { title: "Ayuda de Inicio", explanation: "El resumen reúne lo que requiere atención. Los indicadores abren listados ya filtrados.", steps: ["Revisa prácticas y reservas próximas.", "Abre un indicador para ver sus registros.", "Crea tu primera práctica desde Programa."], href: "/app/education?tab=schedule", action: "Crear o consultar prácticas" },
+  inventory: { title: "Ayuda de Inventario", explanation: "Un artículo describe el recurso; el lote identifica una existencia y cada cambio queda como movimiento.", steps: ["Entrada aumenta existencias.", "Uso descuenta lo utilizado en una práctica.", "Corrección ajusta un conteo; transferencia cambia ubicación; descarte retira material no utilizable."], href: "/app/inventory?tab=movements", action: "Ver movimientos" },
+  equipment: { title: "Ayuda de Equipos", explanation: "El equipo es el activo; los planes programan tareas, los eventos registran ejecuciones y los certificados conservan evidencia.", steps: ["Crea el equipo y asigna ubicación.", "Programa calibración, mantenimiento o verificación.", "Registra la ejecución y adjunta su certificado."], href: "/app/equipment?tab=plans", action: "Administrar planes" },
+  education: { title: "Ayuda de Programa", explanation: "Organiza prácticas, reservas, documentos, participantes y avisos educativos.", steps: ["Crea la práctica y define horario.", "Reserva artículos y equipos.", "Agrega instrucciones y comparte el enlace seguro."], href: "/app/education?tab=schedule", action: "Ir al cronograma" },
+  alerts: { title: "Ayuda de Alertas", explanation: "Las alertas se generan automáticamente; las reglas indican qué vigilar y los escalamientos avisan si nadie atiende.", steps: ["Abre la alerta y ve a su origen.", "Reconoce o asigna un responsable.", "Resuelve con resultado, evidencia y acción correctiva."], href: "/app/alerts", action: "Ver alertas" },
+  incidents: { title: "Ayuda de Incidencias", explanation: "Una incidencia es un hecho registrado manualmente: accidente, daño, derrame, hallazgo o incumplimiento.", steps: ["Registra qué ocurrió y dónde.", "Relaciona equipo, artículo, práctica o reserva.", "Añade seguimiento y documenta la resolución."], href: "/app/incidents", action: "Ver incidencias" },
+  configuration: { title: "Ayuda de Configuración", explanation: "Personaliza el perfil, Mi Plan, campos, reglas, roles y preferencias del laboratorio.", steps: ["Confirma el perfil educativo activo.", "Crea campos para Inventario o Equipos.", "Revisa permisos y preferencias personales."], href: "/app/configuration", action: "Abrir configuración" },
+} as const;
 
 export function AppShell({ session, children }: Readonly<{ session: UserSession; children: React.ReactNode }>) {
   const pathname = usePathname();
@@ -45,10 +57,15 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
   const [query, setQuery] = useState("");
   const [avatarCacheBust, setAvatarCacheBust] = useState(0);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [theme, setTheme] = useState<ThemePreference>("system");
+  const [compactTables, setCompactTables] = useState(false);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { message, toastType, showToast, showError, clearToast } = useToast();
 
-  const isEducational = isEducationalProfile();
+  const isEducational = isEducationalProfile(session.profileCode);
+  const helpKey = pathname === "/app" ? "dashboard" : pathname.split("/")[2] as keyof typeof HELP_BY_MODULE;
+  const contextualHelp = HELP_BY_MODULE[helpKey] ?? HELP_BY_MODULE.dashboard;
 
   const visibleNavigation = isEducational
     ? (educationalNavigationByRole[session.role] ?? educationalNavigationFallback)
@@ -57,6 +74,61 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         .filter((group) => group.items.length > 0);
 
   const canReceiveSpecimens = !isEducational && hasPermission(session, "specimens.receive");
+
+  function applyTheme(preference: ThemePreference) {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    document.documentElement.dataset.theme = resolveTheme(preference, media.matches);
+    document.documentElement.dataset.themePreference = preference;
+    window.localStorage.setItem("nexalab.theme", preference);
+  }
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/users/me/preferences")
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((payload: { data?: { theme?: unknown; compactTables?: boolean } }) => {
+        if (!active) return;
+        const preference = isThemePreference(payload.data?.theme) ? payload.data.theme : "system";
+        setTheme(preference);
+        setCompactTables(Boolean(payload.data?.compactTables));
+        applyTheme(preference);
+      })
+      .catch(() => {
+        const local = window.localStorage.getItem("nexalab.theme");
+        const preference = isThemePreference(local) ? local : "system";
+        setTheme(preference);
+        applyTheme(preference);
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => { if (theme === "system") applyTheme("system"); };
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [theme]);
+
+  async function savePreferences() {
+    setPreferencesSaving(true);
+    applyTheme(theme);
+    try {
+      const response = await fetch("/api/users/me/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme, compactTables, showTopbarAlerts: true }),
+      });
+      if (!response.ok) throw new Error("preferences failed");
+      document.documentElement.dataset.compactTables = compactTables ? "true" : "false";
+      setDialog(null);
+      showToast("Preferencias guardadas.");
+    } catch {
+      window.localStorage.setItem("nexalab.theme", theme);
+      showError("No se pudo guardar en tu cuenta; el tema se conservó en este navegador.");
+    } finally {
+      setPreferencesSaving(false);
+    }
+  }
 
   useEffect(() => {
     function focusSearch(event: KeyboardEvent) {
@@ -148,13 +220,14 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
             <section key={group.title} className="nav-group">
               <h2>{group.title}</h2>
               {group.items.map((item) => {
-                const active = item.href === "/app" ? pathname === "/app" : pathname.startsWith(item.href);
+                const itemPath = item.href.split("?")[0];
+                const active = itemPath === "/app" ? pathname === "/app" : pathname.startsWith(itemPath);
                 const Icon = item.icon;
                 return (
-                  <Link key={item.key} href={item.href} className={`nav-item ${active ? "nav-item-active" : ""}`} onClick={() => setMobileOpen(false)}>
+                  <Link key={`${item.key}:${item.href}`} href={item.href} className={`nav-item ${active ? "nav-item-active" : ""}`} onClick={() => setMobileOpen(false)}>
                     <Icon size={17} strokeWidth={1.9} />
                     <span>{item.label}</span>
-                    {item.key === "alerts" ? <em>3</em> : null}
+                    {item.key === "alerts" ? <SidebarAlertCount /> : null}
                   </Link>
                 );
               })}
@@ -213,30 +286,17 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
       <ActionModal open={dialog === "laboratory"} title="Laboratorio activo" description="La versión inicial mantiene una sede activa por sesión. El selector ya está preparado para habilitar sedes adicionales." onClose={() => setDialog(null)}>
         <div className="modal-form"><div className="details-grid"><div><small>Sede actual</small><strong>{session.laboratoryName}</strong></div><div><small>Perfil</small><strong>{roleLabels[session.role]}</strong></div></div><footer className="modal-actions"><button className="primary-button" onClick={() => setDialog(null)}>Continuar en esta sede</button></footer></div>
       </ActionModal>
-      <ActionModal open={dialog === "help"} title="Centro de ayuda" description="Dónde va cada cosa en NexaLab." onClose={() => setDialog(null)}>
+      <ActionModal open={dialog === "help"} title={contextualHelp.title} description={contextualHelp.explanation} onClose={() => setDialog(null)}>
         <div className="modal-form">
           <div className="help-guide">
-            <article>
-              <h3>Alertas automáticas</h3>
-              <p>Las genera el sistema: inventario bajo, vencimientos, stock, equipos, mantenimiento, calibración y prácticas. Cada alerta enlaza con el registro que la originó.</p>
-              <button type="button" className="secondary-button" onClick={() => { setDialog(null); router.push("/app/alerts"); }}>Ir a Alertas</button>
-            </article>
-            <article>
-              <h3>Incidencias / Hallazgos</h3>
-              <p>Los registras tú a mano: accidentes, daños, derrames, observaciones o incumplimientos. Se asignan, se les da seguimiento y se cierran con su resolución.</p>
-              <button type="button" className="secondary-button" onClick={() => { setDialog(null); router.push("/app/incidents"); }}>Ir a Incidencias</button>
-            </article>
-            <article>
-              <h3>Bitácora / Historial</h3>
-              <p>La trazabilidad de todas las acciones realizadas en la plataforma: quién hizo qué, cuándo y con qué valores anteriores y nuevos.</p>
-              <button type="button" className="secondary-button" onClick={() => { setDialog(null); router.push("/app/audit"); }}>Ir a Bitácora</button>
-            </article>
+            <article><h3>Pasos recomendados</h3><ol>{contextualHelp.steps.map((step) => <li key={step}>{step}</li>)}</ol><button type="button" className="secondary-button" onClick={() => { setDialog(null); router.push(contextualHelp.href); }}>{contextualHelp.action}</button></article>
+            <article><h3>Conceptos relacionados</h3><p><strong>Alertas:</strong> automáticas. <strong>Incidencias:</strong> manuales. <strong>Avisos:</strong> comunicaciones educativas. <strong>Bitácora:</strong> historial de acciones.</p></article>
           </div>
           <footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cerrar</button></footer>
         </div>
       </ActionModal>
-      <ActionModal open={dialog === "preferences"} title="Preferencias" description="Estas preferencias se guardan únicamente en este navegador." onClose={() => setDialog(null)}>
-        <div className="modal-form"><label className="check-line"><input type="checkbox" defaultChecked /> <span>Mostrar alertas en la barra superior</span></label><label className="check-line"><input type="checkbox" defaultChecked /> <span>Usar tablas compactas</span></label><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cancelar</button><button className="primary-button" onClick={() => { window.localStorage.setItem("nexalab.preferences.saved", "true"); setDialog(null); showToast("Preferencias guardadas en este navegador."); }}>Guardar</button></footer></div>
+      <ActionModal open={dialog === "preferences"} title="Preferencias" description="Se guardan en tu cuenta y se aplican en todos tus dispositivos." onClose={() => setDialog(null)}>
+        <div className="modal-form"><fieldset className="theme-options"><legend>Tema</legend><label><input type="radio" name="theme" checked={theme === "light"} onChange={() => { setTheme("light"); applyTheme("light"); }} /> Claro</label><label><input type="radio" name="theme" checked={theme === "dark"} onChange={() => { setTheme("dark"); applyTheme("dark"); }} /> Oscuro</label><label><input type="radio" name="theme" checked={theme === "system"} onChange={() => { setTheme("system"); applyTheme("system"); }} /> Usar configuración del sistema</label></fieldset><label className="check-line"><input type="checkbox" checked={compactTables} onChange={(event) => setCompactTables(event.target.checked)} /> <span>Usar tablas compactas</span></label><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cancelar</button><button className="primary-button" disabled={preferencesSaving} onClick={() => void savePreferences()}>{preferencesSaving ? "Guardando…" : "Guardar"}</button></footer></div>
       </ActionModal>
       <Toast message={message} type={toastType} onClose={clearToast} />
       <TutorialOverlay />

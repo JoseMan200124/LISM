@@ -13,6 +13,7 @@ type IncidentRow = {
   location: string | null; related_type: string | null; related_id: string | null;
   occurred_at: string | null; created_at: string; assigned_name?: string | null;
   description?: string | null; actions_taken?: string | null; resolution?: string | null; created_name?: string | null;
+  comments?: Array<{ id: string; body: string; comment_type: string; created_at: string; created_name?: string | null }>;
 };
 type ResourceOption = { id: string; label: string };
 
@@ -23,10 +24,13 @@ const RELATED_LABEL: Record<string, string> = { EQUIPMENT: "Equipo", INVENTORY_I
 
 function fmtDate(v: unknown): string { if (!v) return "—"; try { return new Date(String(v)).toLocaleDateString("es-GT", { day: "2-digit", month: "short", year: "numeric" }); } catch { return String(v); } }
 function severityPill(s: string): string { if (s === "CRITICAL" || s === "HIGH") return "status-pill-danger"; if (s === "MEDIUM") return "status-pill-warning"; return "status-pill-info"; }
-function relatedHref(t: string | null): string | null {
-  if (t === "EQUIPMENT") return "/app/equipment";
-  if (t === "INVENTORY_ITEM") return "/app/inventory";
-  if (t === "EDUCATIONAL_PRACTICE") return "/app/education?tab=practices";
+function relatedHref(t: string | null, id: string | null): string | null {
+  if (!id) return null;
+  const encoded = encodeURIComponent(id);
+  if (t === "EQUIPMENT") return `/app/equipment?equipmentId=${encoded}`;
+  if (t === "INVENTORY_ITEM") return `/app/inventory?itemId=${encoded}`;
+  if (t === "EDUCATIONAL_PRACTICE") return `/app/education?tab=schedule&practiceId=${encoded}`;
+  if (t === "RESOURCE_RESERVATION") return `/app/education?tab=reservations&reservationId=${encoded}`;
   return null;
 }
 
@@ -38,6 +42,7 @@ export function IncidentsCenter({ role }: Readonly<{ role?: UserSession["role"] 
   const [tab, setTab] = useState("open");
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<IncidentRow | null>(null);
+  const [resolutionOpen, setResolutionOpen] = useState(false);
   const { message, toastType, showToast, showError, clearToast } = useToast();
 
   const load = useCallback(async () => {
@@ -52,6 +57,20 @@ export function IncidentsCenter({ role }: Readonly<{ role?: UserSession["role"] 
     } catch { setState("error"); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+
+  const openDetail = useCallback(async (id: string) => {
+    try {
+      const response = await fetch(`/api/incidents/${id}`);
+      if (!response.ok) { showError("No se pudo abrir la incidencia."); return; }
+      const payload = await response.json() as { data?: IncidentRow };
+      setSelected(payload.data ?? null);
+    } catch { showError("No se pudo abrir la incidencia."); }
+  }, [showError]);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("incidentId");
+    if (id) void openDetail(id);
+  }, [openDetail]);
 
   const open = incidents.filter((i) => !["RESOLVED", "CLOSED", "ARCHIVED"].includes(i.status));
   const shown = tab === "open" ? open : incidents;
@@ -71,6 +90,16 @@ export function IncidentsCenter({ role }: Readonly<{ role?: UserSession["role"] 
       if (res.ok) { showToast("Incidencia actualizada."); setSelected(null); await load(); }
       else { const p = await res.json().catch(() => ({})) as { message?: string }; showError(p.message ?? "No se pudo actualizar."); }
     } catch { showError("No se pudo conectar con el servidor."); }
+  }
+
+  async function addComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) return;
+    const body = String(new FormData(event.currentTarget).get("comment") ?? "").trim();
+    if (body.length < 2) return;
+    const response = await fetch(`/api/incidents/${selected.id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body, commentType: "FOLLOW_UP" }) });
+    if (response.ok) { showToast("Seguimiento añadido."); await openDetail(selected.id); event.currentTarget.reset(); }
+    else showError("No se pudo añadir el seguimiento.");
   }
 
   const rows: TableRow[] = shown.map((i) => ({
@@ -109,7 +138,7 @@ export function IncidentsCenter({ role }: Readonly<{ role?: UserSession["role"] 
           <SimpleTable
             columns={[{ key: "code", label: "Código" }, { key: "title", label: "Incidencia" }, { key: "category", label: "Tipo" }, { key: "severity", label: "Severidad" }, { key: "status", label: "Estado" }, { key: "assigned", label: "Responsable" }, { key: "created", label: "Creada" }]}
             rows={rows}
-            onRowClick={(row) => { const found = incidents.find((i) => i.id === row.id); if (found) setSelected(found); }}
+            onRowClick={(row) => { if (row.id) void openDetail(String(row.id)); }}
             emptyTitle={pending ? "Módulo por activar" : "Sin incidencias"}
             emptyMessage={pending ? "Aplica la migración 0014 para comenzar a registrar incidencias." : "Registra la primera incidencia o hallazgo del laboratorio."}
           />
@@ -132,13 +161,17 @@ export function IncidentsCenter({ role }: Readonly<{ role?: UserSession["role"] 
               {selected.actions_taken ? <div className="field-span-two"><small>Acciones tomadas</small><strong>{selected.actions_taken}</strong></div> : null}
               {selected.resolution ? <div className="field-span-two"><small>Resolución</small><strong>{selected.resolution}</strong></div> : null}
             </div>
-            {selected.related_type && relatedHref(selected.related_type) ? (
-              <Link href={relatedHref(selected.related_type)!} className="secondary-button" style={{ marginTop: 12 }}><ExternalLink size={15} /> Abrir {RELATED_LABEL[selected.related_type] ?? "registro"} relacionado</Link>
+            {selected.related_type && relatedHref(selected.related_type, selected.related_id) ? (
+              <Link href={relatedHref(selected.related_type, selected.related_id)!} className="secondary-button" style={{ marginTop: 12 }}><ExternalLink size={15} /> Abrir {RELATED_LABEL[selected.related_type] ?? "registro"} relacionado</Link>
             ) : null}
+            <p className="form-section-title">Seguimiento y evidencias</p>
+            {selected.comments?.length ? <div className="definition-list">{selected.comments.map((comment) => <article className="definition-row" key={comment.id}><div><strong>{comment.created_name ?? "Usuario"}</strong><p>{comment.body}</p></div><small>{fmtDate(comment.created_at)}</small><em>{comment.comment_type}</em></article>)}</div> : <p className="modal-note">Sin comentarios todavía.</p>}
+            {canManage ? <form onSubmit={addComment}><label><span>Nuevo comentario</span><textarea name="comment" required minLength={2} rows={2} /></label><button type="submit" className="secondary-button">Añadir seguimiento</button></form> : null}
+            {resolutionOpen ? <form onSubmit={(event) => { event.preventDefault(); const resolution = String(new FormData(event.currentTarget).get("resolution") ?? "").trim(); if (resolution.length >= 3) { void updateIncident(selected.id, { status: "RESOLVED", resolution }); setResolutionOpen(false); } }}><label><span>Resolución</span><textarea name="resolution" required minLength={3} rows={3} /></label><button type="submit" className="primary-button">Confirmar resolución</button></form> : null}
             {canManage ? (
               <footer className="modal-actions">
                 {selected.status === "OPEN" ? <button type="button" className="secondary-button" onClick={() => void updateIncident(selected.id, { status: "IN_PROGRESS" })}>Marcar en proceso</button> : null}
-                {!["RESOLVED", "CLOSED", "ARCHIVED"].includes(selected.status) ? <button type="button" className="primary-button" onClick={() => { const r = window.prompt("Resolución / cierre de la incidencia:") ?? ""; if (r.trim().length >= 3) void updateIncident(selected.id, { status: "RESOLVED", resolution: r }); else if (r !== "") showError("Describe la resolución (mínimo 3 caracteres)."); }}>Resolver</button> : <button type="button" className="secondary-button" onClick={() => void updateIncident(selected.id, { status: "ARCHIVED" })}>Archivar</button>}
+                {!["RESOLVED", "CLOSED", "ARCHIVED"].includes(selected.status) ? <button type="button" className="primary-button" onClick={() => setResolutionOpen(true)}>Resolver</button> : <><button type="button" className="secondary-button" onClick={() => void updateIncident(selected.id, { status: "OPEN" })}>Reabrir</button><button type="button" className="secondary-button" onClick={() => void updateIncident(selected.id, { status: "ARCHIVED" })}>Archivar</button></>}
               </footer>
             ) : null}
           </div>

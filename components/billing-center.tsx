@@ -938,7 +938,7 @@ export function BillingCenter() {
         <header className="page-header">
           <div>
             <p className="eyebrow">FACTURACIÓN</p>
-            <h1>Centro de facturación</h1>
+            <h1>Mi Plan</h1>
           </div>
         </header>
         <div className="panel bc-summary-panel bc-skeleton-block">
@@ -971,7 +971,7 @@ export function BillingCenter() {
         <header className="page-header">
           <div>
             <p className="eyebrow">FACTURACIÓN</p>
-            <h1>Centro de facturación</h1>
+            <h1>Mi Plan</h1>
           </div>
         </header>
         <div className="bc-error-state panel">
@@ -995,8 +995,8 @@ export function BillingCenter() {
         <header className="page-header">
           <div>
             <p className="eyebrow">ORGANIZACIÓN</p>
-            <h1>Centro de facturación</h1>
-            <p>Gestiona tu plan, método de pago y revisa el historial de cobros.</p>
+            <h1>Mi Plan</h1>
+            <p><strong>Perfil activo: Educativo y universitario.</strong> Consulta sus límites y las opciones disponibles.</p>
           </div>
           <div className="header-actions">
             <button

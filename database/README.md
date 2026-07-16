@@ -11,6 +11,7 @@
 | `0005_seed_configurable_demo.sql` | Plantillas y datos demostrativos para la ampliación configurable. |
 | `0006_secure_qr_labels.sql` | Códigos temporales de un solo uso, bitácora de escaneos y etiquetas QR para recursos existentes. |
 | `0011_profile_tutorial_notifications.sql` | Progreso de tutorial guiado por usuario (`users.tutorial_state`) y estado de lectura de notificaciones por usuario (`user_notification_reads`). Avatar de usuario y logo institucional reutilizan `attachments` (`entity_type='user_avatar'` / `'organization_logo'`), sin tablas nuevas de archivos. |
+| `0015_educational_revision_v1.sql` | Preferencias, tipos y controles de inventario, prácticas/participantes, seguimiento de incidencias, archivo de equipos y reglas/escalamientos educativos. |
 
 ## Instalación nueva
 
@@ -38,3 +39,13 @@ psql "$DIRECT_URL" -f database/0006_secure_qr_labels.sql
 - La personalización usa campos adicionales y versiones de configuración; los registros históricos no se reinterpretan silenciosamente.
 - Antes de aplicar RLS, todas las transacciones deben establecer correctamente el tenant activo.
 - Los QR físicos contienen solamente un token opaco. La consulta externa requiere un código temporal de un solo uso; el código se almacena como HMAC y los intentos quedan trazados.
+
+## Tenant educativo vacío
+
+Con las migraciones aplicadas, define la contraseña sin escribirla en argumentos ni archivos y ejecuta:
+
+```bash
+CLEAN_TENANT_ADMIN_PASSWORD='<contraseña-de-12-o-más-caracteres>' npm run tenant:create-clean-educational -- --name 'Institución' --slug 'institucion-educativa' --admin-email 'admin@institucion.edu'
+```
+
+`--include-rules` agrega tres reglas base opcionales. El comando rechaza slugs o correos existentes, usa una transacción y no crea artículos, equipos, prácticas, reservas, alertas ficticias ni logo. Nunca se ejecuta automáticamente.

@@ -21,6 +21,7 @@ export async function GET() {
       email: session.email,
       role: session.role,
       laboratoryName: session.laboratoryName,
+      profileCode: session.profileCode,
       organizationName,
     },
   });
