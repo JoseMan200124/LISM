@@ -46,6 +46,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/database ./database
 COPY --from=builder /app/package.json ./package.json
+# Los scripts administrativos se ejecutan fuera del bundle de Next.js. El
+# standalone incluye `pg` por el runner de migraciones, pero no conserva
+# automáticamente bcryptjs aunque la aplicación lo use dentro de sus chunks.
+COPY --from=deps /app/node_modules/bcryptjs ./node_modules/bcryptjs
 
 USER nextjs
 
