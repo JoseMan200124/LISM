@@ -13,13 +13,13 @@ const option = (name) => {
   const index = argv.indexOf(name);
   return index >= 0 ? argv[index + 1] : undefined;
 };
-const organizationName = option("--name");
-const slug = option("--slug");
-const laboratoryName = option("--laboratory") ?? `${organizationName ?? ""} · Laboratorio educativo`;
-const adminName = option("--admin-name") ?? "Administrador del laboratorio";
-const adminEmail = option("--admin-email")?.toLowerCase();
-const planSlug = option("--plan");
-const includeRules = argv.includes("--include-rules");
+const organizationName = option("--name") ?? process.env.CLEAN_TENANT_NAME;
+const slug = option("--slug") ?? process.env.CLEAN_TENANT_SLUG;
+const laboratoryName = option("--laboratory") ?? process.env.CLEAN_TENANT_LABORATORY ?? `${organizationName ?? ""} · Laboratorio educativo`;
+const adminName = option("--admin-name") ?? process.env.CLEAN_TENANT_ADMIN_NAME ?? "Administrador del laboratorio";
+const adminEmail = (option("--admin-email") ?? process.env.CLEAN_TENANT_ADMIN_EMAIL)?.toLowerCase();
+const planSlug = option("--plan") ?? process.env.CLEAN_TENANT_PLAN;
+const includeRules = argv.includes("--include-rules") || process.env.CLEAN_TENANT_INCLUDE_RULES === "true";
 const password = process.env.CLEAN_TENANT_ADMIN_PASSWORD;
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
 const planCodes = {
@@ -29,7 +29,7 @@ const planCodes = {
 };
 
 if (!organizationName || !slug || !adminEmail || !password || !connectionString) {
-  console.error("Uso: CLEAN_TENANT_ADMIN_PASSWORD='<valor seguro>' node scripts/create-clean-educational-tenant.mjs --name '<institución>' --slug '<slug-único>' --admin-email '<correo>' [--admin-name '<nombre>'] [--laboratory '<nombre>'] [--plan academic_starter|professional|multi_site] [--include-rules]");
+  console.error("Uso: CLEAN_TENANT_ADMIN_PASSWORD='<valor seguro>' node scripts/create-clean-educational-tenant.mjs --name '<institución>' --slug '<slug-único>' --admin-email '<correo>' [--admin-name '<nombre>'] [--laboratory '<nombre>'] [--plan academic_starter|professional|multi_site] [--include-rules]. En jobs también se aceptan CLEAN_TENANT_NAME, CLEAN_TENANT_SLUG, CLEAN_TENANT_ADMIN_EMAIL, CLEAN_TENANT_ADMIN_NAME, CLEAN_TENANT_LABORATORY, CLEAN_TENANT_PLAN y CLEAN_TENANT_INCLUDE_RULES.");
   process.exit(1);
 }
 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("El slug solo puede contener minúsculas, números y guiones.");
