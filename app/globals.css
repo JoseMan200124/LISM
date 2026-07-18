@@ -489,6 +489,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .table-search:focus-within { border-color: #8ab4ae; box-shadow: 0 0 0 3px rgba(29,107,100,.08); }
 .table-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 11.5px; }
 .table-search input::placeholder { color: #a3aeaf; }
+.table-search-clear { display: grid; width: 18px; height: 18px; flex: none; padding: 0; border: 0; border-radius: 4px; color: #9fa9ac; background: transparent; cursor: pointer; place-items: center; transition: color .12s ease, background .12s ease; }
+.table-search-clear:hover { color: var(--text); background: rgba(0,0,0,.06); }
+.table-search-count { color: #8d999b; font-size: 10px; font-weight: 650; white-space: nowrap; }
+.table-mark { border-radius: 3px; padding: 0 1px; color: #4a3a00; background: #ffe39c; font-weight: 700; }
 .filter-row { display: flex; align-items: center; gap: 6px; }
 .filter-button { display: inline-flex; height: 34px; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 7px; padding: 0 9px; color: #6f7e82; background: #fff; font-size: 10px; font-weight: 650; }
 .filter-button:hover { background: #fafcfb; }
@@ -2300,6 +2304,8 @@ html { scroll-behavior: smooth; }
 :root[data-theme="dark"] .nav-item-active { color: var(--primary-dark); background: var(--primary-soft) !important; }
 :root[data-theme="dark"] :is(.notif-item:hover, .data-table tbody tr:hover) { background: var(--surface-hover); }
 :root[data-theme="dark"] .table-pagination .table-page-nav:not(:disabled):hover { color: var(--primary); background: var(--surface-hover); border-color: var(--primary); }
+:root[data-theme="dark"] .table-search-clear:hover { color: var(--text); background: var(--surface-hover); }
+:root[data-theme="dark"] .table-mark { color: #ffe39c; background: rgba(255, 205, 80, .24); }
 :root[data-theme="dark"] .notif-item-unread { background: var(--surface-tint); }
 :root[data-theme="dark"] :is(.bar-track, .skel) { background: var(--surface-tint); }
 :root[data-theme="dark"] .notification-button span { border-color: var(--surface); }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, CircleDashed, FlaskConical, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, CircleDashed, FlaskConical, Plus, RefreshCw, Search, TriangleAlert, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 export type TableColumn = { key: string; label: string };
@@ -107,14 +107,65 @@ function statusPillClass(text: string): string {
   return STATUS_PILL_MAP[text.toLowerCase()] ?? "status-pill-neutral";
 }
 
-function renderCell(key: string, value: TableRow[string]) {
+// Plegado para búsqueda: minúsculas y sin diacríticos, así "calibracion"
+// encuentra "Calibración". La longitud puede cambiar (se quitan las marcas),
+// por eso se usa solo para comparar, no para mapear posiciones.
+function foldSearch(text: string): string {
+  return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+// Plegado alineado: cada carácter original se reduce a su base en minúscula
+// conservando la posición 1:1, para poder resaltar la coincidencia sobre el
+// texto original aunque la búsqueda ignore acentos.
+function foldAligned(text: string): string {
+  let out = "";
+  for (const ch of text) out += ch.normalize("NFD").charAt(0).toLowerCase();
+  return out;
+}
+
+// Envuelve en <mark> los tramos del texto que coinciden con los términos
+// buscados (comparación sin acentos), para ubicar visualmente el resultado.
+function highlight(text: string, terms: string[]): React.ReactNode {
+  if (terms.length === 0 || !text) return text;
+  const folded = foldAligned(text);
+  const ranges: Array<[number, number]> = [];
+  for (const term of terms) {
+    if (!term) continue;
+    let from = 0;
+    for (;;) {
+      const idx = folded.indexOf(term, from);
+      if (idx === -1) break;
+      ranges.push([idx, idx + term.length]);
+      from = idx + term.length;
+    }
+  }
+  if (ranges.length === 0) return text;
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const [start, end] of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+  merged.forEach(([start, end], i) => {
+    if (start > cursor) nodes.push(text.slice(cursor, start));
+    nodes.push(<mark key={i} className="table-mark">{text.slice(start, end)}</mark>);
+    cursor = end;
+  });
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes;
+}
+
+function renderCell(key: string, value: TableRow[string], terms: string[]) {
   const text = value === null || value === undefined ? "—" : String(value);
   if (["status", "state", "severity", "active", "blocking"].includes(key)) {
     const cls = statusPillClass(text);
-    return <span className={`status-pill ${cls}`}>{text}</span>;
+    return <span className={`status-pill ${cls}`}>{highlight(text, terms)}</span>;
   }
-  if (["code", "id", "sku"].includes(key)) return <strong className="table-id">{text}</strong>;
-  return text;
+  if (["code", "id", "sku"].includes(key)) return <strong className="table-id">{highlight(text, terms)}</strong>;
+  return highlight(text, terms);
 }
 
 export function SimpleTable({
@@ -145,11 +196,16 @@ export function SimpleTable({
 }>) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  // Cada palabra de la búsqueda es un término que debe aparecer (AND) en alguna
+  // de las columnas visibles: "juan calibración" encuentra filas con ambos.
+  const terms = useMemo(() => foldSearch(query.trim()).split(/\s+/).filter(Boolean), [query]);
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((row) => Object.values(row).some((value) => String(value ?? "").toLowerCase().includes(needle)));
-  }, [query, rows]);
+    if (terms.length === 0) return rows;
+    return rows.filter((row) => {
+      const haystack = foldSearch(columns.map((column) => (row[column.key] == null ? "" : String(row[column.key]))).join("  "));
+      return terms.every((term) => haystack.includes(term));
+    });
+  }, [terms, rows, columns]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -174,8 +230,10 @@ export function SimpleTable({
         <div className="table-toolbar">
           <label className="table-search">
             <Search size={15} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} aria-label="Buscar en la tabla" />
+            {query ? <button type="button" className="table-search-clear" onClick={() => setQuery("")} aria-label="Limpiar búsqueda"><X size={13} /></button> : null}
           </label>
+          {terms.length > 0 ? <span className="table-search-count">{filtered.length} {filtered.length === 1 ? "coincidencia" : "coincidencias"}</span> : null}
         </div>
       ) : null}
 
@@ -208,7 +266,7 @@ export function SimpleTable({
                       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onRowClick(row); }
                     } : undefined}
                   >
-                    {columns.map((column) => <td key={column.key}>{renderCell(column.key, row[column.key])}</td>)}
+                    {columns.map((column) => <td key={column.key}>{renderCell(column.key, row[column.key], terms)}</td>)}
                   </tr>
                 ))}
               </tbody>
