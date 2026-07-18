@@ -31,6 +31,7 @@ type AlertSummary = { id: string; title: string; details: string | null; severit
 type DashboardData = {
   upcomingPractices: number; pendingReservations: number; lowStockItems: number; nearExpiryItems: number;
   maintenanceDueEquipment: number; recentQrScans: number; operationalEquipment: number; totalEquipment: number;
+  openIncidents: number; criticalIncidents: number;
   upcomingPracticesList: PracticeSummary[]; attentionAlerts: AlertSummary[];
 };
 
@@ -220,6 +221,7 @@ function AdminDashboard() {
             <KpiCard href="/app/education?tab=reservations&status=PENDING" value={String(data.pendingReservations)} label="Reservas pendientes" delta="Por preparar" tone="amber" Icon={PackageCheck} urgency={data.pendingReservations > 0 ? "kpi-card-caution" : ""} />
             <KpiCard href="/app/inventory?tab=lots&stock=low" value={String(data.lowStockItems)} label="Inventario bajo mínimo" delta={data.lowStockItems > 0 ? "Reponer" : "Sin alertas"} tone="rose" Icon={Boxes} urgency={data.lowStockItems > 0 ? "kpi-card-urgent" : ""} />
             <KpiCard href="/app/equipment?tab=equipment&status=OPERATIONAL" value={`${data.operationalEquipment}/${data.totalEquipment}`} label="Equipos operativos" delta={`${data.maintenanceDueEquipment} en mantenimiento`} tone="sage" Icon={Microscope} />
+            <KpiCard href="/app/incidents" value={String(data.openIncidents)} label="Incidencias abiertas" delta={data.criticalIncidents > 0 ? `${data.criticalIncidents} críticas o altas` : data.openIncidents > 0 ? "En seguimiento" : "Sin incidencias"} tone="amber" Icon={AlertTriangle} urgency={data.criticalIncidents > 0 ? "kpi-card-urgent" : data.openIncidents > 0 ? "kpi-card-caution" : ""} />
           </section>
 
           <section className="content-grid content-grid-wide">

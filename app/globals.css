@@ -162,6 +162,10 @@
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+/* El atributo hidden debe ganar a cualquier display definido por clase
+   (.form-grid usa display:grid y ocultaba mal los pasos de los asistentes). */
+[hidden] { display: none !important; }
+
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
 body {
@@ -532,6 +536,14 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .form-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .field-span-two { grid-column: span 2; }
 .form-section-title { margin: 6px 0 -4px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--nexa-text-soft); font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
+.file-dropzone { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1.5px dashed var(--line-strong); border-radius: 9px; color: var(--muted); background: #fbfcfc; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.file-dropzone svg { flex: 0 0 auto; color: var(--primary); }
+.file-dropzone p { margin: 0; display: grid; gap: 2px; }
+.file-dropzone strong { color: var(--text); font-size: 12.5px; overflow-wrap: anywhere; }
+.file-dropzone span { color: var(--muted); font-size: 11px; }
+.file-dropzone:hover, .file-dropzone-active { border-color: var(--primary); background: #f4f9f8; }
+:root[data-theme="dark"] .file-dropzone { background: var(--surface-soft); border-color: var(--line-strong); }
+:root[data-theme="dark"] .file-dropzone:hover, :root[data-theme="dark"] .file-dropzone-active { border-color: var(--primary); background: var(--surface-tint); }
 .form-section-title:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .modal-form input, .modal-form select, .modal-form textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: 7px; outline: none; padding: 9px 10px; color: #53676c; background: #fff; font-size: 12px; resize: vertical; }
 .modal-form input:focus, .modal-form select:focus, .modal-form textarea:focus { border-color: #7ba7a1; box-shadow: 0 0 0 3px rgba(33,109,102,.08); }
@@ -810,6 +822,12 @@ html { scroll-behavior: smooth; }
 .definition-list { display: grid; gap: 7px; }
 .definition-row { display: grid; grid-template-columns: 35px minmax(0,1fr) minmax(140px,.4fr) auto; align-items: center; gap: 11px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .definition-row .definition-icon { width: 32px; height: 32px; margin: 0; }
+.definition-row-actions { display: flex; gap: 4px; }
+.permission-groups { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+.permission-group { padding: 13px 15px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfc; }
+.permission-group h3 { margin: 0 0 9px; color: var(--text); font-size: 12.5px; }
+.permission-group .checkbox-line { display: flex; align-items: center; gap: 8px; margin: 5px 0; color: var(--muted-strong); font-size: 12px; }
+:root[data-theme="dark"] .permission-group { background: var(--surface-soft); border-color: var(--line); }
 .definition-row strong { color: #465f63; font-size: 12px; }
 .definition-row p { margin: 3px 0 0; color: #8b989b; font-size: 11px; }
 .definition-row small { color: #7b8b8e; font-size: 10px; line-height: 1.5; }
@@ -943,6 +961,8 @@ html { scroll-behavior: smooth; }
 .qr-print-brand strong { color: var(--primary); font-size: 15px; letter-spacing: -.4px; }
 .qr-print-brand small { color: #93a0a2; font-size: 9px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; }
 .qr-print-zone img { width: 92px; height: 92px; object-fit: contain; }
+.qr-print-dates { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; }
+.qr-print-dates em { color: #46606a; font-size: 10px; font-style: normal; font-weight: 650; }
 .qr-print-copy small { color: #869496; font-size: 9px; font-weight: 850; letter-spacing: .65px; }
 .qr-print-copy h3 { margin: 7px 0 0; color: #416066; font-size: 18px; }
 .qr-print-copy p { margin: 4px 0; color: #586f73; font-size: 12px; font-weight: 740; }
@@ -1009,6 +1029,8 @@ html { scroll-behavior: smooth; }
 
 /* ─── FILTER CHIPS ─────────────────────────────────────────────────────────── */
 .filter-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.weekday-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.weekday-picker-label { display: block; margin-bottom: 4px; color: var(--muted-strong); font-size: 11.5px; font-weight: 700; }
 .filter-chip { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 20px; color: #7f8e91; background: #fff; font-size: 11px; font-weight: 650; white-space: nowrap; transition: .15s ease; }
 .filter-chip:hover { border-color: #b8cdc8; color: var(--primary-dark); background: #f4f9f8; }
 .filter-chip-active { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-soft); font-weight: 750; }
@@ -2298,6 +2320,20 @@ html { scroll-behavior: smooth; }
 :root[data-theme="dark"] :is(.status-pill-warning, .state-configure, .bc-pill-amber) { color: var(--nexa-warning); }
 :root[data-theme="dark"] :is(.status-pill-error, .bc-pill-red, .form-error, .error-state h3) { color: var(--nexa-danger); }
 :root[data-theme="dark"] :is(.status-pill-info, .state-procedure) { color: var(--nexa-info); }
+/* Píldoras y etiquetas con fondo claro fijo: en oscuro se veían como barras
+   blancas en Certificados, Eventos e Historial (retro del cliente). */
+:root[data-theme="dark"] .status-pill { color: var(--muted-strong); background: var(--nexa-neutral-soft); }
+:root[data-theme="dark"] .status-pill-neutral { color: var(--muted-strong); background: var(--nexa-neutral-soft); }
+:root[data-theme="dark"] .status-pill-dark { color: var(--muted-strong); background: var(--surface-tint); }
+:root[data-theme="dark"] .status-pill-partial { color: var(--nexa-warning); background: var(--amber-soft); }
+:root[data-theme="dark"] .status-pill-blue { color: var(--nexa-info); background: var(--slate-soft); }
+:root[data-theme="dark"] .status-pill-danger { color: var(--nexa-danger); }
+:root[data-theme="dark"] .definition-row em { color: var(--muted-strong); background: var(--surface-tint); }
+:root[data-theme="dark"] .definition-row p,
+:root[data-theme="dark"] .definition-row small { color: var(--muted); }
+:root[data-theme="dark"] .tab-button { color: var(--muted); }
+:root[data-theme="dark"] .tab-button:hover,
+:root[data-theme="dark"] .tab-button-active { color: var(--primary-dark); }
 :root[data-theme="dark"] .app-toast { border-color: var(--line-strong); color: var(--nexa-success); background: var(--sage-soft); }
 :root[data-theme="dark"] .app-toast-error { color: var(--nexa-danger); background: var(--red-soft); }
 :root[data-theme="dark"] .app-toast-warning { color: var(--nexa-warning); background: var(--amber-soft); }

@@ -5,6 +5,7 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { advanceByFrequency, nextDueFromWeekDays } from "@/lib/equipment-frequency";
 
 const schema = z.object({
   equipmentId: databaseIdSchema,
@@ -45,6 +46,28 @@ export async function POST(request: Request) {
     VALUES (${session.laboratoryId}, ${payload.equipmentId}, ${payload.eventType}, now(), ${payload.details}, ${session.userId})
     RETURNING *
   `;
-  await writeAuditEvent(session, { action: "EQUIPMENT_EVENT_CREATED", entityType: "equipment", entityId: payload.equipmentId, newValue: rows[0], reason: payload.details, metadata: { originalFilename: payload.originalFilename || null }, request });
+
+  // Al registrar la ejecución, los planes activos del mismo tipo avanzan su
+  // próxima fecha solos: por días seleccionados (diaria/semanal) o por la
+  // frecuencia del plan. Así ya no hay que cambiar las fechas a mano.
+  const plans = await sql`
+    SELECT id, frequency_unit, frequency_value, week_days
+    FROM equipment_plans
+    WHERE laboratory_id = ${session.laboratoryId} AND equipment_id = ${payload.equipmentId}
+      AND plan_type = ${payload.eventType} AND status = 'ACTIVE' AND frequency_unit IS NOT NULL AND frequency_unit <> 'USE'
+  `.catch(async () => sql`
+    SELECT id, frequency_unit, frequency_value, NULL AS week_days
+    FROM equipment_plans
+    WHERE laboratory_id = ${session.laboratoryId} AND equipment_id = ${payload.equipmentId}
+      AND plan_type = ${payload.eventType} AND status = 'ACTIVE' AND frequency_unit IS NOT NULL AND frequency_unit <> 'USE'
+  `) as Array<Record<string, unknown>>;
+  for (const plan of plans) {
+    const nextFromDays = nextDueFromWeekDays(plan.week_days);
+    const next = nextFromDays ?? advanceByFrequency(plan.frequency_unit, plan.frequency_value);
+    if (!next) continue;
+    await sql`UPDATE equipment_plans SET next_due_at = ${next.toISOString()}, updated_at = now() WHERE id = ${String(plan.id)} AND laboratory_id = ${session.laboratoryId}`;
+  }
+
+  await writeAuditEvent(session, { action: "EQUIPMENT_EVENT_CREATED", entityType: "equipment", entityId: payload.equipmentId, newValue: rows[0], reason: payload.details, metadata: { originalFilename: payload.originalFilename || null, advancedPlans: plans.length }, request });
   return NextResponse.json({ data: rows[0], attachmentStatus: payload.originalFilename ? "PENDING_OBJECT_STORAGE_UPLOAD" : "NO_FILE_SELECTED" }, { status: 201 });
 }

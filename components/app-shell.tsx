@@ -5,13 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ChevronDown,
-  CircleHelp,
   Command,
   LogOut,
   Menu,
+  Moon,
   Plus,
   Search,
   Settings,
+  Sun,
   Microscope,
   Trash2,
   Upload,
@@ -36,17 +37,7 @@ import { isThemePreference, resolveTheme, type ThemePreference } from "@/lib/the
 import { DeveloperCredit } from "@/components/developer-credit";
 import { DiloWidget } from "@/components/dilo-widget";
 
-type DialogKey = "laboratory" | "help" | "preferences" | null;
-
-const HELP_BY_MODULE = {
-  dashboard: { title: "Ayuda de Inicio", explanation: "El resumen reúne lo que requiere atención. Los indicadores abren listados ya filtrados.", steps: ["Revisa prácticas y reservas próximas.", "Abre un indicador para ver sus registros.", "Crea tu primera práctica desde Programa."], href: "/app/education?tab=schedule", action: "Crear o consultar prácticas" },
-  inventory: { title: "Ayuda de Inventario", explanation: "Un artículo describe el recurso; el lote identifica una existencia y cada cambio queda como movimiento.", steps: ["Entrada aumenta existencias.", "Uso descuenta lo utilizado en una práctica.", "Corrección ajusta un conteo; transferencia cambia ubicación; descarte retira material no utilizable."], href: "/app/inventory?tab=movements", action: "Ver movimientos" },
-  equipment: { title: "Ayuda de Equipos", explanation: "El equipo es el activo; los planes programan tareas, los eventos registran ejecuciones y los certificados conservan evidencia.", steps: ["Crea el equipo y asigna ubicación.", "Programa calibración, mantenimiento o verificación.", "Registra la ejecución y adjunta su certificado."], href: "/app/equipment?tab=plans", action: "Administrar planes" },
-  education: { title: "Ayuda de Programa", explanation: "Organiza prácticas, reservas, documentos, participantes y avisos educativos.", steps: ["Crea la práctica y define horario.", "Reserva artículos y equipos.", "Agrega instrucciones y comparte el enlace seguro."], href: "/app/education?tab=schedule", action: "Ir al cronograma" },
-  alerts: { title: "Ayuda de Alertas", explanation: "Las alertas se generan automáticamente; las reglas indican qué vigilar y los escalamientos avisan si nadie atiende.", steps: ["Abre la alerta y ve a su origen.", "Reconoce o asigna un responsable.", "Resuelve con resultado, evidencia y acción correctiva."], href: "/app/alerts", action: "Ver alertas" },
-  incidents: { title: "Ayuda de Incidencias", explanation: "Una incidencia es un hecho registrado manualmente: accidente, daño, derrame, hallazgo o incumplimiento.", steps: ["Registra qué ocurrió y dónde.", "Relaciona equipo, artículo, práctica o reserva.", "Añade seguimiento y documenta la resolución."], href: "/app/incidents", action: "Ver incidencias" },
-  configuration: { title: "Ayuda de Configuración", explanation: "Personaliza el perfil, Mi Plan, campos, reglas, roles y preferencias del laboratorio.", steps: ["Confirma el perfil educativo activo.", "Crea campos para Inventario o Equipos.", "Revisa permisos y preferencias personales."], href: "/app/configuration", action: "Abrir configuración" },
-} as const;
+type DialogKey = "laboratory" | "preferences" | null;
 
 export function AppShell({ session, children }: Readonly<{ session: UserSession; children: React.ReactNode }>) {
   const pathname = usePathname();
@@ -60,14 +51,13 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
   const [avatarCacheBust, setAvatarCacheBust] = useState(0);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [theme, setTheme] = useState<ThemePreference>("system");
+  const [resolvedDark, setResolvedDark] = useState(false);
   const [compactTables, setCompactTables] = useState(false);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { message, toastType, showToast, showError, clearToast } = useToast();
 
   const isEducational = isEducationalProfile(session.profileCode);
-  const helpKey = pathname === "/app" ? "dashboard" : pathname.split("/")[2] as keyof typeof HELP_BY_MODULE;
-  const contextualHelp = HELP_BY_MODULE[helpKey] ?? HELP_BY_MODULE.dashboard;
 
   const visibleNavigation = isEducational
     ? (educationalNavigationByRole[session.role] ?? educationalNavigationFallback)
@@ -79,9 +69,26 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
 
   function applyTheme(preference: ThemePreference) {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    document.documentElement.dataset.theme = resolveTheme(preference, media.matches);
+    const resolved = resolveTheme(preference, media.matches);
+    document.documentElement.dataset.theme = resolved;
     document.documentElement.dataset.themePreference = preference;
     window.localStorage.setItem("nexalab.theme", preference);
+    setResolvedDark(resolved === "dark");
+  }
+
+  // Alternancia directa claro/oscuro desde la barra superior. Persiste la
+  // preferencia en la cuenta sin abrir el diálogo de preferencias.
+  async function toggleTheme() {
+    const next: ThemePreference = resolvedDark ? "light" : "dark";
+    setTheme(next);
+    applyTheme(next);
+    try {
+      await fetch("/api/users/me/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme: next, compactTables, showTopbarAlerts: true }),
+      });
+    } catch { /* la preferencia queda al menos en este navegador */ }
   }
 
   useEffect(() => {
@@ -239,7 +246,6 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
 
         <div className="sidebar-footer">
           <TutorialTriggerButton />
-          <button className="sidebar-link" onClick={() => setDialog("help")}><CircleHelp size={17} /><span>Centro de ayuda</span></button>
           <button className="sidebar-link" onClick={() => setDialog("preferences")}><Settings size={17} /><span>Preferencias</span></button>
           <DeveloperCredit variant="compact" className="sidebar-developer-credit" />
         </div>
@@ -257,6 +263,9 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
           </form>
           <div className="topbar-actions">
             {canReceiveSpecimens ? <button className="primary-button compact-button" onClick={() => setNewSpecimenOpen(true)}><Plus size={16} /> Nueva muestra</button> : null}
+            <button className="icon-button theme-toggle-button" aria-label={resolvedDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"} title={resolvedDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"} onClick={() => void toggleTheme()}>
+              {resolvedDark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             <NotificationCenter />
             <div className="profile-menu-wrap">
               <button className="profile-button" onClick={() => setProfileOpen((open) => !open)}>
@@ -288,15 +297,6 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
       {canReceiveSpecimens ? <NewAccessionModal open={newSpecimenOpen} onClose={() => setNewSpecimenOpen(false)} /> : null}
       <ActionModal open={dialog === "laboratory"} title="Laboratorio activo" description="La versión inicial mantiene una sede activa por sesión. El selector ya está preparado para habilitar sedes adicionales." onClose={() => setDialog(null)}>
         <div className="modal-form"><div className="details-grid"><div><small>Sede actual</small><strong>{session.laboratoryName}</strong></div><div><small>Perfil</small><strong>{roleLabels[session.role]}</strong></div></div><footer className="modal-actions"><button className="primary-button" onClick={() => setDialog(null)}>Continuar en esta sede</button></footer></div>
-      </ActionModal>
-      <ActionModal open={dialog === "help"} title={contextualHelp.title} description={contextualHelp.explanation} onClose={() => setDialog(null)}>
-        <div className="modal-form">
-          <div className="help-guide">
-            <article><h3>Pasos recomendados</h3><ol>{contextualHelp.steps.map((step) => <li key={step}>{step}</li>)}</ol><button type="button" className="secondary-button" onClick={() => { setDialog(null); router.push(contextualHelp.href); }}>{contextualHelp.action}</button></article>
-            <article><h3>Conceptos relacionados</h3><p><strong>Alertas:</strong> automáticas. <strong>Incidencias:</strong> manuales. <strong>Avisos:</strong> comunicaciones educativas. <strong>Bitácora:</strong> historial de acciones.</p></article>
-          </div>
-          <footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cerrar</button></footer>
-        </div>
       </ActionModal>
       <ActionModal open={dialog === "preferences"} title="Preferencias" description="Se guardan en tu cuenta y se aplican en todos tus dispositivos." onClose={() => setDialog(null)}>
         <div className="modal-form"><fieldset className="theme-options"><legend>Tema</legend><label><input type="radio" name="theme" checked={theme === "light"} onChange={() => { setTheme("light"); applyTheme("light"); }} /> Claro</label><label><input type="radio" name="theme" checked={theme === "dark"} onChange={() => { setTheme("dark"); applyTheme("dark"); }} /> Oscuro</label><label><input type="radio" name="theme" checked={theme === "system"} onChange={() => { setTheme("system"); applyTheme("system"); }} /> Usar configuración del sistema</label></fieldset><label className="check-line"><input type="checkbox" checked={compactTables} onChange={(event) => setCompactTables(event.target.checked)} /> <span>Usar tablas compactas</span></label><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cancelar</button><button className="primary-button" disabled={preferencesSaving} onClick={() => void savePreferences()}>{preferencesSaving ? "Guardando…" : "Guardar"}</button></footer></div>

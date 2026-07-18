@@ -89,7 +89,14 @@ export async function GET() {
         WHEN i.alert_low_stock AND i.track_stock AND i.quantity <= i.reorder_point THEN 'REORDER'
         WHEN i.alert_expiry AND i.expires_at IS NOT NULL AND i.expires_at <= current_date + interval '30 day' THEN 'WATCH'
         ELSE 'AVAILABLE'
-      END AS status
+      END AS status,
+      CASE
+        WHEN i.alert_low_stock AND i.track_stock AND i.quantity <= i.reorder_point
+          THEN 'Existencia (' || i.quantity || ' ' || i.unit || ') menor o igual al stock mínimo (' || i.reorder_point || ' ' || i.unit || ')'
+        WHEN i.alert_expiry AND i.expires_at IS NOT NULL AND i.expires_at <= current_date + interval '30 day'
+          THEN 'Vence dentro de los próximos 30 días (' || to_char(i.expires_at, 'DD/MM/YYYY') || ')'
+        ELSE NULL
+      END AS status_reason
     FROM inventory_items i
     JOIN inventory_categories c ON c.id = i.category_id AND c.laboratory_id = i.laboratory_id
     LEFT JOIN storage_locations l ON l.id = i.storage_location_id AND l.laboratory_id = i.laboratory_id

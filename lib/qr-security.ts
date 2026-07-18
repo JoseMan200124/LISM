@@ -256,8 +256,13 @@ export function secureHashesEqual(left: string, right: string) {
 }
 
 export function publicScanUrl(request: Request, opaqueToken: string) {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  const origin = configured || new URL(request.url).origin;
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || process.env.APP_URL?.replace(/\/$/, "");
+  // Detrás de un proxy/ingress el origin de request.url puede ser interno:
+  // se respetan las cabeceras x-forwarded-* para que el enlace del QR apunte
+  // siempre al dominio público.
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
+  const origin = configured || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : new URL(request.url).origin);
   return `${origin}/qr/${encodeURIComponent(opaqueToken)}`;
 }
 

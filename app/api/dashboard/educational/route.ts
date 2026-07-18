@@ -32,6 +32,8 @@ type EducationalDashboardData = {
   recentQrScans: number;
   operationalEquipment: number;
   totalEquipment: number;
+  openIncidents: number;
+  criticalIncidents: number;
   upcomingPracticesList: PracticeSummary[];
   attentionAlerts: AlertSummary[];
 };
@@ -45,6 +47,8 @@ const demoData: EducationalDashboardData = {
   recentQrScans: 0,
   operationalEquipment: 0,
   totalEquipment: 0,
+  openIncidents: 0,
+  criticalIncidents: 0,
   upcomingPracticesList: [],
   attentionAlerts: [],
 };
@@ -61,7 +65,7 @@ export async function GET() {
   const isProfessor = session.role === "PROFESSOR";
   const isStudent = session.role === "STUDENT";
 
-  const [practices, reservations, inventory, equipment, qrScans, practiceList, alertList] = await Promise.all([
+  const [practices, reservations, inventory, equipment, qrScans, practiceList, alertList, incidents] = await Promise.all([
     isProfessor ? sql`SELECT COUNT(*) AS total FROM educational_practices WHERE laboratory_id = ${labId} AND teacher_user_id = ${session.userId} AND status IN ('PLANNED','PREPARING','READY') AND starts_at >= now()`
       : isStudent ? sql`SELECT COUNT(DISTINCT ep.id) AS total FROM educational_practices ep LEFT JOIN educational_practice_participants pp ON pp.practice_id = ep.id AND pp.laboratory_id = ep.laboratory_id AND pp.user_id = ${session.userId} AND pp.status = 'ACTIVE' LEFT JOIN educational_group_members gm ON gm.group_id = ep.group_id AND gm.laboratory_id = ep.laboratory_id AND gm.user_id = ${session.userId} AND gm.status = 'ACTIVE' WHERE ep.laboratory_id = ${labId} AND (pp.id IS NOT NULL OR gm.id IS NOT NULL) AND ep.status IN ('PLANNED','PREPARING','READY') AND ep.starts_at >= now()`
       : sql`SELECT COUNT(*) AS total FROM educational_practices WHERE laboratory_id = ${labId} AND status IN ('PLANNED','PREPARING','READY') AND starts_at >= now()`,
@@ -80,6 +84,13 @@ export async function GET() {
       : sql`SELECT id, title, details, severity, status, source_type, source_id, created_at
         FROM alerts WHERE laboratory_id = ${labId} AND status NOT IN ('RESOLVED','CLOSED')
         ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'WARNING' THEN 2 ELSE 3 END, created_at DESC LIMIT 6`,
+    // Incidencias abiertas (manuales): indicador para el administrador. Si la
+    // migración 0014 no está aplicada, la consulta falla y se reporta 0.
+    isStudent ? Promise.resolve([{ open: 0, critical: 0 }]) : sql`
+      SELECT COUNT(*) FILTER (WHERE status NOT IN ('RESOLVED','CLOSED','ARCHIVED')) AS open,
+        COUNT(*) FILTER (WHERE status NOT IN ('RESOLVED','CLOSED','ARCHIVED') AND severity IN ('HIGH','CRITICAL')) AS critical
+      FROM incidents WHERE laboratory_id = ${labId}
+    `.catch(() => [{ open: 0, critical: 0 }]),
   ]);
 
   const data: EducationalDashboardData = {
@@ -91,6 +102,8 @@ export async function GET() {
     recentQrScans: Number(qrScans[0].total),
     operationalEquipment: Number(equipment[0].operational),
     totalEquipment: Number(equipment[0].total),
+    openIncidents: Number(incidents[0]?.open ?? 0),
+    criticalIncidents: Number(incidents[0]?.critical ?? 0),
     upcomingPracticesList: practiceList as PracticeSummary[],
     attentionAlerts: alertList as AlertSummary[],
   };

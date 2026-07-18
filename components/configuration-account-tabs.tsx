@@ -5,7 +5,7 @@ import { Building2, Trash2, Upload } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { ErrorState } from "@/components/lims-ui";
 import { UserAvatar } from "@/components/user-avatar";
-import { useOrganizationLogoStatus } from "@/components/organization-logo";
+import { notifyOrganizationLogoUpdated, useOrganizationLogoStatus } from "@/components/organization-logo";
 import { roleLabels } from "@/lib/permissions";
 import type { UserSession } from "@/lib/session";
 
@@ -175,6 +175,7 @@ export function InstitutionTab({ canManage }: Readonly<{ canManage: boolean }>) 
       if (response.ok) {
         showToast("Logo institucional actualizado.");
         setCacheBust(Date.now());
+        notifyOrganizationLogoUpdated();
       } else {
         const payload = await response.json().catch(() => ({ message: undefined })) as { message?: string };
         showError(payload.message || "No se pudo subir el logo.");
@@ -194,6 +195,7 @@ export function InstitutionTab({ canManage }: Readonly<{ canManage: boolean }>) 
       if (response.ok) {
         showToast("Logo institucional eliminado. Los reportes usarán NexaLab como respaldo.");
         setCacheBust(Date.now());
+        notifyOrganizationLogoUpdated();
       } else {
         showError("No se pudo eliminar el logo.");
       }

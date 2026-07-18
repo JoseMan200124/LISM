@@ -40,6 +40,7 @@ import {
   workbenchRows,
 } from "@/lib/demo-data";
 import { AdministrationCenter } from "@/components/administration-center";
+import { AuditCenter } from "@/components/audit-center";
 import { AlertsCenter } from "@/components/alerts-center";
 import { IncidentsCenter } from "@/components/incidents-center";
 import { BillingCenter } from "@/components/billing-center";
@@ -178,6 +179,7 @@ export function ModuleView({ module, session }: { module: Exclude<ModuleKey, "da
   if (module === "training") return <QualityCenter initialTab="training" />;
   if (module === "alerts") return <AlertsCenter role={role as Parameters<typeof AlertsCenter>[0]["role"]} />;
   if (module === "incidents") return <IncidentsCenter role={role as Parameters<typeof IncidentsCenter>[0]["role"]} />;
+  if (module === "audit") return <AuditCenter session={session} />;
   if (module === "compliance") return <ComplianceCenter />;
   if (module === "configuration") return <ConfigurationCenter session={session} />;
   if (module === "administration") return <AdministrationCenter />;

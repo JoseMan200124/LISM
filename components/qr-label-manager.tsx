@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Clipboard, ExternalLink, KeyRound, Printer, QrCode, RefreshCw, ScanLine, ShieldCheck, TriangleAlert } from "lucide-react";
 import { ActionModal, Toast, copyText, useToast } from "@/components/action-kit";
+import { formatDate } from "@/lib/dates";
 import type { QrEntityType } from "@/lib/qr-security";
 
 type LabelRow = {
@@ -16,6 +17,9 @@ type LabelRow = {
   location: string;
   createdAt: string;
   scanUrl: string;
+  lastCalibrationAt?: string | null;
+  nextCalibrationAt?: string | null;
+  nextMaintenanceAt?: string | null;
 };
 
 type OneTimeCode = { code: string; expiresAt: string; ttlMinutes: number };
@@ -90,7 +94,19 @@ export function QrLabelManager({ entityType }: Readonly<{ entityType: QrEntityTy
               <article className="qr-print-zone">
                 <div className="qr-print-brand"><strong>NexaLab</strong><small>Etiqueta segura</small></div>
                 <img src={`/api/qr/image/${encodeURIComponent(selected.opaqueToken)}`} alt={`Código QR de ${selected.labelCode}`} />
-                <div className="qr-print-copy"><small>{selected.entityType === "EQUIPMENT" ? "EQUIPO" : "REACTIVO / MATERIAL"}</small><h3>{selected.labelCode}</h3><p>{selected.displayName}</p><span>{selected.location}</span></div>
+                <div className="qr-print-copy">
+                  <small>{selected.entityType === "EQUIPMENT" ? "EQUIPO" : "REACTIVO / MATERIAL"}</small>
+                  <h3>{selected.labelCode}</h3>
+                  <p>{selected.displayName}</p>
+                  <span>{selected.location}</span>
+                  {selected.entityType === "EQUIPMENT" && (selected.lastCalibrationAt || selected.nextCalibrationAt || selected.nextMaintenanceAt) ? (
+                    <div className="qr-print-dates">
+                      {selected.lastCalibrationAt ? <em>Calibrado: {formatDate(selected.lastCalibrationAt)}</em> : null}
+                      {selected.nextCalibrationAt ? <em>Próx. calibración: {formatDate(selected.nextCalibrationAt)}</em> : null}
+                      {selected.nextMaintenanceAt ? <em>Próx. mantenimiento: {formatDate(selected.nextMaintenanceAt)}</em> : null}
+                    </div>
+                  ) : null}
+                </div>
                 <p className="qr-print-note">Escanea e ingresa el código temporal generado por NexaLab.</p>
               </article>
               <div className="qr-label-actions">

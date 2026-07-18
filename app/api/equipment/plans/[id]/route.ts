@@ -5,12 +5,14 @@ import { hasPermission } from "@/lib/authorization";
 import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { databaseIdSchema } from "@/lib/validation";
+import { nextDueFromWeekDays, normalizeWeekDays } from "@/lib/equipment-frequency";
 
 const schema = z.object({
   action: z.enum(["UPDATE", "PAUSE", "REACTIVATE", "ARCHIVE", "DUPLICATE"]).default("UPDATE"),
   name: z.string().min(2).max(180).optional(), planType: z.enum(["VERIFICATION", "CALIBRATION", "MAINTENANCE", "QUALIFICATION", "CLEANING"]).optional(),
   frequencyValue: z.coerce.number().int().positive().nullable().optional(), frequencyUnit: z.enum(["USE", "DAY", "WEEK", "MONTH", "YEAR"]).optional(),
   nextDueAt: z.string().datetime({ offset: true }).nullable().optional(), blocksUseWhenOverdue: z.boolean().optional(),
+  weekDays: z.array(z.coerce.number().int().min(1).max(7)).max(7).nullable().optional(),
   reminderDays: z.array(z.coerce.number().int().nonnegative()).max(10).optional(),
 });
 
@@ -38,7 +40,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
   const status = payload.action === "PAUSE" ? "INACTIVE" : payload.action === "REACTIVATE" ? "ACTIVE" : payload.action === "ARCHIVE" ? "ARCHIVED" : previous[0].status;
   const frequencyUnit = payload.frequencyUnit ?? String(previous[0].frequency_unit);
-  const rows = await sql`UPDATE equipment_plans SET name = COALESCE(${payload.name ?? null}, name), plan_type = COALESCE(${payload.planType ?? null}, plan_type), frequency_value = CASE WHEN ${payload.frequencyValue === undefined} THEN frequency_value ELSE ${payload.frequencyValue ?? null} END, frequency_unit = ${frequencyUnit}, next_due_at = CASE WHEN ${frequencyUnit === "USE"} THEN NULL WHEN ${payload.nextDueAt === undefined} THEN next_due_at ELSE ${payload.nextDueAt ?? null} END, blocks_use_when_overdue = COALESCE(${payload.blocksUseWhenOverdue ?? null}, blocks_use_when_overdue), reminder_days = COALESCE(${payload.reminderDays ? JSON.stringify(payload.reminderDays) : null}::jsonb, reminder_days), status = ${status}, paused_at = CASE WHEN ${payload.action === "PAUSE"} THEN now() WHEN ${payload.action === "REACTIVATE"} THEN NULL ELSE paused_at END, archived_at = CASE WHEN ${payload.action === "ARCHIVE"} THEN now() ELSE archived_at END, updated_at = now() WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} RETURNING *`;
+  // Días de la semana (diaria/semanal): la próxima fecha se recalcula sola.
+  const weekDays = payload.weekDays === null ? [] : normalizeWeekDays(payload.weekDays);
+  const usesWeekDays = weekDays.length > 0 && (frequencyUnit === "DAY" || frequencyUnit === "WEEK");
+  let nextDueAt = payload.nextDueAt;
+  if (usesWeekDays) nextDueAt = nextDueFromWeekDays(weekDays)?.toISOString() ?? payload.nextDueAt;
+  const weekDaysJson = payload.weekDays === undefined ? undefined : usesWeekDays ? JSON.stringify(weekDays) : null;
+  const rows = await sql`UPDATE equipment_plans SET name = COALESCE(${payload.name ?? null}, name), plan_type = COALESCE(${payload.planType ?? null}, plan_type), frequency_value = CASE WHEN ${payload.frequencyValue === undefined} THEN frequency_value ELSE ${payload.frequencyValue ?? null} END, frequency_unit = ${frequencyUnit}, next_due_at = CASE WHEN ${frequencyUnit === "USE"} THEN NULL WHEN ${nextDueAt === undefined} THEN next_due_at ELSE ${nextDueAt ?? null} END, blocks_use_when_overdue = COALESCE(${payload.blocksUseWhenOverdue ?? null}, blocks_use_when_overdue), reminder_days = COALESCE(${payload.reminderDays ? JSON.stringify(payload.reminderDays) : null}::jsonb, reminder_days), status = ${status}, paused_at = CASE WHEN ${payload.action === "PAUSE"} THEN now() WHEN ${payload.action === "REACTIVATE"} THEN NULL ELSE paused_at END, archived_at = CASE WHEN ${payload.action === "ARCHIVE"} THEN now() ELSE archived_at END, updated_at = now() WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} RETURNING *`.then(async (result) => {
+    if (weekDaysJson === undefined) return result;
+    try {
+      return await sql`UPDATE equipment_plans SET week_days = ${weekDaysJson}::jsonb, updated_at = now() WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} RETURNING *`;
+    } catch (error) {
+      // Compatibilidad si la migración 0017 (week_days) aún no se aplica.
+      if (error instanceof Error && error.message.includes("week_days")) return result;
+      throw error;
+    }
+  });
   await writeAuditEvent(session, { action: `EQUIPMENT_PLAN_${payload.action}`, entityType: "equipment_plan", entityId: id, previousValue: previous[0], newValue: rows[0], request }); return NextResponse.json({ data: rows[0] });
 }
 

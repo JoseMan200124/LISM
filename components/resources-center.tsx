@@ -1,11 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, Boxes, FileCheck2, PackageCheck, Plus, ScanBarcode, ShieldCheck, Trash2, Wrench } from "lucide-react";
-import { ActionModal, Toast, useToast } from "@/components/action-kit";
+import { Archive, BellRing, Boxes, FileCheck2, PackageCheck, Plus, ScanBarcode, ShieldCheck, Trash2, Wrench } from "lucide-react";
+import { ActionModal, ConfirmModal, FileDropZone, Toast, useToast } from "@/components/action-kit";
 import { QrLabelManager, QrScanTester } from "@/components/qr-label-manager";
 import { defaultInventoryCategories } from "@/lib/lab-profile";
-import { frequencyLabel } from "@/lib/equipment-frequency";
+import { formatDate, formatDateTime, toDateInputValue } from "@/lib/dates";
+import { BUSINESS_DAYS, WEEKDAY_OPTIONS, frequencyLabel, normalizeWeekDays, weekDaysLabel } from "@/lib/equipment-frequency";
+import { COMMON_UNITS, convertQuantity } from "@/lib/units";
 import { CustomFieldInputs, collectCustomValues, useCustomFieldDefs } from "@/components/custom-fields";
 import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
 
@@ -13,20 +16,34 @@ type ModalKey = "item" | "item-edit" | "movement" | "location" | "equipment" | "
 
 type CategoryOption = { code: string; name: string; prefix: string };
 
+// Fila cruda de inventario (para conversión de unidades y vista previa de saldo).
+type InventoryRaw = {
+  id: string; sku: string; name: string; quantity: number | string; unit: string;
+  reorder_point?: number | string; status?: string; status_reason?: string | null;
+};
+
+// Requisitos de campos por tipo de artículo definidos por el administrador.
+type FieldRequirements = Record<string, Record<string, string>>;
+
+function useInventoryFieldRequirements() {
+  const [requirements, setRequirements] = useState<FieldRequirements>({});
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/configuration/field-requirements")
+      .then((response) => (response.ok ? response.json() : { data: { inventory: {} } }))
+      .catch(() => ({ data: { inventory: {} } }))
+      .then((payload: { data?: { inventory?: FieldRequirements } }) => {
+        if (active) setRequirements(payload.data?.inventory ?? {});
+      });
+    return () => { active = false; };
+  }, []);
+  return requirements;
+}
+
 // ─── Helpers de presentación ────────────────────────────────────────────────
 
-function fmtDate(value: unknown): string {
-  if (!value) return "—";
-  try {
-    return new Date(String(value)).toLocaleDateString("es-GT", { day: "2-digit", month: "short", year: "numeric" });
-  } catch { return String(value); }
-}
-function fmtDateTime(value: unknown): string {
-  if (!value) return "—";
-  try {
-    return new Date(String(value)).toLocaleString("es-GT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-  } catch { return String(value); }
-}
+const fmtDate = formatDate;
+const fmtDateTime = formatDateTime;
 function dateToIso(value: unknown): string | undefined {
   const date = String(value || "");
   return date ? `${date}T00:00:00.000Z` : undefined;
@@ -83,11 +100,13 @@ function readResourceQuery(): URLSearchParams | null {
 // ─── Inventario ──────────────────────────────────────────────────────────────
 
 export function InventoryCenter() {
+  const router = useRouter();
   const [tab, setTab] = useState("lots");
   const [modal, setModal] = useState<ModalKey>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [state, setState] = useState<LoadState>("loading");
   const [items, setItems] = useState<TableRow[]>([]);
+  const [rawItems, setRawItems] = useState<InventoryRaw[]>([]);
   const [movements, setMovements] = useState<TableRow[]>([]);
   const [locations, setLocations] = useState<TableRow[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -96,6 +115,8 @@ export function InventoryCenter() {
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [archiveConfirmId, setArchiveConfirmId] = useState<string | null>(null);
+  const [alertPromptOpen, setAlertPromptOpen] = useState(false);
   const inventoryDefs = useCustomFieldDefs("inventory");
   const { message, toastType, showToast, showError, clearToast } = useToast();
 
@@ -119,17 +140,22 @@ export function InventoryCenter() {
     } catch { showError("No se pudo conectar con el servidor."); return false; }
   }
   async function archiveItem(id: string) {
-    if (!window.confirm("¿Archivar este artículo? Dejará de aparecer en el inventario activo, pero conserva su historial.")) return;
     try {
       const res = await fetch(`/api/inventory/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "ARCHIVED" }) });
       if (!res.ok) { showError(await responseMessage(res)); return; }
       showToast("Artículo archivado."); setDetail(null); await load();
     } catch { showError("No se pudo conectar con el servidor."); }
   }
-  async function editItem(id: string, payload: Record<string, unknown>): Promise<boolean> {
+  async function editItem(id: string, payload: Record<string, unknown>, safetyFile?: File | null): Promise<boolean> {
     try {
       const response = await fetch(`/api/inventory/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!response.ok) { showError(await responseMessage(response)); return false; }
+      if (safetyFile) {
+        const form = new FormData();
+        form.set("file", safetyFile);
+        const upload = await fetch(`/api/inventory/${id}/safety-sheet`, { method: "PUT", body: form });
+        if (!upload.ok) showError(`Los datos se guardaron, pero la ficha de seguridad no se adjuntó: ${await responseMessage(upload)}`);
+      }
       showToast("Artículo actualizado sin modificar la existencia.");
       setEditingItem(null); await load(); return true;
     } catch { showError("No se pudo guardar el artículo."); return false; }
@@ -159,6 +185,16 @@ export function InventoryCenter() {
       const lData = lRes.ok ? await lRes.json() as { data?: Array<Record<string, unknown>> } : { data: [] };
       const cData = cRes.ok ? await cRes.json() as { data?: Array<{ code: string; name: string; prefix?: string }> } : { data: [] };
 
+      setRawItems((iData.data ?? []).map((r) => ({
+        id: String(r.id ?? ""),
+        sku: String(r.sku ?? "—"),
+        name: String(r.name ?? "—"),
+        quantity: Number(r.quantity ?? 0),
+        unit: String(r.unit ?? "unidades"),
+        reorder_point: Number(r.reorder_point ?? 0),
+        status: String(r.status ?? ""),
+        status_reason: r.status_reason ? String(r.status_reason) : null,
+      })));
       setItems((iData.data ?? []).map((r) => ({
         id: String(r.id ?? ""),
         sku: String(r.sku ?? "—"),
@@ -176,7 +212,7 @@ export function InventoryCenter() {
         item: String(r.name ?? "—"),
         lot: String(r.lot_number ?? "—") || "—",
         type: MOVEMENT_TYPE_LABEL[String(r.movement_type)] ?? String(r.movement_type ?? "—"),
-        quantity: String(r.quantity_delta ?? "—"),
+        quantity: `${r.quantity_delta ?? "—"} ${r.unit ?? ""}`.trim(),
         performedBy: String(r.performed_by ?? "—"),
         when: fmtDateTime(r.performed_at),
       })));
@@ -216,14 +252,24 @@ export function InventoryCenter() {
     return result;
   }, [items, activeCategory, categories, lowStockOnly]);
 
-  async function addItem(payload: Record<string, unknown>): Promise<boolean> {
+  async function addItem(payload: Record<string, unknown>, safetyFile?: File | null): Promise<boolean> {
     try {
       const response = await fetch("/api/inventory", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       if (!response.ok) { showError(await responseMessage(response)); return false; }
-      showToast("Artículo creado con su etiqueta QR segura.");
+      const created = await response.json() as { data?: { id?: string } };
+      if (safetyFile && created.data?.id) {
+        const form = new FormData();
+        form.set("file", safetyFile);
+        const upload = await fetch(`/api/inventory/${created.data.id}/safety-sheet`, { method: "PUT", body: form });
+        if (!upload.ok) showError(`El artículo se creó, pero la ficha de seguridad no se adjuntó: ${await responseMessage(upload)}`);
+        else showToast("Artículo creado con su ficha de seguridad y etiqueta QR segura.");
+      } else {
+        showToast("Artículo creado con su etiqueta QR segura.");
+      }
       await load();
+      setAlertPromptOpen(true);
       return true;
     } catch {
       showError("No se pudo conectar con el servidor. El artículo no se guardó. Intenta de nuevo.");
@@ -326,12 +372,28 @@ export function InventoryCenter() {
           {tab === "qr" ? <QrLabelManager entityType="INVENTORY_ITEM" /> : null}
         </div>
       </article>
-      <InventoryDetailModal open={detailLoading || Boolean(detail)} loading={detailLoading} item={detail} defs={inventoryDefs} onClose={() => setDetail(null)} onDiscard={discardItem} onArchive={archiveItem} onEdit={(item) => { setEditingItem(item); setDetail(null); setModal("item-edit"); }} />
+      <InventoryDetailModal open={detailLoading || Boolean(detail)} loading={detailLoading} item={detail} defs={inventoryDefs} onClose={() => setDetail(null)} onDiscard={discardItem} onArchive={(id) => setArchiveConfirmId(id)} onEdit={(item) => { setEditingItem(item); setDetail(null); setModal("item-edit"); }} />
       <InventoryItemModal open={modal === "item"} categories={categories} onClose={() => setModal(null)} onSave={addItem} />
       <InventoryEditModal open={modal === "item-edit"} item={editingItem} onClose={() => { setModal(null); setEditingItem(null); }} onSave={editItem} />
-      <InventoryMovementModal open={modal === "movement"} items={items} locations={locations} onClose={() => setModal(null)} onSave={addMovement} />
+      <InventoryMovementModal open={modal === "movement"} items={rawItems} locations={locations} onClose={() => setModal(null)} onSave={addMovement} />
       <LocationModal open={modal === "location"} onClose={() => setModal(null)} onSave={addLocation} />
       <QrScanTester open={scannerOpen} onClose={() => setScannerOpen(false)} />
+      <ConfirmModal
+        open={Boolean(archiveConfirmId)}
+        title="Archivar artículo"
+        description="Dejará de aparecer en el inventario activo, pero conserva su historial y trazabilidad."
+        confirmLabel="Archivar"
+        onConfirm={() => { const id = archiveConfirmId; setArchiveConfirmId(null); if (id) void archiveItem(id); }}
+        onClose={() => setArchiveConfirmId(null)}
+      />
+      <ActionModal open={alertPromptOpen} title="¿Configurar una alerta?" description="Puedes crear ahora una regla de alerta relacionada con inventario (stock mínimo, vencimientos) sin ir a buscarla al módulo de Alertas." onClose={() => setAlertPromptOpen(false)}>
+        <div className="modal-form">
+          <footer className="modal-actions">
+            <button className="secondary-button" onClick={() => setAlertPromptOpen(false)}>Ahora no</button>
+            <button className="primary-button" onClick={() => { setAlertPromptOpen(false); router.push("/app/alerts?tab=rules&action=create&source=INVENTORY_ITEM"); }}><BellRing size={15} /> Crear regla de alerta</button>
+          </footer>
+        </div>
+      </ActionModal>
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
@@ -340,7 +402,9 @@ export function InventoryCenter() {
 // ─── Equipos ─────────────────────────────────────────────────────────────────
 
 export function EquipmentCenter() {
+  const router = useRouter();
   const [tab, setTab] = useState("master");
+  const [alertPromptOpen, setAlertPromptOpen] = useState(false);
   const [modal, setModal] = useState<ModalKey>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [state, setState] = useState<LoadState>("loading");
@@ -406,7 +470,7 @@ export function EquipmentCenter() {
         code: String(r.equipment_code ?? "—"),
         equipment: String(r.equipment_name ?? "—"),
         plan: PLAN_TYPE_LABEL[String(r.plan_type)] ?? String(r.plan_type ?? "—"),
-        frequency: frequencyLabel(r.frequency_value, r.frequency_unit),
+        frequency: frequencyLabel(r.frequency_value, r.frequency_unit, r.week_days),
         next: String(r.frequency_unit) === "USE" ? "Al utilizar" : fmtDate(r.next_due_at),
         blocking: r.blocks_use_when_overdue ? "Sí" : "No",
         status: String(r.status) === "ACTIVE" ? "Vigente" : String(r.status ?? "—"),
@@ -451,6 +515,7 @@ export function EquipmentCenter() {
       if (!response.ok) { showError(await responseMessage(response)); return false; }
       showToast("Equipo registrado con su etiqueta QR segura.");
       await load();
+      setAlertPromptOpen(true);
       return true;
     } catch {
       showError("No se pudo conectar con el servidor. El equipo no se guardó. Intenta de nuevo.");
@@ -580,6 +645,15 @@ export function EquipmentCenter() {
       <CertificateModal open={modal === "certificate"} equipment={equipment} onClose={() => setModal(null)} onSave={addCertificate} />
       <EquipmentEventModal open={modal === "event"} equipment={equipment} onClose={() => setModal(null)} onSave={addEvent} />
       <QrScanTester open={scannerOpen} onClose={() => setScannerOpen(false)} />
+      <ActionModal open={alertPromptOpen} title="¿Configurar plan o alerta del equipo?" description="Puedes programar de una vez su plan de calibración o mantenimiento, o crear una regla de alerta, sin ir a buscarlos." onClose={() => setAlertPromptOpen(false)}>
+        <div className="modal-form">
+          <footer className="modal-actions">
+            <button className="secondary-button" onClick={() => setAlertPromptOpen(false)}>Ahora no</button>
+            <button className="secondary-button" onClick={() => { setAlertPromptOpen(false); setTab("plans"); setModal("plan"); }}><Plus size={15} /> Crear plan periódico</button>
+            <button className="primary-button" onClick={() => { setAlertPromptOpen(false); router.push("/app/alerts?tab=rules&action=create&source=EQUIPMENT"); }}><BellRing size={15} /> Crear regla de alerta</button>
+          </footer>
+        </div>
+      </ActionModal>
       <Toast message={message} type={toastType} onClose={clearToast} />
     </div>
   );
@@ -601,23 +675,44 @@ function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, o
   onClose: () => void; onDiscard: (id: string, body: Record<string, unknown>) => Promise<boolean>; onArchive: (id: string) => void; onEdit: (item: Record<string, unknown>) => void;
 }>) {
   const [discarding, setDiscarding] = useState(false);
+  const [discardAll, setDiscardAll] = useState(false);
   const [saving, setSaving] = useState(false);
   if (!open) return null;
   const id = item ? String(item.id) : "";
   const cv = (item?.custom_values ?? {}) as Record<string, unknown>;
   const movements = (item?.movements ?? []) as Array<Record<string, unknown>>;
+  const currentQuantity = Number(item?.quantity ?? 0);
+  const unit = String(item?.unit ?? "");
+
+  // Explica por qué el estado es "Reponer" o "Vigilar" (retro del cliente:
+  // "el estado se pone en reponer a veces y no se ve el motivo").
+  function statusExplanation(): string | null {
+    if (!item) return null;
+    const minimum = Number(item.reorder_point ?? 0);
+    if (item.track_stock !== false && item.alert_low_stock !== false && currentQuantity <= minimum) {
+      return `Este artículo aparece en "Reponer" porque la existencia (${currentQuantity} ${unit}) es menor o igual al stock mínimo configurado (${minimum} ${unit}). Ajusta el stock mínimo o registra una entrada para cambiarlo.`;
+    }
+    if (item.alert_expiry !== false && item.expires_at) {
+      const expires = new Date(String(item.expires_at)).getTime();
+      const inThirtyDays = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      if (Number.isFinite(expires) && expires <= inThirtyDays) {
+        return `Este artículo aparece en "Vigilar" porque vence dentro de los próximos 30 días (${fmtDate(item.expires_at)}).`;
+      }
+    }
+    return null;
+  }
 
   async function submitDiscard(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     setSaving(true);
     const ok = await onDiscard(id, {
-      quantity: Number(data.get("quantity") ?? 0),
+      quantity: discardAll ? currentQuantity : Number(data.get("quantity") ?? 0),
       reason: String(data.get("reason") ?? "").trim(),
       note: String(data.get("note") ?? "").trim(),
     });
     setSaving(false);
-    if (ok) setDiscarding(false);
+    if (ok) { setDiscarding(false); setDiscardAll(false); }
   }
 
   return (
@@ -653,12 +748,14 @@ function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, o
                 ))}
               </div>
             )}
+            {statusExplanation() ? <p className="modal-note" style={{ marginTop: 10 }}>{statusExplanation()}</p> : null}
             {discarding ? (
               <form className="inline-editor" onSubmit={submitDiscard} style={{ marginTop: 12 }}>
-                <label><span>Cantidad a descartar</span><input name="quantity" type="number" min="0.001" step="0.001" required /></label>
+                <label className="checkbox-line"><input type="checkbox" checked={discardAll} onChange={(event) => setDiscardAll(event.target.checked)} /><span>Descartar toda la existencia ({currentQuantity} {unit})</span></label>
+                {discardAll ? null : <label><span>Cantidad a descartar</span><input name="quantity" type="number" min="0.001" step="0.001" max={currentQuantity || undefined} required /></label>}
                 <label><span>Motivo</span><input name="reason" required placeholder="Vencido, contaminado, roto…" /></label>
                 <label><span>Observación</span><input name="note" placeholder="Detalle opcional" /></label>
-                <button className="primary-button" type="submit" disabled={saving}>{saving ? "Registrando…" : "Confirmar descarte"}</button>
+                <button className="primary-button" type="submit" disabled={saving}>{saving ? "Registrando…" : discardAll ? "Descartar todo" : "Confirmar descarte"}</button>
               </form>
             ) : null}
             <footer className="modal-actions">
@@ -704,15 +801,20 @@ function EquipmentDetailModal({ open, loading, equipment, onClose, onEdit, onSta
 
 function PlanDetailModal({ plan, onClose, onChanged }: Readonly<{ plan: Record<string, unknown> | null; onClose: () => void; onChanged: () => Promise<void> }>) {
   const [busy, setBusy] = useState(false);
+  const [unit, setUnit] = useState<string | null>(null);
+  const [weekDays, setWeekDays] = useState<number[] | null>(null);
   if (!plan) return null;
+  const effectiveUnit = unit ?? String(plan.frequency_unit ?? "MONTH");
+  const effectiveWeekDays = weekDays ?? normalizeWeekDays(plan.week_days);
+  const byWeekDays = effectiveUnit === "DAY" || effectiveUnit === "WEEK";
   async function action(actionName: "UPDATE" | "PAUSE" | "REACTIVATE" | "ARCHIVE" | "DUPLICATE", body: Record<string, unknown> = {}) {
     setBusy(true);
     try { const response = await fetch(`/api/equipment/plans/${plan!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: actionName, ...body }) }); if (response.ok) await onChanged(); }
     finally { setBusy(false); }
   }
   return <ActionModal open title={String(plan.name ?? "Plan de equipo")} description={`${String(plan.equipment_code ?? "")} · ${String(plan.equipment_name ?? "")}`} onClose={onClose}>
-    <form className="modal-form" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void action("UPDATE", { name: String(data.get("name")), frequencyUnit: String(data.get("frequencyUnit")), frequencyValue: String(data.get("frequencyUnit")) === "USE" ? null : Number(data.get("frequencyValue") || 1), nextDueAt: String(data.get("frequencyUnit")) === "USE" ? null : dateToIso(data.get("nextDueAt")), blocksUseWhenOverdue: data.get("blocking") === "on" }); }}>
-      <div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(plan.name ?? "")} /></label><label><span>Frecuencia</span><select name="frequencyUnit" defaultValue={String(plan.frequency_unit ?? "MONTH")}><option value="USE">Cada uso</option><option value="DAY">Diaria</option><option value="WEEK">Semanal</option><option value="MONTH">Mensual</option><option value="YEAR">Anual</option></select></label><label><span>Cada cuántos</span><input name="frequencyValue" type="number" min="1" defaultValue={Number(plan.frequency_value ?? 1)} /></label><label><span>Próxima fecha</span><input name="nextDueAt" type="date" defaultValue={plan.next_due_at ? new Date(String(plan.next_due_at)).toISOString().slice(0, 10) : ""} /></label><label className="checkbox-line"><input name="blocking" type="checkbox" defaultChecked={Boolean(plan.blocks_use_when_overdue)} /><span>Bloquear al vencer</span></label></div>
+    <form className="modal-form" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); const chosenUnit = String(data.get("frequencyUnit")); const usesDays = (chosenUnit === "DAY" || chosenUnit === "WEEK") && effectiveWeekDays.length > 0; void action("UPDATE", { name: String(data.get("name")), frequencyUnit: chosenUnit, frequencyValue: chosenUnit === "USE" ? null : usesDays ? 1 : Number(data.get("frequencyValue") || 1), nextDueAt: chosenUnit === "USE" || usesDays ? null : dateToIso(data.get("nextDueAt")), weekDays: usesDays ? effectiveWeekDays : null, blocksUseWhenOverdue: data.get("blocking") === "on" }); }}>
+      <div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(plan.name ?? "")} /></label><label><span>Frecuencia</span><select name="frequencyUnit" value={effectiveUnit} onChange={(event) => { setUnit(event.target.value); if (event.target.value === "DAY" && effectiveWeekDays.length === 0) setWeekDays([...BUSINESS_DAYS]); if (event.target.value === "WEEK" && effectiveWeekDays.length === 0) setWeekDays([1]); }}><option value="USE">Cada uso</option><option value="DAY">Diaria (por días)</option><option value="WEEK">Semanal (por días)</option><option value="MONTH">Mensual</option><option value="YEAR">Anual</option></select></label>{byWeekDays ? null : <label><span>Cada cuántos</span><input name="frequencyValue" type="number" min="1" defaultValue={Number(plan.frequency_value ?? 1)} /></label>}{byWeekDays ? null : <label><span>Próxima fecha</span><input name="nextDueAt" type="date" defaultValue={toDateInputValue(plan.next_due_at)} /></label>}{byWeekDays ? <WeekDayPicker value={effectiveWeekDays} onChange={setWeekDays} /> : null}<label className="checkbox-line"><input name="blocking" type="checkbox" defaultChecked={Boolean(plan.blocks_use_when_overdue)} /><span>Bloquear al vencer</span></label></div>
       <footer className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => void action(String(plan.status) === "ACTIVE" ? "PAUSE" : "REACTIVATE")}>{String(plan.status) === "ACTIVE" ? "Pausar" : "Reactivar"}</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void action("DUPLICATE")}>Duplicar</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void action("ARCHIVE")}>Archivar</button><button type="submit" className="primary-button" disabled={busy}>Guardar cambios</button></footer>
     </form>
   </ActionModal>;
@@ -725,19 +827,20 @@ function CertificateDetailModal({ certificate, onClose, onChanged }: Readonly<{ 
   async function replace(file: File | null) { if (!file) return; setBusy(true); try { const form = new FormData(); form.set("file", file); const response = await fetch(`/api/equipment/certificates/${certificate!.id}/file`, { method: "PUT", body: form }); if (response.ok) await onChanged(); } finally { setBusy(false); } }
   return <ActionModal open title={`Certificado ${String(certificate.certificate_number ?? "")}`} description={`${String(certificate.equipment_code ?? "")} · ${String(certificate.equipment_name ?? "")}`} onClose={onClose}>
     <form className="modal-form" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void update({ certificateNumber: String(data.get("number")), providerName: String(data.get("provider")), issuedAt: String(data.get("issued")), expiresAt: String(data.get("expires")) || null, scopeText: String(data.get("scope")) || null }); }}>
-      <div className="form-grid form-grid-two"><label><span>Número</span><input name="number" required defaultValue={String(certificate.certificate_number ?? "")} /></label><label><span>Proveedor</span><input name="provider" required defaultValue={String(certificate.provider_name ?? "")} /></label><label><span>Emisión</span><input name="issued" type="date" required defaultValue={String(certificate.issued_at ?? "").slice(0, 10)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={String(certificate.expires_at ?? "").slice(0, 10)} /></label><label className="field-span-two"><span>Alcance</span><textarea name="scope" rows={2} defaultValue={String(certificate.scope_text ?? "")} /></label><label className="field-span-two"><span>Reemplazar PDF o imagen</span><input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(event) => void replace(event.target.files?.[0] ?? null)} /></label></div>
+      <div className="form-grid form-grid-two"><label><span>Número</span><input name="number" required defaultValue={String(certificate.certificate_number ?? "")} /></label><label><span>Proveedor</span><input name="provider" required defaultValue={String(certificate.provider_name ?? "")} /></label><label><span>Emisión</span><input name="issued" type="date" required defaultValue={String(certificate.issued_at ?? "").slice(0, 10)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={String(certificate.expires_at ?? "").slice(0, 10)} /></label><label className="field-span-two"><span>Alcance</span><textarea name="scope" rows={2} defaultValue={String(certificate.scope_text ?? "")} /></label><div className="field-span-two"><span className="weekday-picker-label">Reemplazar PDF o imagen</span><FileDropZone name="replacementFile" accept="application/pdf,image/png,image/jpeg,image/webp" hint="Arrastra el archivo nuevo o haz clic para seleccionarlo" onFileSelected={(file) => void replace(file)} /></div></div>
       <footer className="modal-actions">{certificate.attachment_id ? <a className="secondary-button" href={`/api/equipment/certificates/${certificate.id}/file`} target="_blank" rel="noreferrer">Abrir archivo</a> : null}<button type="button" className="secondary-button" disabled={busy} onClick={() => void update({ action: "ARCHIVE" })}>Archivar</button><button type="submit" className="primary-button" disabled={busy}>Guardar metadatos</button></footer>
     </form>
   </ActionModal>;
 }
 
-function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: boolean; item: Record<string, unknown> | null; onClose: () => void; onSave: (id: string, payload: Record<string, unknown>) => Promise<boolean> }>) {
+function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: boolean; item: Record<string, unknown> | null; onClose: () => void; onSave: (id: string, payload: Record<string, unknown>, safetyFile?: File | null) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const defs = useCustomFieldDefs("inventory");
   if (!open || !item) return null;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const safetyFile = data.get("safetySheetFile");
     setSaving(true);
     const ok = await onSave(String(item!.id), {
       name: String(data.get("name") ?? "").trim(), itemType: String(data.get("itemType")), vendor: String(data.get("vendor") ?? "").trim(),
@@ -747,21 +850,25 @@ function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: bo
       alertLowStock: data.get("alertLowStock") === "on", alertExpiry: data.get("alertExpiry") === "on",
       requiresUsageLog: data.get("requiresUsageLog") === "on", allowDirectDiscard: data.get("allowDirectDiscard") === "on",
       notes: String(data.get("notes") ?? "").trim(), customValues: collectCustomValues(defs, data),
-    });
+    }, safetyFile instanceof File && safetyFile.size > 0 ? safetyFile : null);
     setSaving(false); if (ok) onClose();
   }
   const customValues = (item.custom_values ?? {}) as Record<string, unknown>;
-  return <ActionModal open title={`Editar ${String(item.sku)}`} description="Actualiza los datos y controles. La existencia solo cambia mediante movimientos." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(item.name ?? "")} /></label><label><span>Tipo</span><select name="itemType" defaultValue={String(item.item_type ?? "OTHER")}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label><label><span>Proveedor</span><input name="vendor" defaultValue={String(item.vendor ?? "")} /></label><label><span>Concentración</span><input name="concentration" defaultValue={String(item.concentration ?? "")} /></label><label><span>Presentación</span><input name="presentation" defaultValue={String(item.presentation ?? "")} /></label><label><span>Stock mínimo</span><input name="minimum" type="number" min="0" step="0.001" defaultValue={String(item.reorder_point ?? 0)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={dateToIso(item.expires_at)?.slice(0, 10)} /></label><label className="field-span-two"><span>Condiciones de almacenamiento</span><textarea name="storageConditions" rows={2} defaultValue={String(item.storage_conditions ?? "")} /></label><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked={item.track_stock !== false} /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked={item.alert_low_stock !== false} /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={item.alert_expiry !== false} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input name="requiresUsageLog" type="checkbox" defaultChecked={Boolean(item.requires_usage_log)} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" defaultChecked={Boolean(item.allow_direct_discard)} /><span>Permitir descarte directo</span></label><label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} defaultValue={String(item.notes ?? "")} /></label><CustomFieldInputs defs={defs} values={customValues} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  return <ActionModal open title={`Editar ${String(item.sku)}`} description="Actualiza los datos y controles. La existencia solo cambia mediante movimientos." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(item.name ?? "")} /></label><label><span>Tipo</span><select name="itemType" defaultValue={String(item.item_type ?? "OTHER")}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label><label><span>Proveedor</span><input name="vendor" defaultValue={String(item.vendor ?? "")} /></label><label><span>Concentración</span><input name="concentration" defaultValue={String(item.concentration ?? "")} /></label><label><span>Presentación</span><input name="presentation" defaultValue={String(item.presentation ?? "")} /></label><label><span>Stock mínimo</span><input name="minimum" type="number" min="0" step="0.001" defaultValue={String(item.reorder_point ?? 0)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={toDateInputValue(item.expires_at)} /></label><label className="field-span-two"><span>Condiciones de almacenamiento</span><textarea name="storageConditions" rows={2} defaultValue={String(item.storage_conditions ?? "")} /></label><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked={item.track_stock !== false} /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked={item.alert_low_stock !== false} /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={item.alert_expiry !== false} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input name="requiresUsageLog" type="checkbox" defaultChecked={Boolean(item.requires_usage_log)} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" defaultChecked={Boolean(item.allow_direct_discard)} /><span>Permitir descarte directo</span></label><span className="form-section-title field-span-two">Ficha de seguridad o técnica</span><div className="field-span-two"><FileDropZone name="safetySheetFile" hint={item.safety_sheet_url ? "Arrastra un archivo para reemplazar la ficha actual" : "Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla"} /></div>{item.safety_sheet_url ? <p className="modal-note field-span-two">Ficha actual: <a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">abrir</a></p> : null}<label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} defaultValue={String(item.notes ?? "")} /></label><CustomFieldInputs defs={defs} values={customValues} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
-function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ open: boolean; categories: CategoryOption[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
+function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ open: boolean; categories: CategoryOption[]; onClose: () => void; onSave: (payload: Record<string, unknown>, safetyFile?: File | null) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const [itemType, setItemType] = useState("REAGENT");
   const customDefs = useCustomFieldDefs("inventory");
+  const requirements = useInventoryFieldRequirements();
+  // Obligatoriedad configurada por el administrador para el tipo de artículo activo.
+  const isRequired = (field: string) => requirements[itemType]?.[field] === "REQUIRED";
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const safetySheet = String(data.get("safetySheetUrl") ?? "").trim();
+    const safetyFile = data.get("safetySheetFile");
     setSaving(true);
     const ok = await onSave({
       sku: String(data.get("sku") ?? "").trim(),
@@ -794,7 +901,7 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
       safetySheetUrl: safetySheet,
       requiresUsageLog: data.get("requiresUsageLog") === "on",
       customValues: collectCustomValues(customDefs, data),
-    });
+    }, safetyFile instanceof File && safetyFile.size > 0 ? safetyFile : null);
     setSaving(false);
     if (ok) onClose();
   }
@@ -806,35 +913,88 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
     <span className="form-section-title field-span-two">Identificación</span>
     <label><span>Tipo de artículo</span><select required value={itemType} onChange={(event) => setItemType(event.target.value)}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label>
     <label><span>Categoría</span><input name="category" required list="inv-cats" placeholder="Clasificación del laboratorio" /><datalist id="inv-cats">{categories.map((cat) => <option key={cat.code} value={cat.name} />)}</datalist></label>
-    <label><span>Código interno</span><input name="sku" required placeholder="RQ-0001" /></label><label><span>Nombre</span><input name="name" required /></label><label><span>Lote (opcional)</span><input name="lot" /></label><label><span>Proveedor</span><input name="vendor" /></label>
-    {reagent ? <><label><span>Fórmula</span><input name="formula" /></label><label><span>Concentración</span><input name="concentration" /></label></> : null}
-    {material ? <><label><span>Marca</span><input name="brand" /></label><label><span>Modelo o descripción</span><input name="model" /></label><label><span>Material de fabricación</span><input name="material" /></label><label className="checkbox-line"><input name="isReusable" type="checkbox" /><span>Reutilizable</span></label></> : null}
-    {consumable ? <><label><span>Presentación</span><input name="presentation" /></label><label><span>Unidad de empaque</span><input name="model" /></label></> : null}
-    {culture ? <><label><span>Tipo de medio</span><input name="cultureMediaType" /></label><label><span>Preparación</span><select name="preparationType"><option value="COMMERCIAL">Comercial</option><option value="PREPARED">Preparado</option></select></label><label><span>Fabricante</span><input name="brand" /></label></> : null}
-    <span className="form-section-title field-span-two">Ubicación y existencias</span><label><span>Ubicación</span><input name="location" /></label><label><span>Fecha de ingreso</span><input name="receivedAt" type="date" /></label>{!material ? <label><span>Fecha de vencimiento (opcional)</span><input name="expires" type="date" /></label> : null}<label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required defaultValue="unidades" /></label>
+    <label><span>Código interno</span><input name="sku" required placeholder="RQ-0001" /></label><label><span>Nombre</span><input name="name" required /></label><label><span>Lote{isRequired("lot") ? " *" : " (opcional)"}</span><input name="lot" required={isRequired("lot")} /></label><label><span>Proveedor{isRequired("vendor") ? " *" : ""}</span><input name="vendor" required={isRequired("vendor")} /></label>
+    {reagent ? <><label><span>Fórmula{isRequired("formula") ? " *" : ""}</span><input name="formula" required={isRequired("formula")} /></label><label><span>Concentración{isRequired("concentration") ? " *" : ""}</span><input name="concentration" required={isRequired("concentration")} /></label></> : null}
+    {material ? <><label><span>Marca{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} /></label><label><span>Modelo o descripción{isRequired("model") ? " *" : ""}</span><input name="model" required={isRequired("model")} /></label><label><span>Material de fabricación{isRequired("material") ? " *" : ""}</span><input name="material" required={isRequired("material")} /></label><label className="checkbox-line"><input name="isReusable" type="checkbox" /><span>Reutilizable</span></label></> : null}
+    {consumable ? <><label><span>Presentación{isRequired("presentation") ? " *" : ""}</span><input name="presentation" required={isRequired("presentation")} /></label><label><span>Unidad de empaque{isRequired("model") ? " *" : ""}</span><input name="model" required={isRequired("model")} /></label></> : null}
+    {culture ? <><label><span>Tipo de medio{isRequired("cultureMediaType") ? " *" : ""}</span><input name="cultureMediaType" required={isRequired("cultureMediaType")} /></label><label><span>Preparación</span><select name="preparationType"><option value="COMMERCIAL">Comercial</option><option value="PREPARED">Preparado</option></select></label><label><span>Fabricante{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} /></label></> : null}
+    <span className="form-section-title field-span-two">Ubicación y existencias</span><label><span>Ubicación{isRequired("location") ? " *" : ""}</span><input name="location" required={isRequired("location")} /></label><label><span>Fecha de ingreso{isRequired("receivedAt") ? " *" : ""}</span><input name="receivedAt" type="date" required={isRequired("receivedAt")} /></label>{!material ? <label><span>Fecha de vencimiento{isRequired("expires") ? " *" : " (opcional)"}</span><input name="expires" type="date" required={isRequired("expires")} /></label> : null}<label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required list="item-units" defaultValue="unidades" /><datalist id="item-units">{COMMON_UNITS.map((option) => <option key={option} value={option} />)}</datalist></label>
     <span className="form-section-title field-span-two">Controles</span><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={!material} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input key={itemType} name="requiresUsageLog" type="checkbox" defaultChecked={reagent || culture} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" /><span>Permitir descarte directo</span></label>
-    {(reagent || culture) ? <><label className="field-span-two"><span>Condiciones de almacenamiento</span><textarea name="storageConditions" rows={2} /></label><label className="field-span-two"><span>Ficha de seguridad o técnica (URL)</span><input name="safetySheetUrl" type="url" /></label></> : null}<label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} /></label><CustomFieldInputs defs={customDefs} />
+    <span className="form-section-title field-span-two">Ficha de seguridad o técnica{isRequired("safetySheet") ? " *" : ""}</span>
+    <div className="field-span-two"><FileDropZone name="safetySheetFile" required={isRequired("safetySheet")} hint="Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla" /></div>
+    <label className="field-span-two"><span>… o enlace externo a la ficha (URL)</span><input name="safetySheetUrl" type="url" placeholder="https://…" /></label>
+    {(reagent || culture) ? <label className="field-span-two"><span>Condiciones de almacenamiento{isRequired("storageConditions") ? " *" : ""}</span><textarea name="storageConditions" rows={2} required={isRequired("storageConditions")} /></label> : null}<label className="field-span-two"><span>Observaciones{isRequired("notes") ? " *" : ""}</span><textarea name="notes" rows={2} required={isRequired("notes")} /></label><CustomFieldInputs defs={customDefs} />
   </div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
-function InventoryMovementModal({ open, items, locations, onClose, onSave }: Readonly<{ open: boolean; items: TableRow[]; locations: TableRow[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
+// Opciones del movimiento con dirección explícita (retro: el "+/−" era confuso).
+const MOVEMENT_OPTIONS = [
+  { key: "Consumo", label: "Registrar uso o consumo — resta (−)", note: "Descuenta la cantidad utilizada durante una práctica o análisis." },
+  { key: "Entrada", label: "Agregar existencias — suma (+)", note: "Aumenta la cantidad disponible al recibir o reponer artículos." },
+  { key: "Ajuste positivo", label: "Corregir conteo hacia arriba — suma (+)", note: "Ajusta una diferencia detectada durante un conteo físico (sobró)." },
+  { key: "Ajuste negativo", label: "Corregir conteo hacia abajo — resta (−)", note: "Ajusta una diferencia detectada durante un conteo físico (faltó)." },
+  { key: "Transferencia", label: "Cambiar de ubicación — no altera el total", note: "Traslada existencias de una ubicación a otra." },
+  { key: "Descarte", label: "Descartar — resta (−)", note: "Retira existencias vencidas, dañadas o no utilizables." },
+] as const;
+
+function InventoryMovementModal({ open, items, locations, onClose, onSave }: Readonly<{ open: boolean; items: InventoryRaw[]; locations: TableRow[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
-  const [movement, setMovement] = useState("CONSUMPTION");
+  const [movement, setMovement] = useState<string>("Consumo");
+  const [itemId, setItemId] = useState("");
+  const [quantityText, setQuantityText] = useState("");
+  const [unit, setUnit] = useState("");
+
+  const selectedItem = items.find((item) => item.id === itemId) ?? items[0];
+  const effectiveUnit = unit || selectedItem?.unit || "unidades";
+  const unitOptions = useMemo(() => {
+    const used = items.map((item) => item.unit).filter(Boolean);
+    return [...new Set([...(selectedItem ? [selectedItem.unit] : []), ...used, ...COMMON_UNITS])];
+  }, [items, selectedItem]);
+
+  // Vista previa del saldo: cuánto quedará después del movimiento.
+  const preview = useMemo(() => {
+    if (!selectedItem) return null;
+    const quantity = Number(quantityText);
+    if (!Number.isFinite(quantity) || quantity <= 0) return null;
+    const converted = convertQuantity(quantity, effectiveUnit, selectedItem.unit);
+    if (converted === null) return { error: `La unidad "${effectiveUnit}" no es compatible con la del artículo (${selectedItem.unit}).` };
+    const current = Number(selectedItem.quantity);
+    const sign = movement === "Entrada" || movement === "Ajuste positivo" ? 1 : movement === "Transferencia" ? 0 : -1;
+    const next = current + sign * converted;
+    if (sign < 0 && next < 0) return { error: `La cantidad supera la existencia disponible (${current} ${selectedItem.unit}).` };
+    if (sign === 0) return { text: `La existencia total se mantiene en ${current} ${selectedItem.unit}; solo cambia la ubicación.` };
+    const convertedNote = converted !== quantity ? ` (${quantity} ${effectiveUnit} = ${converted} ${selectedItem.unit})` : "";
+    return { text: `La existencia pasará de ${current} a ${Math.round(next * 1000) / 1000} ${selectedItem.unit}${convertedNote}.` };
+  }, [selectedItem, quantityText, effectiveUnit, movement]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const itemId = String(data.get("itemId") ?? "");
-    if (!itemId) return;
+    const chosenId = String(data.get("itemId") ?? "");
+    if (!chosenId || preview?.error) return;
     const quantity = Number(data.get("quantity") ?? 0);
     const type = String(data.get("type"));
     const movementType = type === "Entrada" ? "RECEIPT" : type === "Ajuste positivo" || type === "Ajuste negativo" ? "ADJUSTMENT" : type === "Descarte" ? "DISPOSAL" : type === "Transferencia" ? "TRANSFER" : "CONSUMPTION";
     const direction = type === "Entrada" || type === "Ajuste positivo" ? "IN" : "OUT";
     setSaving(true);
-    const ok = await onSave({ inventoryItemId: itemId, movementType, quantity: Math.abs(quantity), direction, reasonCode: String(data.get("reasonCode") ?? "OTHER"), note: String(data.get("reason") ?? ""), fromLocationId: String(data.get("fromLocationId") ?? "") || undefined, toLocationId: String(data.get("toLocationId") ?? "") || undefined });
+    const ok = await onSave({ inventoryItemId: chosenId, movementType, quantity: Math.abs(quantity), unit: String(data.get("unit") ?? "").trim() || undefined, direction, reasonCode: String(data.get("reasonCode") ?? "OTHER"), note: String(data.get("reason") ?? ""), fromLocationId: String(data.get("fromLocationId") ?? "") || undefined, toLocationId: String(data.get("toLocationId") ?? "") || undefined });
     setSaving(false);
-    if (ok) onClose();
+    if (ok) { onClose(); setQuantityText(""); setUnit(""); }
   }
-  return <ActionModal open={open} title="Registrar movimiento" description="Cada cambio conserva cantidad, motivo y responsable." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid"><label><span>Artículo</span><select name="itemId" required>{items.map((item) => <option key={String(item.id)} value={String(item.id)}>{item.sku} · {item.name}</option>)}</select></label><label><span>Tipo</span><select name="type" onChange={(event) => setMovement(event.target.value)}><option value="Consumo">Registrar uso</option><option value="Entrada">Agregar existencias</option><option value="Ajuste positivo">Corregir existencia (+)</option><option value="Ajuste negativo">Corregir existencia (−)</option><option value="Transferencia">Cambiar ubicación</option><option value="Descarte">Descartar</option></select></label><p className="modal-note">{movement === "Entrada" ? "Aumenta la cantidad disponible al recibir o reponer artículos." : movement === "Transferencia" ? "Traslada existencias de una ubicación a otra." : movement.startsWith("Ajuste") ? "Ajusta una diferencia detectada durante un conteo." : movement === "Descarte" ? "Retira existencias vencidas, dañadas o no utilizables." : "Descuenta la cantidad utilizada durante una práctica."}</p><label><span>Cantidad</span><input name="quantity" type="number" min="0.001" step="0.001" required /></label>{movement === "Transferencia" ? <><label><span>Ubicación de origen</span><select name="fromLocationId" required><option value="">Selecciona…</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{String(location.hierarchy)}</option>)}</select></label><label><span>Ubicación de destino</span><select name="toLocationId" required><option value="">Selecciona…</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{String(location.hierarchy)}</option>)}</select></label></> : null}<label><span>Motivo</span><select name="reasonCode" required><option value="COUNT_ERROR">Error de conteo</option><option value="DAMAGE">Daño</option><option value="LOSS">Pérdida</option><option value="INITIAL_CORRECTION">Corrección inicial</option><option value="RESTOCK">Reposición</option><option value="OTHER">Otro</option></select></label><label><span>Comentario y responsable</span><textarea name="reason" required rows={3} placeholder="Describe el motivo. Tu usuario quedará registrado como responsable." /></label></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  const activeOption = MOVEMENT_OPTIONS.find((option) => option.key === movement) ?? MOVEMENT_OPTIONS[0];
+  return <ActionModal open={open} title="Registrar movimiento" description="Cada cambio conserva cantidad, unidad, motivo y responsable." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid">
+    <label><span>Artículo</span><select name="itemId" required value={itemId || selectedItem?.id || ""} onChange={(event) => { setItemId(event.target.value); setUnit(""); }}>{items.map((item) => <option key={item.id} value={item.id}>{item.sku} · {item.name} ({item.quantity} {item.unit})</option>)}</select></label>
+    <label><span>Tipo de movimiento</span><select name="type" value={movement} onChange={(event) => setMovement(event.target.value)}>{MOVEMENT_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
+    <p className="modal-note">{activeOption.note}</p>
+    <div className="form-grid form-grid-two">
+      <label><span>Cantidad</span><input name="quantity" type="number" min="0.001" step="0.001" required value={quantityText} onChange={(event) => setQuantityText(event.target.value)} /></label>
+      <label><span>Unidad</span><input name="unit" list="movement-units" value={unit || selectedItem?.unit || ""} onChange={(event) => setUnit(event.target.value)} placeholder="Busca o escribe la unidad…" /><datalist id="movement-units">{unitOptions.map((option) => <option key={option} value={option} />)}</datalist></label>
+    </div>
+    {preview ? <p className={preview.error ? "form-error" : "modal-note"} role={preview.error ? "alert" : undefined}>{preview.error ?? preview.text}</p> : null}
+    {movement === "Transferencia" ? <><label><span>Ubicación de origen</span><select name="fromLocationId" required><option value="">Selecciona…</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{String(location.hierarchy)}</option>)}</select></label><label><span>Ubicación de destino</span><select name="toLocationId" required><option value="">Selecciona…</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{String(location.hierarchy)}</option>)}</select></label></> : null}
+    <label><span>Motivo</span><select name="reasonCode" required><option value="COUNT_ERROR">Error de conteo</option><option value="DAMAGE">Daño</option><option value="LOSS">Pérdida</option><option value="INITIAL_CORRECTION">Corrección inicial</option><option value="RESTOCK">Reposición</option><option value="OTHER">Otro</option></select></label>
+    <label><span>Comentario y responsable</span><textarea name="reason" required rows={3} placeholder="Describe el motivo. Tu usuario quedará registrado como responsable." /></label>
+  </div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
 function LocationModal({ open, onClose, onSave }: Readonly<{ open: boolean; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
@@ -900,29 +1060,52 @@ function EquipmentEditModal({ open, equipment, onClose, onSave }: Readonly<{ ope
   return <ActionModal open={open} title={`Editar ${equipment.code}`} description="Actualiza los datos del equipo. Las próximas fechas se gestionan desde Planes." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={equipment.name} /></label><label><span>Marca</span><input name="brand" defaultValue={equipment.manufacturer ?? ""} /></label><label><span>Modelo</span><input name="model" defaultValue={equipment.model ?? ""} /></label><label><span>Serie</span><input name="serial" defaultValue={equipment.serial_number ?? ""} /></label><label><span>Área</span><input name="area" defaultValue={equipment.area ?? ""} /></label><label><span>Estado</span><select name="status" defaultValue={equipment.status}><option value="OPERATIONAL">Operativo</option><option value="MAINTENANCE_DUE">Mantenimiento próximo</option><option value="OUT_OF_SERVICE">Fuera de servicio</option><option value="RETIRED">Retirado</option></select></label><label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={3} defaultValue={equipment.notes ?? ""} /></label><CustomFieldInputs defs={customDefs} values={equipment.custom_values} /></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Guardar cambios"}</button></footer></form></ActionModal>;
 }
 
+// Selector de días de la semana para planes con frecuencia diaria o semanal.
+function WeekDayPicker({ value, onChange }: Readonly<{ value: number[]; onChange: (days: number[]) => void }>) {
+  function toggle(day: number) {
+    onChange(value.includes(day) ? value.filter((current) => current !== day) : [...value, day].sort((a, b) => a - b));
+  }
+  return (
+    <div className="field-span-two">
+      <span className="weekday-picker-label">Días en los que se realiza</span>
+      <div className="weekday-picker" role="group" aria-label="Días de la semana">
+        {WEEKDAY_OPTIONS.map((option) => (
+          <button key={option.value} type="button" className={`filter-chip${value.includes(option.value) ? " filter-chip-active" : ""}`} aria-pressed={value.includes(option.value)} onClick={() => toggle(option.value)}>{option.short}</button>
+        ))}
+        <button type="button" className="filter-chip" onClick={() => onChange([...BUSINESS_DAYS])}>Días hábiles</button>
+      </div>
+      <p className="modal-note">La próxima fecha se calcula sola con los días seleccionados y avanza automáticamente al registrar cada ejecución{value.length ? ` (${weekDaysLabel(value)})` : ""}.</p>
+    </div>
+  );
+}
+
 function EquipmentPlanModal({ open, equipment, onClose, onSave }: Readonly<{ open: boolean; equipment: EquipmentRaw[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const [unit, setUnit] = useState("MONTH");
+  const [weekDays, setWeekDays] = useState<number[]>([...BUSINESS_DAYS]);
   const byUse = unit === "USE";
+  const byWeekDays = unit === "DAY" || unit === "WEEK";
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const equipmentId = String(data.get("equipmentId") ?? "");
     if (!equipmentId) return;
+    if (byWeekDays && weekDays.length === 0) return;
     setSaving(true);
     const ok = await onSave({
       equipmentId,
       planType: planTypeFor(String(data.get("plan"))),
       name: String(data.get("plan")),
       frequencyUnit: unit,
-      frequencyValue: byUse ? undefined : Number(data.get("frequencyValue") ?? 1),
-      nextDueAt: byUse ? undefined : dateToIso(data.get("next")),
+      frequencyValue: byUse ? undefined : byWeekDays ? 1 : Number(data.get("frequencyValue") ?? 1),
+      nextDueAt: byUse || byWeekDays ? undefined : dateToIso(data.get("next")),
+      weekDays: byWeekDays ? weekDays : undefined,
       blocksUseWhenOverdue: data.get("blocking") === "on",
     });
     setSaving(false);
     if (ok) onClose();
   }
-  return <ActionModal open={open} title="Nuevo plan periódico" description="Frecuencia por calendario (diaria, semanal, mensual, anual) o por uso." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Equipo</span><select name="equipmentId" required>{equipment.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label><label><span>Tipo de plan</span><select name="plan"><option>Verificación</option><option>Calibración</option><option>Mantenimiento</option><option>Calificación</option><option>Limpieza</option></select></label><label><span>Frecuencia</span><select name="frequencyUnit" value={unit} onChange={(e) => setUnit(e.target.value)}><option value="USE">Cada uso</option><option value="DAY">Días</option><option value="WEEK">Semanas</option><option value="MONTH">Meses</option><option value="YEAR">Años</option></select></label>{byUse ? null : <label><span>Cada cuántos/as</span><input name="frequencyValue" type="number" min="1" step="1" defaultValue="1" /></label>}{byUse ? null : <label><span>Próxima fecha</span><input name="next" type="date" /></label>}<label className="checkbox-line field-span-two"><input name="blocking" type="checkbox" /><span>Bloquear uso cuando esté vencido</span></label>{byUse ? <p className="modal-note field-span-two">Los planes por uso no requieren fecha: se muestran como “Al utilizar” y la verificación se registra al usar el equipo.</p> : null}</div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  return <ActionModal open={open} title="Nuevo plan periódico" description="Frecuencia por calendario (diaria, semanal, mensual, anual) o por uso." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Equipo</span><select name="equipmentId" required>{equipment.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label><label><span>Tipo de plan</span><select name="plan"><option>Verificación</option><option>Calibración</option><option>Mantenimiento</option><option>Calificación</option><option>Limpieza</option></select></label><label><span>Frecuencia</span><select name="frequencyUnit" value={unit} onChange={(e) => { setUnit(e.target.value); if (e.target.value === "DAY") setWeekDays([...BUSINESS_DAYS]); if (e.target.value === "WEEK") setWeekDays([1]); }}><option value="USE">Cada uso</option><option value="DAY">Diaria (por días)</option><option value="WEEK">Semanal (por días)</option><option value="MONTH">Mensual</option><option value="YEAR">Anual</option></select></label>{byUse || byWeekDays ? null : <label><span>Cada cuántos/as</span><input name="frequencyValue" type="number" min="1" step="1" defaultValue="1" /></label>}{byUse || byWeekDays ? null : <label><span>Próxima fecha</span><input name="next" type="date" /></label>}{byWeekDays ? <WeekDayPicker value={weekDays} onChange={setWeekDays} /> : null}<label className="checkbox-line field-span-two"><input name="blocking" type="checkbox" /><span>Bloquear uso cuando esté vencido</span></label>{byUse ? <p className="modal-note field-span-two">Los planes por uso no requieren fecha: se muestran como “Al utilizar” y la verificación se registra al usar el equipo.</p> : null}{byWeekDays && weekDays.length === 0 ? <p className="form-error field-span-two" role="alert">Selecciona al menos un día de la semana.</p> : null}</div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
 function CertificateModal({ open, equipment, onClose, onSave }: Readonly<{ open: boolean; equipment: EquipmentRaw[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
@@ -947,7 +1130,7 @@ function CertificateModal({ open, equipment, onClose, onSave }: Readonly<{ open:
     setSaving(false);
     if (ok) onClose();
   }
-  return <ActionModal open={open} title="Adjuntar certificado" description="Registra la evidencia y deja el archivo preparado para el adaptador de object storage." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label><span>Equipo</span><select name="equipmentId" required>{equipment.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label><label><span>Número</span><input name="code" required /></label><label><span>Tipo</span><select name="type"><option>Calibración</option><option>Calificación</option><option>Mantenimiento</option><option>Reparación</option></select></label><label><span>Proveedor</span><input name="provider" required /></label><label><span>Emisión</span><input name="issued" type="date" required /></label><label><span>Vencimiento</span><input name="expires" type="date" required /></label><label className="field-span-two"><span>PDF o fotografía</span><input name="file" type="file" required accept="application/pdf,image/*" /></label></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  return <ActionModal open={open} title="Adjuntar certificado" description="Registra la evidencia y deja el archivo preparado para el adaptador de object storage." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label><span>Equipo</span><select name="equipmentId" required>{equipment.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label><label><span>Número</span><input name="code" required /></label><label><span>Tipo</span><select name="type"><option>Calibración</option><option>Calificación</option><option>Mantenimiento</option><option>Reparación</option></select></label><label><span>Proveedor</span><input name="provider" required /></label><label><span>Emisión</span><input name="issued" type="date" required /></label><label><span>Vencimiento</span><input name="expires" type="date" required /></label><div className="field-span-two"><span className="weekday-picker-label">PDF o fotografía</span><FileDropZone name="file" required accept="application/pdf,image/*" hint="Arrastra el certificado aquí o haz clic para seleccionarlo" /></div></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
 function EquipmentEventModal({ open, equipment, onClose, onSave }: Readonly<{ open: boolean; equipment: EquipmentRaw[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
@@ -961,5 +1144,5 @@ function EquipmentEventModal({ open, equipment, onClose, onSave }: Readonly<{ op
     setSaving(false);
     if (ok) onClose();
   }
-  return <ActionModal open={open} title="Registrar evento de equipo" onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid"><label><span>Equipo</span><select name="equipmentId" required>{equipment.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label><label><span>Evento</span><select name="eventType"><option>Verificación</option><option>Mantenimiento</option><option>Calibración</option><option>Reparación</option><option>Limpieza</option></select></label><label><span>Detalle</span><textarea name="details" rows={4} required /></label><label><span>Evidencia</span><input name="file" type="file" accept="application/pdf,image/*" /></label></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  return <ActionModal open={open} title="Registrar evento de equipo" onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid"><label><span>Equipo</span><select name="equipmentId" required>{equipment.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label><label><span>Evento</span><select name="eventType"><option>Verificación</option><option>Mantenimiento</option><option>Calibración</option><option>Reparación</option><option>Limpieza</option></select></label><label><span>Detalle</span><textarea name="details" rows={4} required /></label><div><span className="weekday-picker-label">Evidencia</span><FileDropZone name="file" accept="application/pdf,image/*" hint="Arrastra la evidencia aquí o haz clic para seleccionarla" /></div></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }

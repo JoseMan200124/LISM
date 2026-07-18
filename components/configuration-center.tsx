@@ -56,8 +56,6 @@ export function ConfigurationCenter({ session }: Readonly<{ session?: UserSessio
         { label: "Perfil contratado", value: "Educativo", hint: "Universidades y colegios", icon: ShieldCheck },
       ]} />
 
-      <InlineNotice title="Configuración persistente">Las reglas y escalamientos se administran en Alertas y se guardan en PostgreSQL. Los campos personalizados conservan versiones y trazabilidad.</InlineNotice>
-
       <article className="panel configuration-panel">
         <Tabs items={tabs} active={activeTab} onChange={setActiveTab} />
         <div className="configuration-body">

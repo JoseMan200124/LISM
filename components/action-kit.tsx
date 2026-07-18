@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Clipboard, FileDown, Info, TriangleAlert, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
+import { AlertTriangle, CheckCircle2, Clipboard, FileDown, Info, TriangleAlert, UploadCloud, X } from "lucide-react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
@@ -208,6 +208,113 @@ export function QuickRecordModal({
 
 export function DownloadHint({ children }: Readonly<{ children: ReactNode }>) {
   return <span className="download-hint"><FileDown size={14} />{children}</span>;
+}
+
+/**
+ * Confirmación con el estilo del sitio: reemplaza a window.confirm para que
+ * todas las ventanas de confirmación se vean acordes a la plataforma.
+ */
+export function ConfirmModal({
+  open,
+  title,
+  description,
+  confirmLabel = "Confirmar",
+  cancelLabel = "Cancelar",
+  busy = false,
+  onConfirm,
+  onClose,
+}: Readonly<{
+  open: boolean;
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  busy?: boolean;
+  onConfirm: () => void | Promise<void>;
+  onClose: () => void;
+}>) {
+  return (
+    <ActionModal open={open} title={title} description={description} onClose={onClose}>
+      <div className="modal-form">
+        <footer className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{cancelLabel}</button>
+          <button type="button" className="primary-button" disabled={busy} onClick={() => void onConfirm()}>{busy ? "Aplicando…" : confirmLabel}</button>
+        </footer>
+      </div>
+    </ActionModal>
+  );
+}
+
+/**
+ * Zona de carga con arrastrar y soltar. Mantiene un input file real con `name`
+ * para que los formularios sigan leyendo el archivo desde FormData.
+ */
+export function FileDropZone({
+  name,
+  accept = "application/pdf,image/png,image/jpeg,image/webp",
+  required = false,
+  hint,
+  onFileSelected,
+}: Readonly<{
+  name: string;
+  accept?: string;
+  required?: boolean;
+  hint?: string;
+  onFileSelected?: (file: File | null) => void;
+}>) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+
+  function assign(files: FileList | null) {
+    const file = files?.[0];
+    if (!file || !inputRef.current) return;
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    inputRef.current.files = transfer.files;
+    setFileName(file.name);
+    onFileSelected?.(file);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragOver(false);
+    assign(event.dataTransfer.files);
+  }
+
+  return (
+    <div
+      className={`file-dropzone${dragOver ? " file-dropzone-active" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-label="Arrastra y suelta el archivo o haz clic para seleccionarlo"
+      onDragOver={(event) => { event.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      onClick={(event) => { if (event.target !== inputRef.current) inputRef.current?.click(); }}
+      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inputRef.current?.click(); } }}
+    >
+      <UploadCloud size={19} />
+      <p>
+        <strong>{fileName || "Arrastra y suelta el archivo aquí"}</strong>
+        <span>{fileName ? "Haz clic o suelta otro archivo para reemplazarlo" : hint ?? "o haz clic para seleccionarlo (PDF o imagen, máx. 15 MB)"}</span>
+      </p>
+      <input
+        ref={inputRef}
+        className="sr-only"
+        type="file"
+        name={name}
+        accept={accept}
+        required={required}
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          setFileName(file?.name ?? "");
+          onFileSelected?.(file);
+        }}
+      />
+    </div>
+  );
 }
 
 export function CopyButton({ text, onCopied }: Readonly<{ text: string; onCopied?: () => void }>) {

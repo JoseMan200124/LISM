@@ -5,9 +5,25 @@ import { BrandLogo } from "@/components/brand-logo";
 
 const LOGO_URL = "/api/organization/logo";
 
+// Evento global: se dispara al subir o eliminar el logo institucional para que
+// todas las instancias (sidebar, configuración) se actualicen de inmediato.
+export const ORGANIZATION_LOGO_UPDATED_EVENT = "nexalab:organization-logo-updated";
+
+export function notifyOrganizationLogoUpdated() {
+  window.dispatchEvent(new Event(ORGANIZATION_LOGO_UPDATED_EVENT));
+}
+
 export function useOrganizationLogoStatus(cacheBust = 0) {
   const [status, setStatus] = useState<"checking" | "ok" | "failed">("checking");
-  const src = `${LOGO_URL}${cacheBust ? `?v=${cacheBust}` : ""}`;
+  const [refreshTick, setRefreshTick] = useState(0);
+  const bust = cacheBust || refreshTick;
+  const src = `${LOGO_URL}${bust ? `?v=${bust}` : ""}`;
+
+  useEffect(() => {
+    const refresh = () => setRefreshTick(Date.now());
+    window.addEventListener(ORGANIZATION_LOGO_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(ORGANIZATION_LOGO_UPDATED_EVENT, refresh);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

@@ -3,6 +3,7 @@ import { compare } from "bcryptjs";
 import { z } from "zod";
 import { getSql, hasDatabase } from "@/lib/db";
 import { writeAuditEvent } from "@/lib/audit";
+import { effectivePermissions } from "@/lib/authorization";
 import { createSessionToken, setSessionCookie, type UserSession } from "@/lib/session";
 
 const loginSchema = z.object({
@@ -77,6 +78,18 @@ export async function POST(request: Request) {
 
       const user = rows[0] as Record<string, string> | undefined;
       if (user && await compare(password, user.password_hash)) {
+        // Permisos efectivos: matriz base del rol + anulaciones que el
+        // administrador haya definido para este laboratorio (migración 0017).
+        let permissions: string[] | undefined;
+        try {
+          const overrides = await sql`
+            SELECT permission, allowed FROM role_permission_overrides
+            WHERE laboratory_id = ${user.laboratory_id} AND role = ${user.role}
+          ` as Array<{ permission: string; allowed: boolean }>;
+          permissions = effectivePermissions(user.role as UserSession["role"], overrides);
+        } catch {
+          permissions = undefined; // tabla aún no migrada: aplica la matriz base
+        }
         session = {
           userId: user.user_id,
           name: user.full_name,
@@ -87,6 +100,7 @@ export async function POST(request: Request) {
           laboratoryName: user.laboratory_name,
           profileCode: user.profile_code,
           sessionMode: "database",
+          permissions,
         };
         authenticatedFromDatabase = true;
       }

@@ -57,6 +57,7 @@ export function AlertsCenter({ role }: Readonly<{ role?: UserSession["role"] }>)
   const [resolutionOpen, setResolutionOpen] = useState(false);
   const [ruleTemplateKey, setRuleTemplateKey] = useState<string>("");
   const [ruleCreateOpen, setRuleCreateOpen] = useState(false);
+  const [ruleDefaultSource, setRuleDefaultSource] = useState<string>("INVENTORY_ITEM");
   const [ruleTest, setRuleTest] = useState<{ total: number; examples: Array<{ id: string; code?: string; name?: string }> } | null>(null);
   const [escalationEdit, setEscalationEdit] = useState<EscalationRow | null | "new">(null);
   const { message, toastType, showToast, showError, clearToast } = useToast();
@@ -83,6 +84,21 @@ export function AlertsCenter({ role }: Readonly<{ role?: UserSession["role"] }>)
     const found = alerts.find((alert) => alert.id === alertId);
     if (found) setSelectedAlert(found);
   }, [alerts]);
+
+  // Enlace directo desde Inventario/Equipos: ?tab=rules&action=create&source=…
+  // abre el asistente de nueva regla con el origen preseleccionado.
+  useEffect(() => {
+    if (!canManage) return;
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get("tab");
+    if (requestedTab && ["alerts", "rules", "escalations"].includes(requestedTab)) setTab(requestedTab);
+    if (params.get("action") === "create") {
+      const source = params.get("source");
+      if (source) setRuleDefaultSource(source);
+      setTab("rules");
+      setRuleCreateOpen(true);
+    }
+  }, [canManage]);
 
   const openAlerts = useMemo(() => alerts.filter((a) => !["RESOLVED", "CLOSED"].includes(a.status)), [alerts]);
 
@@ -268,7 +284,7 @@ export function AlertsCenter({ role }: Readonly<{ role?: UserSession["role"] }>)
 
       <ActionModal open={ruleCreateOpen} title="Nueva regla educativa" description="Define el origen, la condición, severidad, destinatarios, canal y escalamiento." onClose={() => setRuleCreateOpen(false)} wide>
         <label><span>Comenzar desde una plantilla (opcional)</span><select value={ruleTemplateKey} onChange={(event) => setRuleTemplateKey(event.target.value)}><option value="">Regla personalizada</option>{EDUCATIONAL_RULE_TEMPLATES.map((template) => <option key={template.key} value={template.key}>{template.name}</option>)}</select></label>
-        <form key={ruleTemplateKey} className="modal-form" onSubmit={createRule}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required minLength={3} defaultValue={selectedTemplate?.name ?? ""} placeholder="Stock bajo de reactivos" /></label><label><span>Origen</span><select name="sourceType" defaultValue={selectedTemplate?.sourceType ?? "INVENTORY_ITEM"}><option value="INVENTORY_ITEM">Inventario</option><option value="EQUIPMENT">Equipo</option><option value="EQUIPMENT_PLAN">Plan de equipo</option><option value="EDUCATIONAL_PRACTICE">Práctica</option><option value="RESOURCE_RESERVATION">Reserva</option><option value="INCIDENT">Incidencia</option></select></label><label><span>Condición</span><select name="triggerType" defaultValue={selectedTemplate?.triggerType ?? "THRESHOLD"}><option value="THRESHOLD">Umbral / stock mínimo</option><option value="DATE_WINDOW">Fecha próxima</option><option value="DATE_OVERDUE">Fecha vencida</option><option value="STATUS">Estado</option><option value="AGE">Tiempo sin atención</option><option value="MISSING_LOG">Registro faltante</option></select></label><label className="field-span-two"><span>Explicación de la condición</span><input name="condition" required defaultValue={selectedTemplate?.name ?? ""} placeholder="Existencia menor o igual al stock mínimo" /></label><label><span>Severidad</span><select name="severity"><option value="WARNING">Media</option><option value="HIGH">Alta</option><option value="CRITICAL">Crítica</option><option value="INFO">Informativa</option></select></label><label><span>Escalar después de (minutos)</span><input name="afterMinutes" type="number" min="1" defaultValue="1440" /></label><fieldset><legend>Destinatarios</legend><label><input type="checkbox" name="roles" value="LAB_ADMIN" defaultChecked /> Administrador</label><label><input type="checkbox" name="roles" value="HEAD_OF_LAB" defaultChecked /> Jefe de laboratorio</label></fieldset><fieldset><legend>Canales</legend><label><input type="checkbox" name="channels" value="IN_APP" defaultChecked /> Panel</label><label><input type="checkbox" name="channels" value="EMAIL" /> Correo</label><label><input type="checkbox" name="channels" value="WHATSAPP" /> WhatsApp</label></fieldset></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={() => setRuleCreateOpen(false)}>Cancelar</button><button type="submit" className="primary-button" disabled={busy}>{busy ? "Guardando…" : "Crear regla"}</button></footer></form>
+        <form key={ruleTemplateKey} className="modal-form" onSubmit={createRule}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required minLength={3} defaultValue={selectedTemplate?.name ?? ""} placeholder="Stock bajo de reactivos" /></label><label><span>Origen</span><select name="sourceType" defaultValue={selectedTemplate?.sourceType ?? ruleDefaultSource}><option value="INVENTORY_ITEM">Inventario</option><option value="EQUIPMENT">Equipo</option><option value="EQUIPMENT_PLAN">Plan de equipo</option><option value="EDUCATIONAL_PRACTICE">Práctica</option><option value="RESOURCE_RESERVATION">Reserva</option><option value="INCIDENT">Incidencia</option></select></label><label><span>Condición</span><select name="triggerType" defaultValue={selectedTemplate?.triggerType ?? "THRESHOLD"}><option value="THRESHOLD">Umbral / stock mínimo</option><option value="DATE_WINDOW">Fecha próxima</option><option value="DATE_OVERDUE">Fecha vencida</option><option value="STATUS">Estado</option><option value="AGE">Tiempo sin atención</option><option value="MISSING_LOG">Registro faltante</option></select></label><label className="field-span-two"><span>Explicación de la condición</span><input name="condition" required defaultValue={selectedTemplate?.name ?? ""} placeholder="Existencia menor o igual al stock mínimo" /></label><label><span>Severidad</span><select name="severity"><option value="WARNING">Media</option><option value="HIGH">Alta</option><option value="CRITICAL">Crítica</option><option value="INFO">Informativa</option></select></label><label><span>Escalar después de (minutos)</span><input name="afterMinutes" type="number" min="1" defaultValue="1440" /></label><fieldset><legend>Destinatarios</legend><label><input type="checkbox" name="roles" value="LAB_ADMIN" defaultChecked /> Administrador</label><label><input type="checkbox" name="roles" value="HEAD_OF_LAB" defaultChecked /> Jefe de laboratorio</label></fieldset><fieldset><legend>Canales</legend><label><input type="checkbox" name="channels" value="IN_APP" defaultChecked /> Panel</label><label><input type="checkbox" name="channels" value="EMAIL" /> Correo</label><label><input type="checkbox" name="channels" value="WHATSAPP" /> WhatsApp</label></fieldset></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={() => setRuleCreateOpen(false)}>Cancelar</button><button type="submit" className="primary-button" disabled={busy}>{busy ? "Guardando…" : "Crear regla"}</button></footer></form>
       </ActionModal>
 
       <ActionModal open={escalationEdit !== null} title={escalationEdit === "new" ? "Nuevo escalamiento" : "Editar escalamiento"} description="Ejemplo: si una alerta crítica no se reconoce en 60 minutos, notificar al jefe de laboratorio." onClose={() => setEscalationEdit(null)}>

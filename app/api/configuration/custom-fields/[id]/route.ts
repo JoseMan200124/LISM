@@ -11,6 +11,8 @@ const patchSchema = z.object({
   required: z.boolean().optional(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
   sortOrder: z.coerce.number().int().min(0).max(9999).optional(),
+  help: z.string().max(300).optional(),
+  options: z.array(z.string().min(1).max(80)).max(30).optional(),
 }).refine((v) => Object.keys(v).length > 0, { message: "No hay cambios que aplicar." });
 
 // Módulo → tabla cuyo custom_values podría contener el field_key. Para permitir
@@ -39,12 +41,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const previous = await sql`SELECT * FROM custom_field_definitions WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
   if (previous.length === 0) return NextResponse.json({ message: "Campo no encontrado." }, { status: 404 });
   const requiredMode = payload.required === undefined ? null : (payload.required ? "REQUIRED" : "OPTIONAL");
+  // La ayuda y las opciones viven dentro de validation_rule; se mezclan con lo existente.
+  const previousRule = (previous[0].validation_rule ?? {}) as { help?: string; options?: string[] };
+  const nextRule = payload.help === undefined && payload.options === undefined ? null : JSON.stringify({
+    ...previousRule,
+    ...(payload.help === undefined ? {} : { help: payload.help }),
+    ...(payload.options === undefined ? {} : { options: payload.options }),
+  });
   const rows = await sql`
     UPDATE custom_field_definitions SET
       label = COALESCE(${payload.label ?? null}, label),
       required_mode = COALESCE(${requiredMode}, required_mode),
       status = COALESCE(${payload.status ?? null}, status),
       sort_order = COALESCE(${payload.sortOrder ?? null}, sort_order),
+      validation_rule = COALESCE(${nextRule}::jsonb, validation_rule),
       updated_at = now()
     WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}
     RETURNING id, module_key, field_key, label, field_type, required_mode, validation_rule, sort_order, status

@@ -6,6 +6,7 @@ import { ClipboardList, ExternalLink, Plus, ShieldAlert } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
 import { hasPermission } from "@/lib/authorization";
+import { formatDate } from "@/lib/dates";
 import type { UserSession } from "@/lib/session";
 
 type IncidentRow = {
@@ -22,7 +23,7 @@ const SEVERITY_LABEL: Record<string, string> = { LOW: "Baja", MEDIUM: "Media", H
 const STATUS_LABEL: Record<string, string> = { OPEN: "Abierta", IN_PROGRESS: "En proceso", RESOLVED: "Resuelta", CLOSED: "Cerrada", ARCHIVED: "Archivada" };
 const RELATED_LABEL: Record<string, string> = { EQUIPMENT: "Equipo", INVENTORY_ITEM: "Inventario", EDUCATIONAL_PRACTICE: "Práctica" };
 
-function fmtDate(v: unknown): string { if (!v) return "—"; try { return new Date(String(v)).toLocaleDateString("es-GT", { day: "2-digit", month: "short", year: "numeric" }); } catch { return String(v); } }
+const fmtDate = formatDate;
 function severityPill(s: string): string { if (s === "CRITICAL" || s === "HIGH") return "status-pill-danger"; if (s === "MEDIUM") return "status-pill-warning"; return "status-pill-info"; }
 function relatedHref(t: string | null, id: string | null): string | null {
   if (!id) return null;
@@ -253,7 +254,7 @@ function IncidentModal({ onClose, onSave }: Readonly<{ onClose: () => void; onSa
           <label><span>Fecha del hecho</span><input name="occurred" type="date" /></label>
           <label><span>Relacionado con</span>
             <select value={relatedType} onChange={(e) => setRelatedType(e.target.value as typeof relatedType)}>
-              <option value="">Nada</option>
+              <option value="">No aplica</option>
               <option value="EQUIPMENT">Equipo</option>
               <option value="INVENTORY_ITEM">Inventario</option>
               <option value="EDUCATIONAL_PRACTICE">Práctica</option>

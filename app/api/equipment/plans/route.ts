@@ -6,6 +6,7 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { nextDueFromWeekDays, normalizeWeekDays } from "@/lib/equipment-frequency";
 
 const schema = z.object({
   equipmentId: databaseIdSchema,
@@ -14,6 +15,9 @@ const schema = z.object({
   frequencyValue: z.coerce.number().int().positive().optional(),
   frequencyUnit: z.enum(["USE", "DAY", "WEEK", "MONTH", "YEAR"]).optional(),
   nextDueAt: z.string().datetime().optional(),
+  // Días ISO (1 = lunes … 7 = domingo) para frecuencia diaria/semanal: la
+  // próxima fecha se calcula sola y avanza al registrar el evento.
+  weekDays: z.array(z.coerce.number().int().min(1).max(7)).max(7).optional(),
   blocksUseWhenOverdue: z.boolean().default(false),
   reminderDays: z.array(z.coerce.number().int().nonnegative()).default([90, 60, 30, 0]),
 });
@@ -45,16 +49,39 @@ export async function POST(request: Request) {
   const sql = getSql();
   const equipment = await sql`SELECT id FROM equipment WHERE id = ${payload.equipmentId} AND laboratory_id = ${session.laboratoryId} AND status <> 'RETIRED' LIMIT 1`;
   if (!equipment.length) return NextResponse.json({ message: "Equipo no encontrado o retirado." }, { status: 404 });
-  if (payload.frequencyUnit !== "USE" && !payload.nextDueAt) return NextResponse.json({ message: "Indica la próxima fecha para una frecuencia de calendario." }, { status: 400 });
-  const rows = await sql`
-    INSERT INTO equipment_plans (
-      laboratory_id, equipment_id, plan_type, name, frequency_value, frequency_unit,
-      next_due_at, reminder_days, blocks_use_when_overdue
-    ) VALUES (
-      ${session.laboratoryId}, ${payload.equipmentId}, ${payload.planType}, ${payload.name}, ${payload.frequencyValue ?? null}, ${payload.frequencyUnit ?? null},
-      ${payload.frequencyUnit === "USE" ? null : payload.nextDueAt ?? null}, ${JSON.stringify(payload.reminderDays)}::jsonb, ${payload.blocksUseWhenOverdue}
-    ) RETURNING *
-  `;
+
+  // Con días de la semana la próxima fecha se calcula sola; sin ellos, una
+  // frecuencia de calendario sigue requiriendo la fecha manual.
+  const weekDays = normalizeWeekDays(payload.weekDays);
+  const usesWeekDays = weekDays.length > 0 && (payload.frequencyUnit === "DAY" || payload.frequencyUnit === "WEEK");
+  let nextDueAt: string | null = payload.frequencyUnit === "USE" ? null : payload.nextDueAt ?? null;
+  if (usesWeekDays) nextDueAt = nextDueFromWeekDays(weekDays)?.toISOString() ?? null;
+  if (payload.frequencyUnit !== "USE" && !nextDueAt) return NextResponse.json({ message: "Indica la próxima fecha o selecciona los días de la semana." }, { status: 400 });
+
+  let rows: Array<Record<string, unknown>>;
+  try {
+    rows = await sql`
+      INSERT INTO equipment_plans (
+        laboratory_id, equipment_id, plan_type, name, frequency_value, frequency_unit,
+        next_due_at, reminder_days, blocks_use_when_overdue, week_days
+      ) VALUES (
+        ${session.laboratoryId}, ${payload.equipmentId}, ${payload.planType}, ${payload.name}, ${payload.frequencyValue ?? null}, ${payload.frequencyUnit ?? null},
+        ${nextDueAt}, ${JSON.stringify(payload.reminderDays)}::jsonb, ${payload.blocksUseWhenOverdue}, ${usesWeekDays ? JSON.stringify(weekDays) : null}::jsonb
+      ) RETURNING *
+    ` as Array<Record<string, unknown>>;
+  } catch (error) {
+    // Compatibilidad si la migración 0017 (week_days) aún no se aplica.
+    if (!(error instanceof Error && error.message.includes("week_days"))) throw error;
+    rows = await sql`
+      INSERT INTO equipment_plans (
+        laboratory_id, equipment_id, plan_type, name, frequency_value, frequency_unit,
+        next_due_at, reminder_days, blocks_use_when_overdue
+      ) VALUES (
+        ${session.laboratoryId}, ${payload.equipmentId}, ${payload.planType}, ${payload.name}, ${payload.frequencyValue ?? null}, ${payload.frequencyUnit ?? null},
+        ${nextDueAt}, ${JSON.stringify(payload.reminderDays)}::jsonb, ${payload.blocksUseWhenOverdue}
+      ) RETURNING *
+    ` as Array<Record<string, unknown>>;
+  }
   await writeAuditEvent(session, { action: "EQUIPMENT_PLAN_CREATED", entityType: "equipment_plan", entityId: String(rows[0].id), newValue: rows[0], request });
   return NextResponse.json({ data: rows[0] }, { status: 201 });
 }

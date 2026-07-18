@@ -13,6 +13,10 @@ export type UserSession = {
   laboratoryName: string;
   profileCode: string;
   sessionMode?: "demo" | "database";
+  // Permisos efectivos resueltos al iniciar sesión (matriz base del rol +
+  // anulaciones del laboratorio). Ausente en sesiones anteriores: en ese caso
+  // hasPermission usa la matriz base del rol.
+  permissions?: string[];
 };
 
 function secret(): Uint8Array {

@@ -38,6 +38,10 @@ function shapeRow(request: Request, row: Record<string, unknown>) {
     location: String(row.location ?? "Sin ubicación"),
     createdAt: String(row.created_at),
     scanUrl: publicScanUrl(request, String(row.opaque_token)),
+    // Fechas metrológicas del equipo (si aplican) para imprimirlas en la etiqueta.
+    lastCalibrationAt: row.last_calibration_at ? String(row.last_calibration_at) : null,
+    nextCalibrationAt: row.next_calibration_at ? String(row.next_calibration_at) : null,
+    nextMaintenanceAt: row.next_maintenance_at ? String(row.next_maintenance_at) : null,
   };
 }
 
@@ -63,23 +67,43 @@ export async function GET(request: Request) {
     ? await sql`
       SELECT q.id, q.entity_type, q.entity_id, q.opaque_token, q.label_code, q.status, q.created_at,
         CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN i.name ELSE e.name END AS display_name,
-        COALESCE(CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN il.name ELSE el.name END, 'Sin ubicación') AS location
+        COALESCE(CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN il.name ELSE el.name END, 'Sin ubicación') AS location,
+        e.last_calibration_at, p.next_calibration_at,
+        COALESCE(p.next_maintenance_at, e.next_maintenance_at) AS next_maintenance_at
       FROM qr_identifiers q
       LEFT JOIN inventory_items i ON q.entity_type = 'INVENTORY_ITEM' AND i.id = q.entity_id AND i.laboratory_id = q.laboratory_id
       LEFT JOIN equipment e ON q.entity_type = 'EQUIPMENT' AND e.id = q.entity_id AND e.laboratory_id = q.laboratory_id
       LEFT JOIN storage_locations il ON il.id = i.storage_location_id
       LEFT JOIN storage_locations el ON el.id = e.storage_location_id
+      LEFT JOIN (
+        SELECT equipment_id,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'CALIBRATION') AS next_calibration_at,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'MAINTENANCE') AS next_maintenance_at
+        FROM equipment_plans
+        WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'
+        GROUP BY equipment_id
+      ) p ON p.equipment_id = e.id
       WHERE q.laboratory_id = ${session.laboratoryId} AND q.entity_type = ${entityType}
       ORDER BY q.created_at DESC`
     : await sql`
       SELECT q.id, q.entity_type, q.entity_id, q.opaque_token, q.label_code, q.status, q.created_at,
         CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN i.name ELSE e.name END AS display_name,
-        COALESCE(CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN il.name ELSE el.name END, 'Sin ubicación') AS location
+        COALESCE(CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN il.name ELSE el.name END, 'Sin ubicación') AS location,
+        e.last_calibration_at, p.next_calibration_at,
+        COALESCE(p.next_maintenance_at, e.next_maintenance_at) AS next_maintenance_at
       FROM qr_identifiers q
       LEFT JOIN inventory_items i ON q.entity_type = 'INVENTORY_ITEM' AND i.id = q.entity_id AND i.laboratory_id = q.laboratory_id
       LEFT JOIN equipment e ON q.entity_type = 'EQUIPMENT' AND e.id = q.entity_id AND e.laboratory_id = q.laboratory_id
       LEFT JOIN storage_locations il ON il.id = i.storage_location_id
       LEFT JOIN storage_locations el ON el.id = e.storage_location_id
+      LEFT JOIN (
+        SELECT equipment_id,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'CALIBRATION') AS next_calibration_at,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'MAINTENANCE') AS next_maintenance_at
+        FROM equipment_plans
+        WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'
+        GROUP BY equipment_id
+      ) p ON p.equipment_id = e.id
       WHERE q.laboratory_id = ${session.laboratoryId}
       ORDER BY q.created_at DESC`;
   return NextResponse.json({ data: rows.map((row) => shapeRow(request, row as Record<string, unknown>)), mode: "database" });

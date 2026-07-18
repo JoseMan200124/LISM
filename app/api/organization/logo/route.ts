@@ -31,8 +31,10 @@ export async function GET() {
   const image = await downloadImage(attachment.storage_key).catch(() => null);
   if (!image) return NextResponse.json({ message: "No disponible." }, { status: 404 });
 
+  // Sin caché: al reemplazar o quitar el logo, el cambio debe verse de
+  // inmediato en el sidebar y en configuración (retro del cliente).
   return new NextResponse(new Uint8Array(image.buffer), {
-    headers: { "Content-Type": image.contentType, "Cache-Control": "private, max-age=300" },
+    headers: { "Content-Type": image.contentType, "Cache-Control": "private, no-store" },
   });
 }
 
