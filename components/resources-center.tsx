@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, BellRing, Boxes, FileCheck2, PackageCheck, Plus, ScanBarcode, ShieldCheck, Trash2, Wrench } from "lucide-react";
+import { Archive, BellRing, Boxes, FileCheck2, Lock, PackageCheck, Plus, ScanBarcode, ShieldCheck, Trash2, Wrench } from "lucide-react";
 import { ActionModal, ConfirmModal, FileDropZone, Toast, useToast } from "@/components/action-kit";
+import { CONTROL_KIND_LABEL, CONTROL_KIND_OPTIONS, isStockReducingMovement } from "@/lib/controlled-reagents";
 import { QrLabelManager, QrScanTester } from "@/components/qr-label-manager";
 import { defaultInventoryCategories } from "@/lib/lab-profile";
 import { formatDate, formatDateTime, toDateInputValue } from "@/lib/dates";
@@ -20,6 +21,7 @@ type CategoryOption = { code: string; name: string; prefix: string };
 type InventoryRaw = {
   id: string; sku: string; name: string; quantity: number | string; unit: string;
   reorder_point?: number | string; status?: string; status_reason?: string | null;
+  is_controlled?: boolean; control_kind?: string | null;
 };
 
 // Requisitos de campos por tipo de artículo definidos por el administrador.
@@ -194,6 +196,8 @@ export function InventoryCenter() {
         reorder_point: Number(r.reorder_point ?? 0),
         status: String(r.status ?? ""),
         status_reason: r.status_reason ? String(r.status_reason) : null,
+        is_controlled: Boolean(r.is_controlled),
+        control_kind: r.control_kind ? String(r.control_kind) : null,
       })));
       setItems((iData.data ?? []).map((r) => ({
         id: String(r.id ?? ""),
@@ -710,6 +714,10 @@ function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, o
       quantity: discardAll ? currentQuantity : Number(data.get("quantity") ?? 0),
       reason: String(data.get("reason") ?? "").trim(),
       note: String(data.get("note") ?? "").trim(),
+      usageArea: String(data.get("usageArea") ?? "").trim() || undefined,
+      usagePurpose: String(data.get("usagePurpose") ?? "").trim() || undefined,
+      usedByPerson: String(data.get("usedByPerson") ?? "").trim() || undefined,
+      authorizedBy: String(data.get("authorizedBy") ?? "").trim() || undefined,
     });
     setSaving(false);
     if (ok) { setDiscarding(false); setDiscardAll(false); }
@@ -729,6 +737,7 @@ function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, o
               <div><small>Proveedor</small><strong>{String(item.vendor ?? "—") || "—"}</strong></div>
               <div><small>Vence</small><strong>{fmtDate(item.expires_at)}</strong></div>
               <div><small>Estado</small><strong>{String(item.status) === "ARCHIVED" ? "Archivado" : "Activo"}</strong></div>
+              {item.is_controlled ? <div className="field-span-two"><small>Control regulatorio</small><strong className="controlled-badge"><Lock size={13} /> Reactivo controlado{item.control_kind ? ` · ${CONTROL_KIND_LABEL[item.control_kind as keyof typeof CONTROL_KIND_LABEL] ?? String(item.control_kind)}` : ""}</strong></div> : null}
               {item.safety_sheet_url ? <div className="field-span-two"><small>Ficha de seguridad</small><strong><a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">Abrir ficha</a></strong></div> : null}
             </div>
             {defs.length > 0 ? (
@@ -741,8 +750,14 @@ function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, o
               <div className="definition-list">
                 {movements.slice(0, 8).map((m) => (
                   <article key={String(m.id)} className="definition-row">
-                    <div><strong>{MOVEMENT_TYPE_LABEL[String(m.movement_type)] ?? String(m.movement_type)}</strong><p>{String(m.note ?? "") || String(m.reason_code ?? "")}</p></div>
-                    <small>{String(m.quantity_delta)} → {String(m.resulting_quantity)}</small>
+                    <div>
+                      <strong>{MOVEMENT_TYPE_LABEL[String(m.movement_type)] ?? String(m.movement_type)}</strong>
+                      <p>{String(m.note ?? "") || String(m.reason_code ?? "")}</p>
+                      {m.used_by_person || m.usage_area || m.usage_purpose ? (
+                        <p className="usage-trace">{[m.used_by_person && `Usó: ${String(m.used_by_person)}`, m.usage_area && `Área: ${String(m.usage_area)}`, m.usage_purpose && `Fin: ${String(m.usage_purpose)}`, m.authorized_by && `Autoriza: ${String(m.authorized_by)}`].filter(Boolean).join(" · ")}</p>
+                      ) : null}
+                    </div>
+                    <small>{String(m.previous_quantity ?? "?")} → {String(m.resulting_quantity)}</small>
                     <em>{fmtDateTime(m.performed_at)}</em>
                   </article>
                 ))}
@@ -755,6 +770,15 @@ function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, o
                 {discardAll ? null : <label><span>Cantidad a descartar</span><input name="quantity" type="number" min="0.001" step="0.001" max={currentQuantity || undefined} required /></label>}
                 <label><span>Motivo</span><input name="reason" required placeholder="Vencido, contaminado, roto…" /></label>
                 <label><span>Observación</span><input name="note" placeholder="Detalle opcional" /></label>
+                {item.is_controlled ? (
+                  <>
+                    <p className="controlled-alert"><Lock size={13} /> Reactivo controlado: el descarte también exige registro de trazabilidad completa.</p>
+                    <label><span>Usuario/persona que lo utilizó *</span><input name="usedByPerson" required placeholder="Quién realizó el descarte" /></label>
+                    <label><span>Área, laboratorio o proyecto *</span><input name="usageArea" required /></label>
+                    <label><span>Motivo o finalidad de uso *</span><input name="usagePurpose" required /></label>
+                    <label><span>Responsable que autoriza <small>(opcional)</small></span><input name="authorizedBy" /></label>
+                  </>
+                ) : null}
                 <button className="primary-button" type="submit" disabled={saving}>{saving ? "Registrando…" : discardAll ? "Descartar todo" : "Confirmar descarte"}</button>
               </form>
             ) : null}
@@ -835,7 +859,9 @@ function CertificateDetailModal({ certificate, onClose, onChanged }: Readonly<{ 
 
 function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: boolean; item: Record<string, unknown> | null; onClose: () => void; onSave: (id: string, payload: Record<string, unknown>, safetyFile?: File | null) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
+  const [controlled, setControlled] = useState("no");
   const defs = useCustomFieldDefs("inventory");
+  useEffect(() => { setControlled(item?.is_controlled ? "yes" : "no"); }, [item]);
   if (!open || !item) return null;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -849,17 +875,21 @@ function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: bo
       storageConditions: String(data.get("storageConditions") ?? "").trim(), trackStock: data.get("trackStock") === "on",
       alertLowStock: data.get("alertLowStock") === "on", alertExpiry: data.get("alertExpiry") === "on",
       requiresUsageLog: data.get("requiresUsageLog") === "on", allowDirectDiscard: data.get("allowDirectDiscard") === "on",
+      isControlled: controlled === "yes",
+      controlKind: controlled === "yes" ? (String(data.get("controlKind") ?? "") || undefined) : undefined,
       notes: String(data.get("notes") ?? "").trim(), customValues: collectCustomValues(defs, data),
     }, safetyFile instanceof File && safetyFile.size > 0 ? safetyFile : null);
     setSaving(false); if (ok) onClose();
   }
   const customValues = (item.custom_values ?? {}) as Record<string, unknown>;
-  return <ActionModal open title={`Editar ${String(item.sku)}`} description="Actualiza los datos y controles. La existencia solo cambia mediante movimientos." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(item.name ?? "")} /></label><label><span>Tipo</span><select name="itemType" defaultValue={String(item.item_type ?? "OTHER")}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label><label><span>Proveedor</span><input name="vendor" defaultValue={String(item.vendor ?? "")} /></label><label><span>Concentración</span><input name="concentration" defaultValue={String(item.concentration ?? "")} /></label><label><span>Presentación</span><input name="presentation" defaultValue={String(item.presentation ?? "")} /></label><label><span>Stock mínimo</span><input name="minimum" type="number" min="0" step="0.001" defaultValue={String(item.reorder_point ?? 0)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={toDateInputValue(item.expires_at)} /></label><label className="field-span-two"><span>Condiciones de almacenamiento</span><textarea name="storageConditions" rows={2} defaultValue={String(item.storage_conditions ?? "")} /></label><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked={item.track_stock !== false} /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked={item.alert_low_stock !== false} /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={item.alert_expiry !== false} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input name="requiresUsageLog" type="checkbox" defaultChecked={Boolean(item.requires_usage_log)} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" defaultChecked={Boolean(item.allow_direct_discard)} /><span>Permitir descarte directo</span></label><span className="form-section-title field-span-two">Ficha de seguridad o técnica</span><div className="field-span-two"><FileDropZone name="safetySheetFile" hint={item.safety_sheet_url ? "Arrastra un archivo para reemplazar la ficha actual" : "Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla"} /></div>{item.safety_sheet_url ? <p className="modal-note field-span-two">Ficha actual: <a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">abrir</a></p> : null}<label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} defaultValue={String(item.notes ?? "")} /></label><CustomFieldInputs defs={defs} values={customValues} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  return <ActionModal open title={`Editar ${String(item.sku)}`} description="Actualiza los datos y controles. La existencia solo cambia mediante movimientos." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(item.name ?? "")} /></label><label><span>Tipo</span><select name="itemType" defaultValue={String(item.item_type ?? "OTHER")}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label><label><span>Proveedor</span><input name="vendor" defaultValue={String(item.vendor ?? "")} /></label><label><span>Concentración</span><input name="concentration" defaultValue={String(item.concentration ?? "")} /></label><label><span>Presentación</span><input name="presentation" defaultValue={String(item.presentation ?? "")} /></label><label><span>Stock mínimo</span><input name="minimum" type="number" min="0" step="0.001" defaultValue={String(item.reorder_point ?? 0)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={toDateInputValue(item.expires_at)} /></label><label className="field-span-two"><span>Condiciones de almacenamiento</span><textarea name="storageConditions" rows={2} defaultValue={String(item.storage_conditions ?? "")} /></label><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked={item.track_stock !== false} /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked={item.alert_low_stock !== false} /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={item.alert_expiry !== false} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input name="requiresUsageLog" type="checkbox" defaultChecked={Boolean(item.requires_usage_log)} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" defaultChecked={Boolean(item.allow_direct_discard)} /><span>Permitir descarte directo</span></label><span className="form-section-title field-span-two"><Lock size={14} /> Control de doble uso o precursores</span><div className="field-span-two controlled-question"><span className="controlled-question-label">¿Es reactivo de doble uso o precursor? *</span><div className="radio-row"><label className="radio-option"><input type="radio" name="isControlled" value="no" required checked={controlled === "no"} onChange={() => setControlled("no")} /><span>No</span></label><label className="radio-option"><input type="radio" name="isControlled" value="yes" required checked={controlled === "yes"} onChange={() => setControlled("yes")} /><span>Sí — reactivo controlado</span></label></div></div>{controlled === "yes" ? <><label className="field-span-two"><span>Tipo de control *</span><select name="controlKind" required defaultValue={String(item.control_kind ?? "")}><option value="" disabled>Selecciona…</option>{CONTROL_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><p className="modal-note field-span-two controlled-note">Marcado como <strong>controlado</strong>: cada consumo o descarte exigirá registro de trazabilidad completa antes de descontar del inventario.</p></> : null}<span className="form-section-title field-span-two">Ficha de seguridad o técnica</span><div className="field-span-two"><FileDropZone name="safetySheetFile" hint={item.safety_sheet_url ? "Arrastra un archivo para reemplazar la ficha actual" : "Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla"} /></div>{item.safety_sheet_url ? <p className="modal-note field-span-two">Ficha actual: <a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">abrir</a></p> : null}<label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} defaultValue={String(item.notes ?? "")} /></label><CustomFieldInputs defs={defs} values={customValues} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
 function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ open: boolean; categories: CategoryOption[]; onClose: () => void; onSave: (payload: Record<string, unknown>, safetyFile?: File | null) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const [itemType, setItemType] = useState("REAGENT");
+  // "" = sin elegir (obligatorio elegir Sí/No), "yes" = controlado, "no" = normal.
+  const [controlled, setControlled] = useState("");
   const customDefs = useCustomFieldDefs("inventory");
   const requirements = useInventoryFieldRequirements();
   // Obligatoriedad configurada por el administrador para el tipo de artículo activo.
@@ -900,10 +930,12 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
       notes: String(data.get("notes") ?? "").trim(),
       safetySheetUrl: safetySheet,
       requiresUsageLog: data.get("requiresUsageLog") === "on",
+      isControlled: controlled === "yes",
+      controlKind: controlled === "yes" ? (String(data.get("controlKind") ?? "") || undefined) : undefined,
       customValues: collectCustomValues(customDefs, data),
     }, safetyFile instanceof File && safetyFile.size > 0 ? safetyFile : null);
     setSaving(false);
-    if (ok) onClose();
+    if (ok) { onClose(); setControlled(""); }
   }
   const reagent = itemType === "REAGENT";
   const material = itemType === "MATERIAL";
@@ -920,6 +952,18 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
     {culture ? <><label><span>Tipo de medio{isRequired("cultureMediaType") ? " *" : ""}</span><input name="cultureMediaType" required={isRequired("cultureMediaType")} /></label><label><span>Preparación</span><select name="preparationType"><option value="COMMERCIAL">Comercial</option><option value="PREPARED">Preparado</option></select></label><label><span>Fabricante{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} /></label></> : null}
     <span className="form-section-title field-span-two">Ubicación y existencias</span><label><span>Ubicación{isRequired("location") ? " *" : ""}</span><input name="location" required={isRequired("location")} /></label><label><span>Fecha de ingreso{isRequired("receivedAt") ? " *" : ""}</span><input name="receivedAt" type="date" required={isRequired("receivedAt")} /></label>{!material ? <label><span>Fecha de vencimiento{isRequired("expires") ? " *" : " (opcional)"}</span><input name="expires" type="date" required={isRequired("expires")} /></label> : null}<label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required list="item-units" defaultValue="unidades" /><datalist id="item-units">{COMMON_UNITS.map((option) => <option key={option} value={option} />)}</datalist></label>
     <span className="form-section-title field-span-two">Controles</span><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={!material} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input key={itemType} name="requiresUsageLog" type="checkbox" defaultChecked={reagent || culture} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" /><span>Permitir descarte directo</span></label>
+    <span className="form-section-title field-span-two"><Lock size={14} /> Control de doble uso o precursores</span>
+    <div className="field-span-two controlled-question">
+      <span className="controlled-question-label">¿Es reactivo de doble uso o precursor? *</span>
+      <div className="radio-row">
+        <label className="radio-option"><input type="radio" name="isControlled" value="no" required checked={controlled === "no"} onChange={() => setControlled("no")} /><span>No</span></label>
+        <label className="radio-option"><input type="radio" name="isControlled" value="yes" required checked={controlled === "yes"} onChange={() => setControlled("yes")} /><span>Sí — reactivo controlado</span></label>
+      </div>
+    </div>
+    {controlled === "yes" ? <>
+      <label className="field-span-two"><span>Tipo de control *</span><select name="controlKind" required defaultValue=""><option value="" disabled>Selecciona…</option>{CONTROL_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      <p className="modal-note field-span-two controlled-note">Quedará marcado como <strong>controlado</strong>: cada consumo o descarte exigirá un registro con trazabilidad completa (quién lo usó, cuánto, cuándo, para qué y en qué área o proyecto) antes de descontar del inventario.</p>
+    </> : null}
     <span className="form-section-title field-span-two">Ficha de seguridad o técnica{isRequired("safetySheet") ? " *" : ""}</span>
     <div className="field-span-two"><FileDropZone name="safetySheetFile" required={isRequired("safetySheet")} hint="Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla" /></div>
     <label className="field-span-two"><span>… o enlace externo a la ficha (URL)</span><input name="safetySheetUrl" type="url" placeholder="https://…" /></label>
@@ -937,6 +981,19 @@ const MOVEMENT_OPTIONS = [
   { key: "Descarte", label: "Descartar — resta (−)", note: "Retira existencias vencidas, dañadas o no utilizables." },
 ] as const;
 
+// Traduce la etiqueta amigable del movimiento al enum del backend y su dirección.
+function movementEnumFor(label: string): { movementType: string; direction?: "IN" | "OUT" } {
+  const movementType = label === "Entrada" ? "RECEIPT"
+    : label === "Ajuste positivo" || label === "Ajuste negativo" ? "ADJUSTMENT"
+    : label === "Descarte" ? "DISPOSAL"
+    : label === "Transferencia" ? "TRANSFER"
+    : "CONSUMPTION";
+  const direction = label === "Entrada" || label === "Ajuste positivo" ? "IN"
+    : label === "Transferencia" ? undefined
+    : "OUT";
+  return { movementType, direction };
+}
+
 function InventoryMovementModal({ open, items, locations, onClose, onSave }: Readonly<{ open: boolean; items: InventoryRaw[]; locations: TableRow[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const [movement, setMovement] = useState<string>("Consumo");
@@ -946,6 +1003,10 @@ function InventoryMovementModal({ open, items, locations, onClose, onSave }: Rea
 
   const selectedItem = items.find((item) => item.id === itemId) ?? items[0];
   const effectiveUnit = unit || selectedItem?.unit || "unidades";
+  // Un reactivo controlado que se descuenta exige registro de consumo completo.
+  const { movementType: currentType, direction: currentDirection } = movementEnumFor(movement);
+  const controlledConsumption = Boolean(selectedItem?.is_controlled) && isStockReducingMovement(currentType, currentDirection);
+  const controlKindLabel = selectedItem?.control_kind ? CONTROL_KIND_LABEL[selectedItem.control_kind as keyof typeof CONTROL_KIND_LABEL] : null;
   const unitOptions = useMemo(() => {
     const used = items.map((item) => item.unit).filter(Boolean);
     return [...new Set([...(selectedItem ? [selectedItem.unit] : []), ...used, ...COMMON_UNITS])];
@@ -973,11 +1034,18 @@ function InventoryMovementModal({ open, items, locations, onClose, onSave }: Rea
     const chosenId = String(data.get("itemId") ?? "");
     if (!chosenId || preview?.error) return;
     const quantity = Number(data.get("quantity") ?? 0);
-    const type = String(data.get("type"));
-    const movementType = type === "Entrada" ? "RECEIPT" : type === "Ajuste positivo" || type === "Ajuste negativo" ? "ADJUSTMENT" : type === "Descarte" ? "DISPOSAL" : type === "Transferencia" ? "TRANSFER" : "CONSUMPTION";
-    const direction = type === "Entrada" || type === "Ajuste positivo" ? "IN" : "OUT";
+    const { movementType, direction } = movementEnumFor(String(data.get("type")));
     setSaving(true);
-    const ok = await onSave({ inventoryItemId: chosenId, movementType, quantity: Math.abs(quantity), unit: String(data.get("unit") ?? "").trim() || undefined, direction, reasonCode: String(data.get("reasonCode") ?? "OTHER"), note: String(data.get("reason") ?? ""), fromLocationId: String(data.get("fromLocationId") ?? "") || undefined, toLocationId: String(data.get("toLocationId") ?? "") || undefined });
+    const ok = await onSave({
+      inventoryItemId: chosenId, movementType, quantity: Math.abs(quantity),
+      unit: String(data.get("unit") ?? "").trim() || undefined, direction,
+      reasonCode: String(data.get("reasonCode") ?? "OTHER"), note: String(data.get("reason") ?? ""),
+      fromLocationId: String(data.get("fromLocationId") ?? "") || undefined, toLocationId: String(data.get("toLocationId") ?? "") || undefined,
+      usageArea: String(data.get("usageArea") ?? "").trim() || undefined,
+      usagePurpose: String(data.get("usagePurpose") ?? "").trim() || undefined,
+      usedByPerson: String(data.get("usedByPerson") ?? "").trim() || undefined,
+      authorizedBy: String(data.get("authorizedBy") ?? "").trim() || undefined,
+    });
     setSaving(false);
     if (ok) { onClose(); setQuantityText(""); setUnit(""); }
   }
@@ -994,6 +1062,17 @@ function InventoryMovementModal({ open, items, locations, onClose, onSave }: Rea
     {movement === "Transferencia" ? <><label><span>Ubicación de origen</span><select name="fromLocationId" required><option value="">Selecciona…</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{String(location.hierarchy)}</option>)}</select></label><label><span>Ubicación de destino</span><select name="toLocationId" required><option value="">Selecciona…</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{String(location.hierarchy)}</option>)}</select></label></> : null}
     <label><span>Motivo</span><select name="reasonCode" required><option value="COUNT_ERROR">Error de conteo</option><option value="DAMAGE">Daño</option><option value="LOSS">Pérdida</option><option value="INITIAL_CORRECTION">Corrección inicial</option><option value="RESTOCK">Reposición</option><option value="OTHER">Otro</option></select></label>
     <label><span>Comentario y responsable</span><textarea name="reason" required rows={3} placeholder="Describe el motivo. Tu usuario quedará registrado como responsable." /></label>
+    {controlledConsumption ? (
+      <div className="controlled-consumption">
+        <p className="controlled-alert"><Lock size={14} /> Reactivo controlado{controlKindLabel ? ` · ${controlKindLabel}` : ""}. No puede descontarse del inventario sin registro de trazabilidad completa.</p>
+        <div className="form-grid">
+          <label><span>Usuario/persona que lo utilizó *</span><input name="usedByPerson" required placeholder="Nombre de quien realizó el consumo" /></label>
+          <label><span>Área, laboratorio o proyecto relacionado *</span><input name="usageArea" required placeholder="Ej. Laboratorio de Química / Proyecto síntesis" /></label>
+          <label><span>Motivo o finalidad de uso *</span><textarea name="usagePurpose" required rows={2} placeholder="Para qué se utilizó el reactivo" /></label>
+          <label><span>Responsable que autoriza o valida <small>(opcional)</small></span><input name="authorizedBy" placeholder="Nombre del responsable, si aplica" /></label>
+        </div>
+      </div>
+    ) : null}
   </div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 

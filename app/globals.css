@@ -2550,3 +2550,19 @@ html { scroll-behavior: smooth; }
   .dilo-fab { right: 14px; bottom: 14px; }
   .dilo-popover { right: 14px; bottom: 72px; }
 }
+
+/* ── Control de reactivos de doble uso o precursores ─────────────────────── */
+.controlled-question { display: flex; flex-direction: column; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
+.controlled-question-label { font-size: 12px; font-weight: 600; color: var(--text); }
+.radio-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.radio-option { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; color: var(--muted-strong); background: var(--surface); cursor: pointer; transition: border-color .15s ease, background .15s ease, color .15s ease; }
+.radio-option span { margin: 0; }
+.radio-option:hover { border-color: var(--primary); }
+.radio-option:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-dark); font-weight: 600; }
+.radio-option input { accent-color: var(--primary); }
+.controlled-note { border-color: var(--primary-soft) !important; }
+.controlled-badge { display: inline-flex; align-items: center; gap: 5px; color: var(--nexa-warning); }
+.controlled-alert { display: flex; align-items: center; gap: 7px; margin: 0 0 2px; padding: 9px 11px; border: 1px solid var(--nexa-warning); border-radius: 8px; color: var(--nexa-warning); background: var(--nexa-warning-soft); font-size: 12px; font-weight: 600; line-height: 1.45; }
+.controlled-consumption { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; padding: 12px; border: 1px solid var(--nexa-warning-soft); border-radius: 9px; background: var(--surface-soft); }
+.usage-trace { margin: 3px 0 0; font-size: 11px; color: var(--muted); line-height: 1.45; }
+.controlled-consumption-row { border-left: 3px solid var(--nexa-warning); padding-left: 10px; }

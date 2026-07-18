@@ -43,10 +43,17 @@ const inventorySchema = z.object({
   // No se fuerza a true (§3.6): el control de consumo es opcional por artículo.
   // La UI decide el valor por defecto según el tipo (reactivo/medio -> true).
   requiresUsageLog: z.boolean().optional().default(false),
+  // Reactivo de doble uso o precursor: si es true, el artículo queda marcado
+  // como controlado y su consumo exige registro de trazabilidad completa.
+  isControlled: z.boolean().optional().default(false),
+  controlKind: z.enum(["DUAL_USE", "PRECURSOR", "BOTH"]).optional().nullable(),
   customValues: z.record(z.string(), z.unknown()).optional(),
 }).refine((value) => value.categoryId || value.categoryName, {
   message: "Debes indicar la categoría mediante categoryId o categoryName.",
   path: ["categoryId"],
+}).refine((value) => !value.isControlled || Boolean(value.controlKind), {
+  message: "Indica si el reactivo controlado es de doble uso, precursor o ambos.",
+  path: ["controlKind"],
 });
 
 function catalogCode(prefix: string, value: string, maximumLength: number) {
@@ -81,6 +88,8 @@ export async function GET() {
       i.expires_at,
       i.custom_values,
       i.requires_usage_log,
+      i.is_controlled,
+      i.control_kind,
       i.track_stock,
       i.alert_low_stock,
       i.alert_expiry,
@@ -151,6 +160,11 @@ export async function POST(request: Request) {
   }
   const customValues = payload.customValues ?? {};
 
+  // Un reactivo controlado siempre exige registro de consumo, sin importar el
+  // valor que la UI haya enviado en requiresUsageLog.
+  const requiresUsageLog = payload.isControlled ? true : payload.requiresUsageLog;
+  const controlKind = payload.isControlled ? payload.controlKind ?? null : null;
+
   let categoryId = payload.categoryId;
   if (!categoryId && payload.categoryName) {
     const categories = await sql`
@@ -179,17 +193,17 @@ export async function POST(request: Request) {
     INSERT INTO inventory_items (
       laboratory_id, category_id, storage_location_id, sku, name, vendor, lot_number,
       quantity, reorder_point, unit, expires_at, received_at, safety_sheet_url, internal_formula,
-      requires_usage_log, custom_values, created_by, item_type, concentration, brand, model,
+      requires_usage_log, is_controlled, control_kind, custom_values, created_by, item_type, concentration, brand, model,
       presentation, manufacturing_material, is_reusable, storage_conditions, culture_media_type,
       preparation_type, track_stock, alert_low_stock, alert_expiry, allow_direct_discard, notes
     ) VALUES (
       ${session.laboratoryId}, ${categoryId}, ${storageLocationId ?? null}, ${payload.sku}, ${payload.name}, ${payload.vendor || null}, ${payload.lotNumber},
       ${payload.quantity}, ${payload.reorderPoint}, ${payload.unit}, ${payload.expiresAt ?? null}, ${payload.receivedAt ?? null}, ${payload.safetySheetUrl || null}, ${payload.internalFormula || null},
-      ${payload.requiresUsageLog}, ${JSON.stringify(customValues)}::jsonb, ${session.userId}, ${payload.itemType}, ${payload.concentration || null}, ${payload.brand || null}, ${payload.model || null},
+      ${requiresUsageLog}, ${payload.isControlled}, ${controlKind}, ${JSON.stringify(customValues)}::jsonb, ${session.userId}, ${payload.itemType}, ${payload.concentration || null}, ${payload.brand || null}, ${payload.model || null},
       ${payload.presentation || null}, ${payload.manufacturingMaterial || null}, ${payload.isReusable}, ${payload.storageConditions || null}, ${payload.cultureMediaType || null},
       ${payload.preparationType ?? null}, ${payload.trackStock}, ${payload.alertLowStock}, ${payload.alertExpiry}, ${payload.allowDirectDiscard}, ${payload.notes || null}
     )
-    RETURNING id, sku, name, quantity, reorder_point, unit, status
+    RETURNING id, sku, name, quantity, reorder_point, unit, status, is_controlled, control_kind
   `;
 
   const qrRows = await sql`

@@ -49,6 +49,7 @@ import { ConfigurationCenter } from "@/components/configuration-center";
 import { EducationCenter } from "@/components/education-center";
 import { QualityCenter } from "@/components/quality-center";
 import { EquipmentCenter, InventoryCenter } from "@/components/resources-center";
+import { ControlledReagentsCenter } from "@/components/controlled-reagents-center";
 import { ActionModal, DetailsModal, QuickRecordModal, Toast, downloadCsv, useToast } from "@/components/action-kit";
 import type { UserSession } from "@/lib/session";
 
@@ -171,6 +172,7 @@ function displayCell(key: string, value: string | number) {
 export function ModuleView({ module, session }: { module: Exclude<ModuleKey, "dashboard">; session?: UserSession }) {
   const role = session?.role;
   if (module === "inventory") return <InventoryCenter />;
+  if (module === "controlled") return <ControlledReagentsCenter />;
   if (module === "equipment") return <EquipmentCenter />;
   if (module === "education") return <EducationCenter role={role as Parameters<typeof EducationCenter>[0]["role"]} />;
   if (module === "quality") return <QualityCenter />;

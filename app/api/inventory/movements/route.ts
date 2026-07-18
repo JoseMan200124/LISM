@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { convertQuantity } from "@/lib/units";
+import { isStockReducingMovement, missingControlledFields, controlledLogErrorMessage } from "@/lib/controlled-reagents";
 
 const schema = z.object({
   inventoryItemId: databaseIdSchema,
@@ -22,6 +23,13 @@ const schema = z.object({
   referenceId: databaseIdSchema.optional(),
   fromLocationId: databaseIdSchema.optional(),
   toLocationId: databaseIdSchema.optional(),
+  // Registro de consumo de reactivos controlados (doble uso / precursor).
+  // Obligatorios en el servidor cuando el reactivo es controlado y el
+  // movimiento descuenta existencia; ignorados en el resto de casos.
+  usageArea: z.string().max(200).optional(),
+  usagePurpose: z.string().max(1000).optional(),
+  usedByPerson: z.string().max(200).optional(),
+  authorizedBy: z.string().max(200).optional(),
 }).superRefine((value, ctx) => {
   if (value.movementType === "TRANSFER" && (!value.fromLocationId || !value.toLocationId || value.fromLocationId === value.toLocationId)) {
     ctx.addIssue({ code: "custom", path: ["toLocationId"], message: "La transferencia requiere ubicaciones de origen y destino diferentes." });
@@ -64,10 +72,27 @@ export async function POST(request: Request) {
 
   if (!hasDatabase()) return NextResponse.json({ data: { id: crypto.randomUUID(), ...payload, quantityDelta: signedQuantity(payload.quantity, payload) }, mode: "demo" }, { status: 201 });
   const sql = getSql();
-  const items = await sql`SELECT id, sku, name, quantity, unit, requires_usage_log, storage_location_id FROM inventory_items WHERE id = ${payload.inventoryItemId} AND laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'`;
+  const items = await sql`SELECT id, sku, name, quantity, unit, requires_usage_log, is_controlled, storage_location_id FROM inventory_items WHERE id = ${payload.inventoryItemId} AND laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'`;
   const item = items[0] as Record<string, unknown> | undefined;
   if (!item) return NextResponse.json({ message: "Artículo no encontrado." }, { status: 404 });
-  if (item.requires_usage_log && payload.movementType === "CONSUMPTION" && payload.note.trim().length < 3) {
+
+  // Regla clave: un reactivo controlado (doble uso o precursor) no puede
+  // descontarse del inventario sin un registro de consumo con trazabilidad
+  // completa (área/proyecto, finalidad y quién lo utilizó).
+  const reducesStock = isStockReducingMovement(payload.movementType, payload.direction);
+  if (item.is_controlled && reducesStock) {
+    const missing = missingControlledFields({
+      usageArea: payload.usageArea,
+      usagePurpose: payload.usagePurpose,
+      usedByPerson: payload.usedByPerson,
+    });
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { success: false, error: "CONTROLLED_LOG_REQUIRED", message: controlledLogErrorMessage(missing), fields: missing },
+        { status: 400 },
+      );
+    }
+  } else if (item.requires_usage_log && payload.movementType === "CONSUMPTION" && payload.note.trim().length < 3) {
     return NextResponse.json({ message: "Este reactivo requiere indicar el uso o práctica relacionada." }, { status: 400 });
   }
 
@@ -103,10 +128,12 @@ export async function POST(request: Request) {
   const rows = await sql`
     INSERT INTO inventory_movements (
       laboratory_id, inventory_item_id, movement_type, quantity_delta, note,
-      performed_by, responsible_user_id, reference_type, reference_id, reason_code, from_location_id, to_location_id, transferred_quantity
+      performed_by, responsible_user_id, reference_type, reference_id, reason_code, from_location_id, to_location_id, transferred_quantity,
+      usage_area, usage_purpose, used_by_person, authorized_by
     ) VALUES (
       ${session.laboratoryId}, ${payload.inventoryItemId}, ${payload.movementType}, ${quantityDelta}, ${conversionNote},
-      ${session.userId}, ${session.userId}, ${payload.referenceType ?? null}, ${payload.referenceId ?? null}, ${payload.reasonCode}, ${payload.fromLocationId ?? null}, ${payload.toLocationId ?? null}, ${payload.movementType === "TRANSFER" ? quantity : null}
+      ${session.userId}, ${session.userId}, ${payload.referenceType ?? null}, ${payload.referenceId ?? null}, ${payload.reasonCode}, ${payload.fromLocationId ?? null}, ${payload.toLocationId ?? null}, ${payload.movementType === "TRANSFER" ? quantity : null},
+      ${payload.usageArea?.trim() || null}, ${payload.usagePurpose?.trim() || null}, ${payload.usedByPerson?.trim() || null}, ${payload.authorizedBy?.trim() || null}
     ) RETURNING *
   `;
   if (payload.movementType === "TRANSFER") await sql`UPDATE inventory_items SET storage_location_id = ${payload.toLocationId!}, updated_at = now() WHERE id = ${payload.inventoryItemId} AND laboratory_id = ${session.laboratoryId}`;

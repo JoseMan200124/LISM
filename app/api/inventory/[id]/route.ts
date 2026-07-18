@@ -24,6 +24,8 @@ const patchSchema = z.object({
   alertLowStock: z.boolean().optional(),
   alertExpiry: z.boolean().optional(),
   requiresUsageLog: z.boolean().optional(),
+  isControlled: z.boolean().optional(),
+  controlKind: z.enum(["DUAL_USE", "PRECURSOR", "BOTH"]).optional().nullable(),
   allowDirectDiscard: z.boolean().optional(),
   notes: z.string().max(2000).optional().nullable(),
   reorderPoint: z.coerce.number().nonnegative().optional(),
@@ -33,7 +35,11 @@ const patchSchema = z.object({
   // Archivar: solo cambio de estado permitido desde aquí (el stock nunca se
   // edita directamente, solo por movimientos).
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
-}).refine((v) => Object.keys(v).length > 0, { message: "No hay cambios que aplicar." });
+}).refine((v) => Object.keys(v).length > 0, { message: "No hay cambios que aplicar." })
+  .refine((v) => v.isControlled !== true || Boolean(v.controlKind), {
+    message: "Indica si el reactivo controlado es de doble uso, precursor o ambos.",
+    path: ["controlKind"],
+  });
 
 async function resolveId(context: { params: Promise<{ id: string }> }): Promise<string | null> {
   const { id } = await context.params;
@@ -57,7 +63,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   `;
   if (rows.length === 0) return NextResponse.json({ message: "Artículo no encontrado." }, { status: 404 });
   const movements = await sql`
-    SELECT m.id, m.movement_type, m.quantity_delta, m.resulting_quantity, m.note, m.reason_code, m.performed_at, u.full_name AS performed_by
+    SELECT m.id, m.movement_type, m.quantity_delta, m.previous_quantity, m.resulting_quantity, m.note, m.reason_code,
+      m.usage_area, m.usage_purpose, m.used_by_person, m.authorized_by, m.performed_at, u.full_name AS performed_by
     FROM inventory_movements m LEFT JOIN users u ON u.id = m.performed_by
     WHERE m.inventory_item_id = ${id} AND m.laboratory_id = ${session.laboratoryId}
     ORDER BY m.performed_at DESC LIMIT 50
@@ -79,6 +86,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const previous = await sql`SELECT * FROM inventory_items WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
   if (previous.length === 0) return NextResponse.json({ message: "Artículo no encontrado." }, { status: 404 });
   const customValues = payload.customValues === undefined ? null : JSON.stringify(payload.customValues);
+  // Estado de control resultante: un reactivo controlado siempre exige registro
+  // de consumo; al quitarle el control se limpia el tipo (control_kind).
+  const prior = previous[0] as Record<string, unknown>;
+  const resultingControlled = payload.isControlled ?? Boolean(prior.is_controlled);
+  const resultingControlKind = resultingControlled
+    ? (payload.controlKind ?? (prior.control_kind as string | null) ?? null)
+    : null;
+  const resultingRequiresUsageLog = resultingControlled
+    ? true
+    : (payload.requiresUsageLog ?? Boolean(prior.requires_usage_log));
   const rows = await sql`
     UPDATE inventory_items SET
       name = COALESCE(${payload.name ?? null}, name),
@@ -97,7 +114,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       track_stock = COALESCE(${payload.trackStock ?? null}, track_stock),
       alert_low_stock = COALESCE(${payload.alertLowStock ?? null}, alert_low_stock),
       alert_expiry = COALESCE(${payload.alertExpiry ?? null}, alert_expiry),
-      requires_usage_log = COALESCE(${payload.requiresUsageLog ?? null}, requires_usage_log),
+      requires_usage_log = ${resultingRequiresUsageLog},
+      is_controlled = ${resultingControlled},
+      control_kind = ${resultingControlKind},
       allow_direct_discard = COALESCE(${payload.allowDirectDiscard ?? null}, allow_direct_discard),
       notes = COALESCE(${payload.notes ?? null}, notes),
       reorder_point = COALESCE(${payload.reorderPoint ?? null}, reorder_point),

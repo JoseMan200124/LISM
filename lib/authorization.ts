@@ -112,6 +112,7 @@ const modulePermissions: Partial<Record<ModuleKey, PermissionKey[]>> = {
   providers: ["specimens.view"],
   catalog: ["results.view", "specimens.view"],
   inventory: ["inventory.view"],
+  controlled: ["inventory.view"],
   equipment: ["equipment.view"],
   education: ["education.view"],
   incidents: ["incidents.view"],

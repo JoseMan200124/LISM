@@ -14,6 +14,7 @@ import {
   Gauge,
   GitBranch,
   GraduationCap,
+  Lock,
   Microscope,
   PackageSearch,
   ScanBarcode,
@@ -37,6 +38,7 @@ export type ModuleKey =
   | "providers"
   | "catalog"
   | "inventory"
+  | "controlled"
   | "equipment"
   | "education"
   | "quality"
@@ -68,6 +70,7 @@ export const navigation = [
     title: "Recursos",
     items: [
       { key: "inventory", label: "Inventario y reactivos", icon: Boxes, href: "/app/inventory" },
+      { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
       { key: "equipment", label: "Equipos y calibración", icon: Microscope, href: "/app/equipment" },
       { key: "education", label: "Prácticas educativas", icon: GraduationCap, href: "/app/education" },
     ],
@@ -136,6 +139,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       items: [
         { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
@@ -157,6 +161,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       items: [
         { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
@@ -178,6 +183,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       items: [
         { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
@@ -200,6 +206,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
         { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
@@ -222,6 +229,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       items: [
         { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
