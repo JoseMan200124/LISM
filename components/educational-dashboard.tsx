@@ -216,7 +216,7 @@ function AdminDashboard() {
       {state === "error" ? <ErrorState description="No se pudo cargar el resumen. Verifica tu conexión e intenta de nuevo." onRetry={() => void reload()} /> : null}
       {state === "ready" && data ? (
         <>
-          <section className="kpi-grid">
+          <section className="kpi-grid kpi-grid-5">
             <KpiCard href="/app/education?tab=schedule&filter=upcoming" value={String(data.upcomingPractices)} label="Prácticas próximas" delta="Planificadas" tone="primary" Icon={CalendarDays} />
             <KpiCard href="/app/education?tab=reservations&status=PENDING" value={String(data.pendingReservations)} label="Reservas pendientes" delta="Por preparar" tone="amber" Icon={PackageCheck} urgency={data.pendingReservations > 0 ? "kpi-card-caution" : ""} />
             <KpiCard href="/app/inventory?tab=lots&stock=low" value={String(data.lowStockItems)} label="Inventario bajo mínimo" delta={data.lowStockItems > 0 ? "Reponer" : "Sin alertas"} tone="rose" Icon={Boxes} urgency={data.lowStockItems > 0 ? "kpi-card-urgent" : ""} />

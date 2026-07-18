@@ -367,6 +367,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 /* DASHBOARD */
 .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+/* Resumen del laboratorio: 5 indicadores en una sola fila alineada en escritorio.
+   En pantallas menores los media queries de .kpi-grid (980px/520px) la colapsan. */
+.kpi-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .kpi-card {
   display: flex;
   flex-direction: column;
