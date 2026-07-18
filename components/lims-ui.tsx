@@ -1,8 +1,8 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { CheckCircle2, CircleAlert, CircleDashed, FlaskConical, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, CircleDashed, FlaskConical, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 export type TableColumn = { key: string; label: string };
 export type TableRow = Record<string, string | number | boolean | null | undefined>;
@@ -126,6 +126,7 @@ export function SimpleTable({
   emptyTitle = "Sin registros",
   emptyMessage = "Todavía no hay información disponible en esta sección.",
   onRowClick,
+  pageSize = 10,
 }: Readonly<{
   columns: TableColumn[];
   rows: TableRow[];
@@ -138,16 +139,34 @@ export function SimpleTable({
   // detalle/edición del registro. La fila recibe el objeto completo, así que
   // puede incluir un campo `id` no mostrado en columnas.
   onRowClick?: (row: TableRow) => void;
+  // Filas por página. Los controles de paginación solo aparecen cuando hay
+  // más registros filtrados que este límite, así las tablas cortas no cambian.
+  pageSize?: number;
 }>) {
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return rows;
     return rows.filter((row) => Object.values(row).some((value) => String(value ?? "").toLowerCase().includes(needle)));
   }, [query, rows]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filtered, currentPage, pageSize],
+  );
+  // Al buscar se vuelve a la primera página; si el total de páginas se reduce
+  // (por ejemplo tras recargar), se ajusta la página para no quedar en vacío.
+  useEffect(() => { setPage(1); }, [query]);
+  useEffect(() => { setPage((prev) => Math.min(Math.max(1, prev), totalPages)); }, [totalPages]);
+
   const isEmpty = rows.length === 0;
   const noResults = !isEmpty && filtered.length === 0;
+  const showPagination = filtered.length > pageSize;
+  const rangeStart = (currentPage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(currentPage * pageSize, filtered.length);
 
   return (
     <article className="panel table-panel module-table-panel">
@@ -178,7 +197,7 @@ export function SimpleTable({
             <table className="data-table">
               <thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
               <tbody>
-                {filtered.map((row, index) => (
+                {paged.map((row, index) => (
                   <tr
                     key={`${index}-${String(row.code ?? row.id ?? "row")}`}
                     className={onRowClick ? "data-row-clickable" : undefined}
@@ -195,7 +214,20 @@ export function SimpleTable({
               </tbody>
             </table>
           </div>
-          <footer className="table-footer"><span>{filtered.length} registros visibles</span>{footer}</footer>
+          <footer className="table-footer">
+            <span>{showPagination ? `${rangeStart}–${rangeEnd} de ${filtered.length} registros` : `${filtered.length} registros visibles`}</span>
+            <div>
+              {showPagination ? (
+                <div className="table-pagination">
+                  <button type="button" className="table-page-nav" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Página anterior"><ChevronLeft size={14} /></button>
+                  <strong aria-current="page">{currentPage}</strong>
+                  <span>de {totalPages}</span>
+                  <button type="button" className="table-page-nav" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Página siguiente"><ChevronRight size={14} /></button>
+                </div>
+              ) : null}
+              {footer}
+            </div>
+          </footer>
         </>
       )}
     </article>
