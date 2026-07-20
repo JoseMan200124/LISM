@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { getSql } from "@/lib/db";
 import type { UserSession } from "@/lib/session";
+import { effectivePermissions, type PermissionKey } from "@/lib/authorization";
 
 // Puente servicio-a-servicio entre el asistente Dilo (WhatsApp) y NexaLab.
 //
@@ -112,6 +113,7 @@ export type UserLaboratory = {
   organizationId: string;
   role: UserSession["role"];
   profileCode: string;
+  permissions: PermissionKey[];
 };
 
 /**
@@ -136,12 +138,38 @@ export async function listUserLaboratories(userId: string): Promise<UserLaborato
     WHERE m.user_id = ${userId} AND m.status = 'ACTIVE'
     ORDER BY m.created_at ASC
   `;
-  return (rows as Array<Record<string, string>>).map((row) => ({
+  const laboratories = (rows as Array<Record<string, string>>).map((row) => ({
     laboratoryId: row.laboratory_id,
     laboratoryName: row.laboratory_name,
     organizationId: row.organization_id,
     role: row.role as UserSession["role"],
     profileCode: row.profile_code,
+    permissions: [] as PermissionKey[],
+  }));
+
+  if (laboratories.length === 0) return laboratories;
+  const laboratoryIds = laboratories.map((laboratory) => laboratory.laboratoryId);
+  let overrides: Array<{ laboratory_id: string; role: string; permission: string; allowed: boolean }> = [];
+  try {
+    overrides = await sql`
+      SELECT laboratory_id, role, permission, allowed
+      FROM role_permission_overrides
+      WHERE laboratory_id = ANY(${laboratoryIds})
+    ` as typeof overrides;
+  } catch (error) {
+    // Compatibilidad durante despliegues escalonados: antes de 0017 se usa la
+    // matriz base, igual que las sesiones web antiguas.
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("role_permission_overrides")) throw error;
+  }
+
+  return laboratories.map((laboratory) => ({
+    ...laboratory,
+    permissions: effectivePermissions(
+      laboratory.role,
+      overrides.filter((override) =>
+        override.laboratory_id === laboratory.laboratoryId && override.role === laboratory.role),
+    ),
   }));
 }
 
@@ -199,5 +227,6 @@ export function buildBridgeSession(user: DiloLinkedUser, laboratory: UserLaborat
     laboratoryName: laboratory.laboratoryName,
     profileCode: laboratory.profileCode,
     sessionMode: "database",
+    permissions: laboratory.permissions,
   };
 }

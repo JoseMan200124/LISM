@@ -99,8 +99,8 @@ describe("códigos de vinculación", () => {
 
 describe("resolveLaboratory", () => {
   const labs: UserLaboratory[] = [
-    { laboratoryId: "1", laboratoryName: "Laboratorio Química Central", organizationId: "o1", role: "ANALYST", profileCode: "PHARMA_QC" },
-    { laboratoryId: "2", laboratoryName: "Laboratorio de Microbiología", organizationId: "o1", role: "STUDENT", profileCode: "EDUCATIONAL_SMALL_LAB" },
+    { laboratoryId: "1", laboratoryName: "Laboratorio Química Central", organizationId: "o1", role: "ANALYST", profileCode: "PHARMA_QC", permissions: ["inventory.view"] },
+    { laboratoryId: "2", laboratoryName: "Laboratorio de Microbiología", organizationId: "o1", role: "STUDENT", profileCode: "EDUCATIONAL_SMALL_LAB", permissions: ["education.view"] },
   ];
 
   it("sin nombre y con un solo laboratorio, lo usa directo", () => {

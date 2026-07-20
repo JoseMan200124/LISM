@@ -3,6 +3,14 @@ import { hasPermission, type PermissionKey } from "@/lib/authorization";
 import { getSql, hasDatabase } from "@/lib/db";
 import type { UserSession } from "@/lib/session";
 import {
+  DILO_MUTATION_ACTIONS,
+  DILO_READ_ACTIONS,
+  runDiloNativeRead,
+  runDiloNativeMutation,
+  type DiloReadAction,
+  type DiloMutationAction,
+} from "@/lib/dilo-native-actions";
+import {
   DILO_SIGNATURE_HEADER,
   DILO_TIMESTAMP_HEADER,
   buildBridgeSession,
@@ -88,6 +96,26 @@ async function sessionForLabQuery(
   return { session };
 }
 
+async function sessionForLabMembership(
+  user: DiloLinkedUser,
+  labQuery: string | null,
+): Promise<{ session: UserSession } | { response: ReturnType<typeof ok> }> {
+  const laboratories = await listUserLaboratories(user.userId);
+  const resolved = resolveLaboratory(laboratories, labQuery);
+  if (resolved.status === "ambiguous") {
+    return { response: ok({ linked: true, error: "laboratory_ambiguous", message: "Hay varios laboratorios que coinciden. Pide al usuario que precise cuál.", candidates: resolved.matches.map((l) => l.laboratoryName) }) };
+  }
+  if (resolved.status === "none") {
+    return { response: ok({
+      linked: true,
+      error: "laboratory_not_found",
+      message: labQuery ? "No encontré ese laboratorio entre los del usuario." : laboratories.length === 0 ? "El usuario ya no pertenece a ningún laboratorio activo." : "El usuario pertenece a varios laboratorios; hay que indicar cuál.",
+      laboratories: resolved.laboratories.map((l) => l.laboratoryName),
+    }) };
+  }
+  return { session: buildBridgeSession(user, resolved.laboratory) };
+}
+
 async function handleLinkRedeem(body: Body) {
   const phone = normalizePhone(str(body.phone));
   const code = str(body.code);
@@ -127,7 +155,7 @@ async function handleContext(user: DiloLinkedUser) {
   return ok({
     linked: true,
     user: { name: user.name, email: user.email },
-    laboratories: laboratories.map((l) => ({ name: l.laboratoryName, role: l.role })),
+    laboratories: laboratories.map((l) => ({ name: l.laboratoryName, role: l.role, permissions: l.permissions })),
   });
 }
 
@@ -144,7 +172,7 @@ async function handleInventoryList(user: DiloLinkedUser, body: Body) {
 
   const rows = filter === "low_stock"
     ? await sql`
-        SELECT i.name, i.sku, i.lot_number, i.quantity, i.unit, i.reorder_point, i.expires_at
+        SELECT i.id, i.name, i.sku, i.lot_number, i.quantity, i.unit, i.reorder_point, i.expires_at
         FROM inventory_items i
         WHERE i.laboratory_id = ${session.laboratoryId} AND i.status = 'ACTIVE'
           AND i.quantity <= i.reorder_point
@@ -154,7 +182,7 @@ async function handleInventoryList(user: DiloLinkedUser, body: Body) {
       `
     : filter === "expiring"
       ? await sql`
-          SELECT i.name, i.sku, i.lot_number, i.quantity, i.unit, i.reorder_point, i.expires_at
+          SELECT i.id, i.name, i.sku, i.lot_number, i.quantity, i.unit, i.reorder_point, i.expires_at
           FROM inventory_items i
           WHERE i.laboratory_id = ${session.laboratoryId} AND i.status = 'ACTIVE'
             AND i.expires_at IS NOT NULL AND i.expires_at <= (CURRENT_DATE + ${days}::int)
@@ -164,7 +192,7 @@ async function handleInventoryList(user: DiloLinkedUser, body: Body) {
           LIMIT 25
         `
       : await sql`
-          SELECT i.name, i.sku, i.lot_number, i.quantity, i.unit, i.reorder_point, i.expires_at
+          SELECT i.id, i.name, i.sku, i.lot_number, i.quantity, i.unit, i.reorder_point, i.expires_at
           FROM inventory_items i
           WHERE i.laboratory_id = ${session.laboratoryId} AND i.status = 'ACTIVE'
             AND (${like}::text IS NULL OR i.name ILIKE ${like} OR i.sku ILIKE ${like})
@@ -173,6 +201,7 @@ async function handleInventoryList(user: DiloLinkedUser, body: Body) {
         `;
 
   const items = (rows as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id,
     name: r.name,
     sku: r.sku,
     lot: r.lot_number,
@@ -193,7 +222,7 @@ async function handleEquipmentList(user: DiloLinkedUser, body: Body) {
   const filter = str(body.filter) ?? "all"; // all | attention
   const rows = filter === "attention"
     ? await sql`
-        SELECT e.name, e.code, e.status, e.last_calibration_at, e.next_maintenance_at
+        SELECT e.id, e.name, e.code, e.status, e.last_calibration_at, e.next_maintenance_at
         FROM equipment e
         WHERE e.laboratory_id = ${session.laboratoryId}
           AND (e.status <> 'OPERATIONAL' OR (e.next_maintenance_at IS NOT NULL AND e.next_maintenance_at <= (CURRENT_DATE + 30)))
@@ -201,7 +230,7 @@ async function handleEquipmentList(user: DiloLinkedUser, body: Body) {
         LIMIT 25
       `
     : await sql`
-        SELECT e.name, e.code, e.status, e.last_calibration_at, e.next_maintenance_at
+        SELECT e.id, e.name, e.code, e.status, e.last_calibration_at, e.next_maintenance_at
         FROM equipment e
         WHERE e.laboratory_id = ${session.laboratoryId}
         ORDER BY e.name ASC
@@ -209,6 +238,7 @@ async function handleEquipmentList(user: DiloLinkedUser, body: Body) {
       `;
 
   const equipment = (rows as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id,
     name: r.name,
     code: r.code,
     status: r.status,
@@ -228,7 +258,7 @@ async function handleSpecimensList(user: DiloLinkedUser, body: Body) {
   const query = str(body.query);
   const like = query ? `%${query}%` : null;
   const rows = await sql`
-    SELECT s.accession_number, s.status, s.priority, s.received_at, st.name AS specimen_type
+    SELECT s.id, s.accession_number, s.status, s.workflow_state_key, s.priority, s.received_at, st.name AS specimen_type
     FROM specimens s
     JOIN specimen_types st ON st.id = s.specimen_type_id
     WHERE s.laboratory_id = ${session.laboratoryId}
@@ -239,9 +269,10 @@ async function handleSpecimensList(user: DiloLinkedUser, body: Body) {
   `;
 
   const specimens = (rows as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id,
     accessionNumber: r.accession_number,
     type: r.specimen_type,
-    status: r.status,
+    status: r.workflow_state_key ?? r.status,
     priority: r.priority,
     receivedAt: r.received_at,
   }));
@@ -258,7 +289,7 @@ async function handleAlertsList(user: DiloLinkedUser, body: Body) {
   // prácticas/reservas; el resto de roles ve las del laboratorio completo.
   const rows = session.role === "PROFESSOR"
     ? await sql`
-        SELECT a.severity, a.status, a.title, a.details, a.created_at
+        SELECT a.id, a.severity, a.status, a.title, a.details, a.created_at
         FROM alerts a
         LEFT JOIN educational_practices ep ON ep.id = a.source_id AND a.source_type = 'EDUCATIONAL_PRACTICE' AND ep.laboratory_id = a.laboratory_id
         LEFT JOIN resource_reservations rr ON rr.id = a.source_id AND a.source_type = 'RESOURCE_RESERVATION' AND rr.laboratory_id = a.laboratory_id
@@ -270,7 +301,7 @@ async function handleAlertsList(user: DiloLinkedUser, body: Body) {
         LIMIT 20
       `
     : await sql`
-        SELECT a.severity, a.status, a.title, a.details, a.created_at
+        SELECT a.id, a.severity, a.status, a.title, a.details, a.created_at
         FROM alerts a
         WHERE a.laboratory_id = ${session.laboratoryId}
           AND a.status IN ('OPEN', 'ASSIGNED', 'ACKNOWLEDGED')
@@ -279,6 +310,7 @@ async function handleAlertsList(user: DiloLinkedUser, body: Body) {
       `;
 
   const alerts = (rows as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id,
     severity: r.severity,
     status: r.status,
     title: r.title,
@@ -286,6 +318,59 @@ async function handleAlertsList(user: DiloLinkedUser, body: Body) {
     createdAt: r.created_at,
   }));
   return ok({ linked: true, laboratory: session.laboratoryName, count: alerts.length, alerts });
+}
+
+function isMutationAction(action: string): action is DiloMutationAction {
+  return (DILO_MUTATION_ACTIONS as readonly string[]).includes(action);
+}
+
+function isReadAction(action: string): action is DiloReadAction {
+  return (DILO_READ_ACTIONS as readonly string[]).includes(action);
+}
+
+async function handleNativeRead(user: DiloLinkedUser, body: Body, action: DiloReadAction) {
+  const resolved = await sessionForLabMembership(user, str(body.laboratory));
+  if ("response" in resolved) return resolved.response;
+  const result = await runDiloNativeRead({ session: resolved.session, action });
+  if (!result.ok) {
+    return ok({
+      linked: true,
+      error: result.status === 403 ? "no_permission" : "query_failed",
+      status: result.status,
+      message: result.body.message ?? "NexaLab rechazó la consulta.",
+    });
+  }
+  const rows = Array.isArray(result.body.data) ? result.body.data : [];
+  return ok({ linked: true, action, laboratory: resolved.session.laboratoryName, count: rows.length, items: rows });
+}
+
+async function handleMutation(user: DiloLinkedUser, body: Body, action: DiloMutationAction) {
+  const resolved = await sessionForLabMembership(user, str(body.laboratory));
+  if ("response" in resolved) return resolved.response;
+  const input = body.input && typeof body.input === "object" && !Array.isArray(body.input)
+    ? body.input as Record<string, unknown>
+    : {};
+  const result = await runDiloNativeMutation({
+    session: resolved.session,
+    action,
+    id: str(body.id),
+    input,
+  });
+  if (!result.ok) {
+    return ok({
+      linked: true,
+      error: result.status === 403 ? "no_permission" : "operation_failed",
+      status: result.status,
+      message: result.body.message ?? "NexaLab rechazó la operación.",
+      issues: result.body.issues ?? null,
+    });
+  }
+  return ok({
+    linked: true,
+    action,
+    laboratory: resolved.session.laboratoryName,
+    result: result.body.data ?? result.body,
+  });
 }
 
 export async function POST(request: Request) {
@@ -325,6 +410,9 @@ export async function POST(request: Request) {
     if (!user) {
       return ok({ linked: false, message: "Este número no está vinculado a una cuenta de NexaLab." });
     }
+
+    if (isMutationAction(action)) return await handleMutation(user, body, action);
+    if (isReadAction(action)) return await handleNativeRead(user, body, action);
 
     switch (action) {
       case "context":
