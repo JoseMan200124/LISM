@@ -8,6 +8,7 @@ import {
   GraduationCap,
   PackageCheck,
   Plus,
+  Trash2,
   UsersRound,
 } from "lucide-react";
 import type { UserSession } from "@/lib/session";
@@ -849,6 +850,13 @@ function PracticeModal({
   const [inventory, setInventory] = useState<ResourceOption[]>([]);
   const [equipment, setEquipment] = useState<ResourceOption[]>([]);
   const [groups, setGroups] = useState<ResourceOption[]>([]);
+  // Una práctica puede reservar varios reactivos y equipos a la vez: se
+  // acumulan aquí y se envían como arreglo. El backend ya soportaba múltiples
+  // recursos por práctica; antes la UI solo dejaba elegir uno.
+  const [resources, setResources] = useState<Array<{ resourceType: "INVENTORY_ITEM" | "EQUIPMENT"; resourceId: string; label: string; quantity: number; unit: string }>>([]);
+  const [draftResourceId, setDraftResourceId] = useState("");
+  const [draftQuantity, setDraftQuantity] = useState("1");
+  const [draftUnit, setDraftUnit] = useState("unidades");
 
   useEffect(() => {
     let active = true;
@@ -863,6 +871,30 @@ function PracticeModal({
     }).catch(() => {});
     return () => { active = false; };
   }, []);
+
+  const currentResourceOptions = resourceType === "INVENTORY_ITEM" ? inventory : equipment;
+
+  function addDraftResource() {
+    if (!draftResourceId) { setError("Selecciona un recurso para añadirlo a la lista."); return; }
+    const option = currentResourceOptions.find((item) => item.id === draftResourceId);
+    if (!option) return;
+    if (resources.some((resource) => resource.resourceId === draftResourceId && resource.resourceType === resourceType)) {
+      setError("Ese recurso ya está en la lista."); return;
+    }
+    const quantity = Number(draftQuantity);
+    setResources((current) => [...current, {
+      resourceType,
+      resourceId: draftResourceId,
+      label: option.label,
+      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+      unit: draftUnit.trim() || "unidades",
+    }]);
+    setDraftResourceId(""); setDraftQuantity("1"); setDraftUnit("unidades"); setError(null);
+  }
+
+  function removeDraftResource(index: number) {
+    setResources((current) => current.filter((_, position) => position !== index));
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -884,7 +916,6 @@ function PracticeModal({
     }
 
     setSaving(true);
-    const resourceId = String(data.get("resourceId") ?? "");
     const documentUrl = String(data.get("documentUrl") ?? "").trim();
     const ok = await onSave({
       title,
@@ -895,7 +926,7 @@ function PracticeModal({
       status: String(data.get("status") ?? "PLANNED"),
       groupId: String(data.get("groupId") ?? "") || null,
       location: String(data.get("location") ?? "").trim() || undefined,
-      resources: resourceId ? [{ resourceType, resourceId, quantity: Number(data.get("resourceQuantity") ?? 1), unit: String(data.get("resourceUnit") ?? "unidades") || "unidades", neededAt: startsAt }] : [],
+      resources: resources.map((resource) => ({ resourceType: resource.resourceType, resourceId: resource.resourceId, quantity: resource.quantity, unit: resource.unit, neededAt: startsAt })),
       externalLinks: documentUrl ? [{ title: String(data.get("documentTitle") ?? "Guía de práctica").trim() || "Guía de práctica", url: documentUrl, description: String(data.get("documentDescription") ?? "").trim() || undefined }] : [],
     });
     setSaving(false);
@@ -923,7 +954,31 @@ function PracticeModal({
           <label><span>Hora de finalización</span><input name="endTime" type="time" /></label>
           <label className="field-span-two"><span>Ubicación</span><input name="location" placeholder="Laboratorio B" /></label>
         </div>
-        <div className="form-grid form-grid-two" hidden={step !== 2}><label><span>Tipo de recurso</span><select value={resourceType} onChange={(event) => setResourceType(event.target.value as typeof resourceType)}><option value="INVENTORY_ITEM">Artículo de inventario</option><option value="EQUIPMENT">Equipo</option></select></label><label><span>Recurso (opcional)</span><select name="resourceId" defaultValue=""><option value="">Sin recurso inicial</option>{(resourceType === "INVENTORY_ITEM" ? inventory : equipment).map((resource) => <option key={resource.id} value={resource.id}>{resource.label}</option>)}</select></label><label><span>Cantidad</span><input name="resourceQuantity" type="number" min="0.001" step="0.001" defaultValue="1" /></label><label><span>Unidad</span><input name="resourceUnit" defaultValue="unidades" /></label></div>
+        <div className="modal-form" hidden={step !== 2}>
+          <p className="modal-note">Añade todos los reactivos, materiales y equipos que la práctica necesita reservar. Puedes agregar tantos como quieras; también puedes crear la práctica sin recursos y añadirlos después.</p>
+          <div className="form-grid form-grid-two">
+            <label><span>Tipo de recurso</span><select value={resourceType} onChange={(event) => { setResourceType(event.target.value as typeof resourceType); setDraftResourceId(""); }}><option value="INVENTORY_ITEM">Artículo de inventario</option><option value="EQUIPMENT">Equipo</option></select></label>
+            <label><span>Recurso</span><select value={draftResourceId} onChange={(event) => setDraftResourceId(event.target.value)}><option value="">Selecciona…</option>{currentResourceOptions.map((resource) => <option key={resource.id} value={resource.id}>{resource.label}</option>)}</select></label>
+            <label><span>Cantidad</span><input type="number" min="0.001" step="0.001" value={draftQuantity} onChange={(event) => setDraftQuantity(event.target.value)} /></label>
+            <label><span>Unidad</span><input value={draftUnit} onChange={(event) => setDraftUnit(event.target.value)} /></label>
+          </div>
+          <div className="line-item-add"><button type="button" className="secondary-button" onClick={addDraftResource}><Plus size={15} /> Añadir recurso</button></div>
+          {resources.length === 0 ? (
+            <p className="line-item-empty">Aún no has añadido recursos.</p>
+          ) : (
+            <ul className="line-item-list">
+              {resources.map((resource, index) => (
+                <li key={`${resource.resourceType}-${resource.resourceId}`} className="line-item-row">
+                  <div className="line-item-info">
+                    <strong>{resource.label}</strong>
+                    <span>{resourceTypeLabel(resource.resourceType)} · {resource.quantity} {resource.unit}</span>
+                  </div>
+                  <button type="button" className="icon-button" aria-label={`Quitar ${resource.label}`} onClick={() => removeDraftResource(index)}><Trash2 size={15} /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <div className="form-grid" hidden={step !== 3}><label><span>Instrucciones</span><textarea name="instructions" rows={4} placeholder="Objetivos, indicaciones previas y procedimiento…" /></label><label><span>Título del documento o enlace</span><input name="documentTitle" placeholder="Guía de la práctica" /></label><label><span>Enlace externo (opcional)</span><input name="documentUrl" type="url" placeholder="https://…" /></label><label><span>Descripción</span><textarea name="documentDescription" rows={2} /></label></div>
         <div className="form-grid" hidden={step !== 4}><label><span>Grupo educativo (opcional)</span><select name="groupId" defaultValue=""><option value="">Sin grupo</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.label}</option>)}</select></label><p className="modal-note">Los estudiantes del grupo verán la práctica y sus avisos publicados. Los participantes individuales pueden administrarse desde la ficha.</p></div>
         <div className="modal-form" hidden={step !== 5}><InlineNotice title="Lista para crear">Se generará el código automáticamente y se guardarán la práctica, la reserva inicial, el documento enlazado y la auditoría de forma transaccional.</InlineNotice><p>Después podrás ver la práctica, copiar el enlace seguro, compartir por correo o WhatsApp y crear un aviso relacionado.</p></div>

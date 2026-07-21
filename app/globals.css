@@ -2580,3 +2580,26 @@ html { scroll-behavior: smooth; }
 .controlled-consumption { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; padding: 12px; border: 1px solid var(--nexa-warning-soft); border-radius: 9px; background: var(--surface-soft); }
 .usage-trace { margin: 3px 0 0; font-size: 11px; color: var(--muted); line-height: 1.45; }
 .controlled-consumption-row { border-left: 3px solid var(--nexa-warning); padding-left: 10px; }
+
+/* ── Listas de líneas repetibles (recursos de práctica, ítems de compra) ─── */
+.line-item-add { display: flex; justify-content: flex-end; }
+.line-item-empty { margin: 2px 0 0; padding: 14px; border: 1px dashed var(--line); border-radius: 9px; text-align: center; font-size: 12px; color: var(--muted); background: var(--surface-soft); }
+.line-item-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.line-item-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
+.line-item-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.line-item-info strong { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line-item-info span { font-size: 11.5px; color: var(--muted); }
+.line-item-row .icon-button { flex-shrink: 0; color: var(--nexa-danger, #d64545); }
+
+/* ── Digitalización de fichas técnicas con IA ────────────────────────────── */
+.ai-digitize { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--primary-soft); border-radius: 11px; background: linear-gradient(180deg, var(--primary-soft) 0%, var(--surface-soft) 100%); }
+.ai-digitize-head { display: flex; align-items: center; gap: 9px; }
+.ai-digitize-head .ai-badge { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; background: var(--primary); color: #fff; flex-shrink: 0; }
+.ai-digitize-head h4 { margin: 0; font-size: 13px; font-weight: 700; color: var(--text); }
+.ai-digitize-head p { margin: 1px 0 0; font-size: 11.5px; color: var(--muted-strong); line-height: 1.4; }
+.ai-digitize-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ai-digitize-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--primary-dark); font-weight: 600; }
+.ai-digitize-status.is-error { color: var(--nexa-danger, #d64545); }
+.ai-digitize-spin { width: 14px; height: 14px; border: 2px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: ai-spin .7s linear infinite; }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+.ai-digitize-note { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.45; }

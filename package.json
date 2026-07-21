@@ -16,6 +16,7 @@
     "node": "22.x"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.4",
     "@azure/identity": "^4.13.1",
     "@azure/storage-blob": "^12.33.0",
     "@neondatabase/serverless": "^1.0.2",

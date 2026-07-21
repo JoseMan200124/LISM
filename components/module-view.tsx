@@ -50,6 +50,7 @@ import { EducationCenter } from "@/components/education-center";
 import { QualityCenter } from "@/components/quality-center";
 import { EquipmentCenter, InventoryCenter } from "@/components/resources-center";
 import { ControlledReagentsCenter } from "@/components/controlled-reagents-center";
+import { PurchasingCenter } from "@/components/purchasing-center";
 import { ActionModal, DetailsModal, QuickRecordModal, Toast, downloadCsv, useToast } from "@/components/action-kit";
 import type { UserSession } from "@/lib/session";
 
@@ -174,6 +175,7 @@ export function ModuleView({ module, session }: { module: Exclude<ModuleKey, "da
   if (module === "inventory") return <InventoryCenter />;
   if (module === "controlled") return <ControlledReagentsCenter />;
   if (module === "equipment") return <EquipmentCenter />;
+  if (module === "purchasing") return <PurchasingCenter session={session} />;
   if (module === "education") return <EducationCenter role={role as Parameters<typeof EducationCenter>[0]["role"]} />;
   if (module === "quality") return <QualityCenter />;
   if (module === "documents") return <QualityCenter initialTab="documents" />;

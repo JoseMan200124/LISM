@@ -12,6 +12,7 @@
 | `0006_secure_qr_labels.sql` | Códigos temporales de un solo uso, bitácora de escaneos y etiquetas QR para recursos existentes. |
 | `0011_profile_tutorial_notifications.sql` | Progreso de tutorial guiado por usuario (`users.tutorial_state`) y estado de lectura de notificaciones por usuario (`user_notification_reads`). Avatar de usuario y logo institucional reutilizan `attachments` (`entity_type='user_avatar'` / `'organization_logo'`), sin tablas nuevas de archivos. |
 | `0015_educational_revision_v1.sql` | Preferencias, tipos y controles de inventario, prácticas/participantes, seguimiento de incidencias, archivo de equipos y reglas/escalamientos educativos. |
+| `0019_purchasing.sql` | Módulo de compras: `purchase_requests` (cabecera de solicitud/orden) y `purchase_request_items` (líneas, con enlace opcional a un artículo de inventario). No modifica inventario ni movimientos. |
 
 ## Instalación nueva
 

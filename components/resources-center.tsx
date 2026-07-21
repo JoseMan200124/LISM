@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, BellRing, Boxes, FileCheck2, Lock, PackageCheck, Plus, ScanBarcode, ShieldCheck, Trash2, Wrench } from "lucide-react";
+import { Archive, BellRing, Boxes, CheckCircle2, FileCheck2, Lock, PackageCheck, Plus, ScanBarcode, ShieldCheck, Sparkles, Trash2, Wrench } from "lucide-react";
 import { ActionModal, ConfirmModal, FileDropZone, Toast, useToast } from "@/components/action-kit";
 import { CONTROL_KIND_LABEL, CONTROL_KIND_OPTIONS, isStockReducingMovement } from "@/lib/controlled-reagents";
 import { QrLabelManager, QrScanTester } from "@/components/qr-label-manager";
@@ -894,6 +894,58 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
   const requirements = useInventoryFieldRequirements();
   // Obligatoriedad configurada por el administrador para el tipo de artículo activo.
   const isRequired = (field: string) => requirements[itemType]?.[field] === "REQUIRED";
+  // Digitalización de ficha técnica con IA: precarga campos del formulario a
+  // partir de un PDF o imagen. `prefillKey` fuerza el re-montaje de los inputs
+  // no controlados para que apliquen los nuevos defaultValue.
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [prefill, setPrefill] = useState<Record<string, string>>({});
+  const [prefillKey, setPrefillKey] = useState(0);
+  const [digitizing, setDigitizing] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiDone, setAiDone] = useState(false);
+  // Documento digitalizado: si el usuario no adjunta otro en la sección de ficha,
+  // se conserva este mismo archivo como ficha de seguridad del artículo.
+  const [aiFile, setAiFile] = useState<File | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void fetch("/api/inventory/digitize-sheet")
+      .then((response) => (response.ok ? response.json() : { enabled: false }))
+      .catch(() => ({ enabled: false }))
+      .then((payload: { enabled?: boolean }) => { if (active) setAiEnabled(Boolean(payload.enabled)); });
+    return () => { active = false; };
+  }, [open]);
+  async function digitizeSheet(file: File | null) {
+    if (!file) return;
+    setAiFile(file);
+    setAiError(null); setAiDone(false); setDigitizing(true);
+    try {
+      const form = new FormData(); form.set("file", file);
+      const response = await fetch("/api/inventory/digitize-sheet", { method: "POST", body: form });
+      if (!response.ok) { setAiError(await responseMessage(response)); return; }
+      const payload = await response.json() as { data?: Record<string, unknown> };
+      const data = payload.data ?? {};
+      const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+      const extractedType = text(data.itemType);
+      if (["REAGENT", "MATERIAL", "CONSUMABLE", "CULTURE_MEDIA", "OTHER"].includes(extractedType)) setItemType(extractedType);
+      if (typeof data.isControlled === "boolean") setControlled(data.isControlled ? "yes" : "no");
+      const noteParts = [text(data.notes), text(data.casNumber) ? `CAS: ${text(data.casNumber)}` : "", text(data.hazards) ? `Peligros: ${text(data.hazards)}` : ""].filter(Boolean);
+      setPrefill({
+        name: text(data.name),
+        vendor: text(data.vendor),
+        brand: text(data.brand),
+        formula: text(data.internalFormula),
+        concentration: text(data.concentration),
+        presentation: text(data.presentation),
+        unit: text(data.unit) || "unidades",
+        storageConditions: text(data.storageConditions),
+        notes: noteParts.join(" · "),
+      });
+      setPrefillKey((current) => current + 1);
+      setAiDone(true);
+    } catch { setAiError("No se pudo conectar con el servidor para digitalizar la ficha."); }
+    finally { setDigitizing(false); }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -933,7 +985,7 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
       isControlled: controlled === "yes",
       controlKind: controlled === "yes" ? (String(data.get("controlKind") ?? "") || undefined) : undefined,
       customValues: collectCustomValues(customDefs, data),
-    }, safetyFile instanceof File && safetyFile.size > 0 ? safetyFile : null);
+    }, safetyFile instanceof File && safetyFile.size > 0 ? safetyFile : aiFile);
     setSaving(false);
     if (ok) { onClose(); setControlled(""); }
   }
@@ -941,16 +993,25 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
   const material = itemType === "MATERIAL";
   const consumable = itemType === "CONSUMABLE";
   const culture = itemType === "CULTURE_MEDIA";
-  return <ActionModal open={open} title="Registrar artículo o lote" description="El tipo define los campos y controles; la categoría sigue siendo configurable." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two">
+  return <ActionModal open={open} title="Registrar artículo o lote" description="El tipo define los campos y controles; la categoría sigue siendo configurable." onClose={onClose} wide><form className="modal-form" onSubmit={submit}>{aiEnabled ? <div className="ai-digitize">
+    <div className="ai-digitize-head"><span className="ai-badge"><Sparkles size={17} /></span><div><h4>Digitalizar ficha con IA</h4><p>Sube el PDF o la foto de la ficha técnica o de seguridad y la IA rellenará los campos por ti.</p></div></div>
+    <FileDropZone name="aiSheetFile" required={false} hint="Arrastra el PDF o imagen de la ficha para leerla con IA" onFileSelected={digitizeSheet} />
+    <div className="ai-digitize-actions">
+      {digitizing ? <span className="ai-digitize-status"><span className="ai-digitize-spin" aria-hidden />Leyendo la ficha con IA…</span> : null}
+      {!digitizing && aiDone ? <span className="ai-digitize-status"><CheckCircle2 size={15} /> Campos precargados. Revísalos antes de guardar.</span> : null}
+      {!digitizing && aiError ? <span className="ai-digitize-status is-error">{aiError}</span> : null}
+    </div>
+    <p className="ai-digitize-note">La IA puede equivocarse: revisa cada dato. El documento se conservará como ficha del artículo salvo que adjuntes otro más abajo.</p>
+  </div> : null}<div className="form-grid form-grid-two" key={prefillKey}>
     <span className="form-section-title field-span-two">Identificación</span>
     <label><span>Tipo de artículo</span><select required value={itemType} onChange={(event) => setItemType(event.target.value)}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label>
     <label><span>Categoría</span><input name="category" required list="inv-cats" placeholder="Clasificación del laboratorio" /><datalist id="inv-cats">{categories.map((cat) => <option key={cat.code} value={cat.name} />)}</datalist></label>
-    <label><span>Código interno</span><input name="sku" required placeholder="RQ-0001" /></label><label><span>Nombre</span><input name="name" required /></label><label><span>Lote{isRequired("lot") ? " *" : " (opcional)"}</span><input name="lot" required={isRequired("lot")} /></label><label><span>Proveedor{isRequired("vendor") ? " *" : ""}</span><input name="vendor" required={isRequired("vendor")} /></label>
-    {reagent ? <><label><span>Fórmula{isRequired("formula") ? " *" : ""}</span><input name="formula" required={isRequired("formula")} /></label><label><span>Concentración{isRequired("concentration") ? " *" : ""}</span><input name="concentration" required={isRequired("concentration")} /></label></> : null}
-    {material ? <><label><span>Marca{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} /></label><label><span>Modelo o descripción{isRequired("model") ? " *" : ""}</span><input name="model" required={isRequired("model")} /></label><label><span>Material de fabricación{isRequired("material") ? " *" : ""}</span><input name="material" required={isRequired("material")} /></label><label className="checkbox-line"><input name="isReusable" type="checkbox" /><span>Reutilizable</span></label></> : null}
-    {consumable ? <><label><span>Presentación{isRequired("presentation") ? " *" : ""}</span><input name="presentation" required={isRequired("presentation")} /></label><label><span>Unidad de empaque{isRequired("model") ? " *" : ""}</span><input name="model" required={isRequired("model")} /></label></> : null}
-    {culture ? <><label><span>Tipo de medio{isRequired("cultureMediaType") ? " *" : ""}</span><input name="cultureMediaType" required={isRequired("cultureMediaType")} /></label><label><span>Preparación</span><select name="preparationType"><option value="COMMERCIAL">Comercial</option><option value="PREPARED">Preparado</option></select></label><label><span>Fabricante{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} /></label></> : null}
-    <span className="form-section-title field-span-two">Ubicación y existencias</span><label><span>Ubicación{isRequired("location") ? " *" : ""}</span><input name="location" required={isRequired("location")} /></label><label><span>Fecha de ingreso{isRequired("receivedAt") ? " *" : ""}</span><input name="receivedAt" type="date" required={isRequired("receivedAt")} /></label>{!material ? <label><span>Fecha de vencimiento{isRequired("expires") ? " *" : " (opcional)"}</span><input name="expires" type="date" required={isRequired("expires")} /></label> : null}<label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required list="item-units" defaultValue="unidades" /><datalist id="item-units">{COMMON_UNITS.map((option) => <option key={option} value={option} />)}</datalist></label>
+    <label><span>Código interno</span><input name="sku" required placeholder="RQ-0001" /></label><label><span>Nombre</span><input name="name" required defaultValue={prefill.name} /></label><label><span>Lote{isRequired("lot") ? " *" : " (opcional)"}</span><input name="lot" required={isRequired("lot")} /></label><label><span>Proveedor{isRequired("vendor") ? " *" : ""}</span><input name="vendor" required={isRequired("vendor")} defaultValue={prefill.vendor} /></label>
+    {reagent ? <><label><span>Fórmula{isRequired("formula") ? " *" : ""}</span><input name="formula" required={isRequired("formula")} defaultValue={prefill.formula} /></label><label><span>Concentración{isRequired("concentration") ? " *" : ""}</span><input name="concentration" required={isRequired("concentration")} defaultValue={prefill.concentration} /></label></> : null}
+    {material ? <><label><span>Marca{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} defaultValue={prefill.brand} /></label><label><span>Modelo o descripción{isRequired("model") ? " *" : ""}</span><input name="model" required={isRequired("model")} /></label><label><span>Material de fabricación{isRequired("material") ? " *" : ""}</span><input name="material" required={isRequired("material")} /></label><label className="checkbox-line"><input name="isReusable" type="checkbox" /><span>Reutilizable</span></label></> : null}
+    {consumable ? <><label><span>Presentación{isRequired("presentation") ? " *" : ""}</span><input name="presentation" required={isRequired("presentation")} defaultValue={prefill.presentation} /></label><label><span>Unidad de empaque{isRequired("model") ? " *" : ""}</span><input name="model" required={isRequired("model")} /></label></> : null}
+    {culture ? <><label><span>Tipo de medio{isRequired("cultureMediaType") ? " *" : ""}</span><input name="cultureMediaType" required={isRequired("cultureMediaType")} /></label><label><span>Preparación</span><select name="preparationType"><option value="COMMERCIAL">Comercial</option><option value="PREPARED">Preparado</option></select></label><label><span>Fabricante{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} defaultValue={prefill.brand} /></label></> : null}
+    <span className="form-section-title field-span-two">Ubicación y existencias</span><label><span>Ubicación{isRequired("location") ? " *" : ""}</span><input name="location" required={isRequired("location")} /></label><label><span>Fecha de ingreso{isRequired("receivedAt") ? " *" : ""}</span><input name="receivedAt" type="date" required={isRequired("receivedAt")} /></label>{!material ? <label><span>Fecha de vencimiento{isRequired("expires") ? " *" : " (opcional)"}</span><input name="expires" type="date" required={isRequired("expires")} /></label> : null}<label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required list="item-units" defaultValue={prefill.unit || "unidades"} /><datalist id="item-units">{COMMON_UNITS.map((option) => <option key={option} value={option} />)}</datalist></label>
     <span className="form-section-title field-span-two">Controles</span><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={!material} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input key={itemType} name="requiresUsageLog" type="checkbox" defaultChecked={reagent || culture} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" /><span>Permitir descarte directo</span></label>
     <span className="form-section-title field-span-two"><Lock size={14} /> Control de doble uso o precursores</span>
     <div className="field-span-two controlled-question">
@@ -967,7 +1028,7 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
     <span className="form-section-title field-span-two">Ficha de seguridad o técnica{isRequired("safetySheet") ? " *" : ""}</span>
     <div className="field-span-two"><FileDropZone name="safetySheetFile" required={isRequired("safetySheet")} hint="Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla" /></div>
     <label className="field-span-two"><span>… o enlace externo a la ficha (URL)</span><input name="safetySheetUrl" type="url" placeholder="https://…" /></label>
-    {(reagent || culture) ? <label className="field-span-two"><span>Condiciones de almacenamiento{isRequired("storageConditions") ? " *" : ""}</span><textarea name="storageConditions" rows={2} required={isRequired("storageConditions")} /></label> : null}<label className="field-span-two"><span>Observaciones{isRequired("notes") ? " *" : ""}</span><textarea name="notes" rows={2} required={isRequired("notes")} /></label><CustomFieldInputs defs={customDefs} />
+    {(reagent || culture) ? <label className="field-span-two"><span>Condiciones de almacenamiento{isRequired("storageConditions") ? " *" : ""}</span><textarea name="storageConditions" rows={2} required={isRequired("storageConditions")} defaultValue={prefill.storageConditions} /></label> : null}<label className="field-span-two"><span>Observaciones{isRequired("notes") ? " *" : ""}</span><textarea name="notes" rows={2} required={isRequired("notes")} defaultValue={prefill.notes} /></label><CustomFieldInputs defs={customDefs} />
   </div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 

@@ -21,6 +21,7 @@ import {
   Settings2,
   ShieldAlert,
   ShieldCheck,
+  ShoppingCart,
   Stethoscope,
   TestTube2,
   UsersRound,
@@ -41,6 +42,7 @@ export type ModuleKey =
   | "controlled"
   | "equipment"
   | "education"
+  | "purchasing"
   | "quality"
   | "documents"
   | "logbooks"
@@ -72,6 +74,7 @@ export const navigation = [
       { key: "inventory", label: "Inventario y reactivos", icon: Boxes, href: "/app/inventory" },
       { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
       { key: "equipment", label: "Equipos y calibración", icon: Microscope, href: "/app/equipment" },
+      { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
       { key: "education", label: "Prácticas educativas", icon: GraduationCap, href: "/app/education" },
     ],
   },
@@ -141,6 +144,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
         { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
         { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
@@ -163,6 +167,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
         { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
         { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
@@ -185,6 +190,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
         { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
         { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
@@ -208,6 +214,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
         { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
         { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
         { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
       ],
@@ -231,6 +238,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
         { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
         { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
         { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
         { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
         { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
       ],
