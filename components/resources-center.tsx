@@ -4,7 +4,14 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Archive, BellRing, Boxes, CheckCircle2, FileCheck2, Lock, PackageCheck, Plus, ScanBarcode, ShieldCheck, Sparkles, Trash2, Wrench } from "lucide-react";
 import { ActionModal, ConfirmModal, FileDropZone, Toast, useToast } from "@/components/action-kit";
-import { CONTROL_KIND_LABEL, CONTROL_KIND_OPTIONS, isStockReducingMovement } from "@/lib/controlled-reagents";
+import {
+  CONTROL_KIND_LABEL,
+  CONTROL_KIND_OPTIONS,
+  DEFAULT_CONTROLLED_POLICY,
+  authorizedQuantity,
+  isStockReducingMovement,
+  type ControlledUsagePolicy,
+} from "@/lib/controlled-reagents";
 import { QrLabelManager, QrScanTester } from "@/components/qr-label-manager";
 import { defaultInventoryCategories } from "@/lib/lab-profile";
 import { formatDate, formatDateTime, toDateInputValue } from "@/lib/dates";
@@ -669,8 +676,8 @@ function ResourceSection({ title, copy, action, onAction, actionTutorialId, disa
 
 // ─── Modales ─────────────────────────────────────────────────────────────────
 
-function ModalFooter({ onClose, saving }: Readonly<{ onClose: () => void; saving?: boolean }>) {
-  return <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Guardar"}</button></footer>;
+function ModalFooter({ onClose, saving, disabled }: Readonly<{ onClose: () => void; saving?: boolean; disabled?: boolean }>) {
+  return <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button" disabled={saving || disabled}>{saving ? "Guardando…" : "Guardar"}</button></footer>;
 }
 
 function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, onArchive, onEdit }: Readonly<{
@@ -1055,12 +1062,23 @@ function movementEnumFor(label: string): { movementType: string; direction?: "IN
   return { movementType, direction };
 }
 
+// Autorización de uso vigente con la que se puede consumir un reactivo
+// controlado sin volver a capturar la trazabilidad.
+type UsableAuthorization = {
+  id: string; request_code: string; quantity: number | string; approved_quantity: number | string | null;
+  unit: string; used_by_person: string; usage_area: string; usage_purpose: string; expires_at: string | null;
+};
+
 function InventoryMovementModal({ open, items, locations, onClose, onSave }: Readonly<{ open: boolean; items: InventoryRaw[]; locations: TableRow[]; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const [movement, setMovement] = useState<string>("Consumo");
   const [itemId, setItemId] = useState("");
   const [quantityText, setQuantityText] = useState("");
   const [unit, setUnit] = useState("");
+  const [authorizations, setAuthorizations] = useState<UsableAuthorization[]>([]);
+  const [authorizationId, setAuthorizationId] = useState("");
+  const [canAuthorize, setCanAuthorize] = useState(false);
+  const [policy, setPolicy] = useState<ControlledUsagePolicy>(DEFAULT_CONTROLLED_POLICY);
 
   const selectedItem = items.find((item) => item.id === itemId) ?? items[0];
   const effectiveUnit = unit || selectedItem?.unit || "unidades";
@@ -1072,6 +1090,41 @@ function InventoryMovementModal({ open, items, locations, onClose, onSave }: Rea
     const used = items.map((item) => item.unit).filter(Boolean);
     return [...new Set([...(selectedItem ? [selectedItem.unit] : []), ...used, ...COMMON_UNITS])];
   }, [items, selectedItem]);
+
+  // Autorizaciones vigentes del reactivo controlado seleccionado: con una de
+  // ellas el consumo no vuelve a pedir la trazabilidad (ya está capturada).
+  const selectedItemId = selectedItem?.id ?? "";
+  useEffect(() => {
+    if (!open || !controlledConsumption || !selectedItemId) { setAuthorizations([]); setAuthorizationId(""); return; }
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/inventory/controlled/requests?itemId=${encodeURIComponent(selectedItemId)}&usable=1`);
+        if (!response.ok) return;
+        const payload = await response.json() as {
+          data?: UsableAuthorization[]; canAuthorize?: boolean; policy?: ControlledUsagePolicy | null;
+        };
+        if (!active) return;
+        const usable = payload.data ?? [];
+        setAuthorizations(usable);
+        setCanAuthorize(Boolean(payload.canAuthorize));
+        setPolicy(payload.policy ?? DEFAULT_CONTROLLED_POLICY);
+        // Con una sola autorización vigente se preselecciona: un clic menos.
+        setAuthorizationId(usable.length === 1 ? usable[0].id : "");
+      } catch {
+        // Sin autorizaciones cargadas el formulario cae al registro manual.
+      }
+    })();
+    return () => { active = false; };
+  }, [open, controlledConsumption, selectedItemId]);
+
+  const chosenAuthorization = authorizations.find((authorization) => authorization.id === authorizationId) ?? null;
+  // Falta autorización previa y el usuario no puede autorizarse a sí mismo: es
+  // el caso que antes obligaba a llevar la hoja firmada al responsable.
+  const authorizationMissing = controlledConsumption && policy.requirePreapproval && !canAuthorize && !chosenAuthorization;
+  // Solo se piden los campos de trazabilidad cuando no hay autorización que ya
+  // los traiga.
+  const needsManualTrace = controlledConsumption && !chosenAuthorization;
 
   // Vista previa del saldo: cuánto quedará después del movimiento.
   const preview = useMemo(() => {
@@ -1093,7 +1146,7 @@ function InventoryMovementModal({ open, items, locations, onClose, onSave }: Rea
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const chosenId = String(data.get("itemId") ?? "");
-    if (!chosenId || preview?.error) return;
+    if (!chosenId || preview?.error || authorizationMissing) return;
     const quantity = Number(data.get("quantity") ?? 0);
     const { movementType, direction } = movementEnumFor(String(data.get("type")));
     setSaving(true);
@@ -1106,9 +1159,11 @@ function InventoryMovementModal({ open, items, locations, onClose, onSave }: Rea
       usagePurpose: String(data.get("usagePurpose") ?? "").trim() || undefined,
       usedByPerson: String(data.get("usedByPerson") ?? "").trim() || undefined,
       authorizedBy: String(data.get("authorizedBy") ?? "").trim() || undefined,
+      // Con autorización, el servidor toma de ella la trazabilidad y la cierra.
+      usageRequestId: chosenAuthorization?.id,
     });
     setSaving(false);
-    if (ok) { onClose(); setQuantityText(""); setUnit(""); }
+    if (ok) { onClose(); setQuantityText(""); setUnit(""); setAuthorizationId(""); }
   }
   const activeOption = MOVEMENT_OPTIONS.find((option) => option.key === movement) ?? MOVEMENT_OPTIONS[0];
   return <ActionModal open={open} title="Registrar movimiento" description="Cada cambio conserva cantidad, unidad, motivo y responsable." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid">
@@ -1126,15 +1181,41 @@ function InventoryMovementModal({ open, items, locations, onClose, onSave }: Rea
     {controlledConsumption ? (
       <div className="controlled-consumption">
         <p className="controlled-alert"><Lock size={14} /> Reactivo controlado{controlKindLabel ? ` · ${controlKindLabel}` : ""}. No puede descontarse del inventario sin registro de trazabilidad completa.</p>
-        <div className="form-grid">
-          <label><span>Usuario/persona que lo utilizó *</span><input name="usedByPerson" required placeholder="Nombre de quien realizó el consumo" /></label>
-          <label><span>Área, laboratorio o proyecto relacionado *</span><input name="usageArea" required placeholder="Ej. Laboratorio de Química / Proyecto síntesis" /></label>
-          <label><span>Motivo o finalidad de uso *</span><textarea name="usagePurpose" required rows={2} placeholder="Para qué se utilizó el reactivo" /></label>
-          <label><span>Responsable que autoriza o valida <small>(opcional)</small></span><input name="authorizedBy" placeholder="Nombre del responsable, si aplica" /></label>
-        </div>
+        {authorizations.length > 0 ? (
+          <label>
+            <span>Autorización del responsable {policy.requirePreapproval && !canAuthorize ? "*" : <small>(opcional)</small>}</span>
+            <select value={authorizationId} onChange={(event) => setAuthorizationId(event.target.value)}>
+              <option value="">{policy.requirePreapproval && !canAuthorize ? "Selecciona la autorización…" : "Sin autorización previa"}</option>
+              {authorizations.map((authorization) => (
+                <option key={authorization.id} value={authorization.id}>
+                  {authorization.request_code} · {authorizedQuantity(authorization)} {authorization.unit} · {authorization.usage_purpose}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {chosenAuthorization ? (
+          <p className="modal-note">
+            Trazabilidad tomada de la autorización <strong>{chosenAuthorization.request_code}</strong>: usa {chosenAuthorization.used_by_person} · {chosenAuthorization.usage_area} · {chosenAuthorization.usage_purpose}
+            {chosenAuthorization.expires_at ? ` · vigente hasta ${formatDateTime(chosenAuthorization.expires_at)}` : ""}. No necesitas escribirla de nuevo.
+          </p>
+        ) : null}
+        {authorizationMissing ? (
+          <p className="form-error" role="alert">
+            Este consumo requiere la autorización previa del responsable. Pídela en <strong>Reactivos controlados → Solicitar uso</strong>; cuando la autorice podrás registrar el consumo en un clic.
+          </p>
+        ) : null}
+        {needsManualTrace && !authorizationMissing ? (
+          <div className="form-grid">
+            <label><span>Usuario/persona que lo utilizó *</span><input name="usedByPerson" required placeholder="Nombre de quien realizó el consumo" /></label>
+            <label><span>Área, laboratorio o proyecto relacionado *</span><input name="usageArea" required placeholder="Ej. Laboratorio de Química / Proyecto síntesis" /></label>
+            <label><span>Motivo o finalidad de uso *</span><textarea name="usagePurpose" required rows={2} placeholder="Para qué se utilizó el reactivo" /></label>
+            <label><span>Responsable que autoriza o valida <small>(opcional)</small></span><input name="authorizedBy" placeholder="Nombre del responsable, si aplica" /></label>
+          </div>
+        ) : null}
       </div>
     ) : null}
-  </div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  </div><ModalFooter onClose={onClose} saving={saving} disabled={authorizationMissing} /></form></ActionModal>;
 }
 
 function LocationModal({ open, onClose, onSave }: Readonly<{ open: boolean; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {

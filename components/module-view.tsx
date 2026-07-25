@@ -173,7 +173,7 @@ function displayCell(key: string, value: string | number) {
 export function ModuleView({ module, session }: { module: Exclude<ModuleKey, "dashboard">; session?: UserSession }) {
   const role = session?.role;
   if (module === "inventory") return <InventoryCenter />;
-  if (module === "controlled") return <ControlledReagentsCenter />;
+  if (module === "controlled") return <ControlledReagentsCenter session={session} />;
   if (module === "equipment") return <EquipmentCenter />;
   if (module === "purchasing") return <PurchasingCenter session={session} />;
   if (module === "education") return <EducationCenter role={role as Parameters<typeof EducationCenter>[0]["role"]} />;

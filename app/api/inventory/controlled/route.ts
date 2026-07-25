@@ -13,7 +13,15 @@ import { hasPermission } from "@/lib/authorization";
 function isMissingMigration(error: unknown): boolean {
   const text = error instanceof Error ? error.message : String(error);
   // 42703 = undefined_column (is_controlled / usage_* aún sin migrar).
-  return text.includes("is_controlled") || text.includes("usage_area") || text.includes("42703");
+  // 42P01 = undefined_table (controlled_usage_requests, migración 0020).
+  return (
+    text.includes("is_controlled") ||
+    text.includes("usage_area") ||
+    text.includes("controlled_usage_requests") ||
+    text.includes("usage_request_id") ||
+    text.includes("42703") ||
+    text.includes("42P01")
+  );
 }
 
 export async function GET(request: Request) {
@@ -46,14 +54,29 @@ export async function GET(request: Request) {
       const movements = await sql`
         SELECT m.id, m.movement_type, m.quantity_delta, m.previous_quantity, m.resulting_quantity,
           m.reason_code, m.note, m.usage_area, m.usage_purpose, m.used_by_person, m.authorized_by, m.performed_at,
-          pu.full_name AS performed_by
+          pu.full_name AS performed_by, r.request_code AS authorization_code
         FROM inventory_movements m
         LEFT JOIN users pu ON pu.id = m.performed_by
+        LEFT JOIN controlled_usage_requests r ON r.id = m.usage_request_id
         WHERE m.inventory_item_id = ${itemIdParam} AND m.laboratory_id = ${session.laboratoryId}
         ORDER BY m.performed_at DESC
         LIMIT 500
       `;
-      return NextResponse.json({ data: { ...items[0], movements }, mode: "database" });
+      // Autorizaciones del reactivo: dejan ver qué se pidió, quién autorizó y
+      // qué consumo cerró cada folio.
+      const requests = await sql`
+        SELECT r.id, r.request_code, r.status, r.quantity, r.approved_quantity, r.unit,
+          r.used_by_person, r.usage_area, r.usage_purpose, r.planned_for, r.notes,
+          r.expires_at, r.review_note, r.reviewed_at, r.consumed_at, r.consumed_quantity, r.created_at,
+          rq.full_name AS requested_by_name, rv.full_name AS reviewed_by_name
+        FROM controlled_usage_requests r
+        LEFT JOIN users rq ON rq.id = r.requested_by
+        LEFT JOIN users rv ON rv.id = r.reviewed_by
+        WHERE r.inventory_item_id = ${itemIdParam} AND r.laboratory_id = ${session.laboratoryId}
+        ORDER BY r.created_at DESC
+        LIMIT 200
+      `;
+      return NextResponse.json({ data: { ...items[0], movements, requests }, mode: "database" });
     }
 
     const rows = await sql`
@@ -71,7 +94,22 @@ export async function GET(request: Request) {
       WHERE i.laboratory_id = ${session.laboratoryId} AND i.is_controlled = TRUE
       ORDER BY i.status ASC, i.name ASC
     `;
-    return NextResponse.json({ data: rows, mode: "database" });
+    // Solicitudes por autorizar de cada reactivo. Va en una consulta aparte para
+    // que la lista siga funcionando si la migración 0020 aún no se aplicó.
+    let pendingByItem: Record<string, number> = {};
+    try {
+      const pendingRows = await sql`
+        SELECT inventory_item_id, count(*)::int AS total
+        FROM controlled_usage_requests
+        WHERE laboratory_id = ${session.laboratoryId} AND status = 'PENDING'
+        GROUP BY inventory_item_id
+      `;
+      pendingByItem = Object.fromEntries(pendingRows.map((row) => [String(row.inventory_item_id), Number(row.total)]));
+    } catch (error) {
+      if (!isMissingMigration(error)) throw error;
+    }
+    const data = rows.map((row) => ({ ...row, pending_requests: pendingByItem[String(row.id)] ?? 0 }));
+    return NextResponse.json({ data, mode: "database" });
   } catch (error) {
     if (isMissingMigration(error)) {
       return NextResponse.json({ data: itemIdParam ? null : [], mode: "pending-migration" });

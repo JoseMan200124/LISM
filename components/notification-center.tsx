@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bell, CheckCheck, CircleAlert, GraduationCap, Info } from "lucide-react";
+import { AlertTriangle, Bell, CheckCheck, CircleAlert, GraduationCap, Info, Lock } from "lucide-react";
 import type { NotificationItem, NotificationSeverity } from "@/lib/notifications";
 import { notifyNotificationCountChanged } from "@/components/sidebar-alert-count";
 
 function severityIcon(item: NotificationItem) {
   if (item.type === "education") return <GraduationCap size={15} />;
+  if (item.type === "controlled") return <Lock size={15} />;
   const bySeverity: Record<NotificationSeverity, React.ReactNode> = {
     CRITICAL: <AlertTriangle size={15} />,
     HIGH: <AlertTriangle size={15} />,
@@ -41,6 +42,7 @@ function badgeClass(item: NotificationItem): string {
 
 function badgeLabel(item: NotificationItem): string {
   if (item.type === "education") return "Aviso";
+  if (item.type === "controlled") return "Autorización";
   const map: Record<NotificationSeverity, string> = {
     CRITICAL: "Crítica", HIGH: "Alta", WARNING: "Advertencia", INFO: "Info",
   };

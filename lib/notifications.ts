@@ -2,13 +2,14 @@ import { hasPermission } from "@/lib/authorization";
 import { getSql, hasDatabase } from "@/lib/db";
 import { incidentRows } from "@/lib/demo-data";
 import { isEducationalProfile } from "@/lib/lab-profile";
+import { canAuthorizeControlled, isMissingAuthorizationMigration } from "@/lib/controlled-usage-service";
 import type { UserSession } from "@/lib/session";
 
 export type NotificationSeverity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 
 export type NotificationItem = {
   key: string;
-  type: "alert" | "education";
+  type: "alert" | "education" | "controlled";
   severity: NotificationSeverity;
   title: string;
   body: string | null;
@@ -135,6 +136,74 @@ export async function resolveNotifications(
         createdAt: toIso(row.publish_at),
         isRead: false,
       });
+    }
+  }
+
+  // Autorizaciones de reactivos controlados: sustituyen el ir y venir con la
+  // hoja de papel. Al responsable le llegan las solicitudes por autorizar; al
+  // solicitante, la respuesta. Si la migración 0020 no está aplicada, el bloque
+  // se omite en silencio.
+  if (hasPermission(session, "inventory.view")) {
+    try {
+      if (canAuthorizeControlled(session)) {
+        const pendingRows = await sql`
+          SELECT r.id, r.request_code, r.quantity, r.unit, r.usage_purpose, r.created_at,
+            i.name AS item_name, rq.full_name AS requested_by_name
+          FROM controlled_usage_requests r
+          JOIN inventory_items i ON i.id = r.inventory_item_id AND i.laboratory_id = r.laboratory_id
+          LEFT JOIN users rq ON rq.id = r.requested_by
+          WHERE r.laboratory_id = ${session.laboratoryId} AND r.status = 'PENDING'
+          ORDER BY r.created_at DESC LIMIT 30
+        `;
+        for (const row of pendingRows as Array<Record<string, unknown>>) {
+          items.push({
+            key: `controlled:${row.id}:PENDING`,
+            type: "controlled",
+            severity: "WARNING",
+            title: `Por autorizar: ${String(row.item_name ?? "reactivo controlado")}`,
+            body: `${String(row.requested_by_name ?? "Un usuario")} solicita ${String(row.quantity)} ${String(row.unit ?? "")} · ${String(row.usage_purpose ?? "")}`.trim(),
+            targetUrl: `/app/controlled?tab=authorizations&requestId=${row.id}`,
+            createdAt: toIso(row.created_at),
+            isRead: false,
+          });
+        }
+      }
+
+      // Respuesta a mis solicitudes: autorizadas vigentes por consumir y
+      // rechazos recientes.
+      const mineRows = await sql`
+        SELECT r.id, r.request_code, r.status, r.approved_quantity, r.quantity, r.unit,
+          r.expires_at, r.review_note, r.reviewed_at, i.name AS item_name,
+          rv.full_name AS reviewed_by_name
+        FROM controlled_usage_requests r
+        JOIN inventory_items i ON i.id = r.inventory_item_id AND i.laboratory_id = r.laboratory_id
+        LEFT JOIN users rv ON rv.id = r.reviewed_by
+        WHERE r.laboratory_id = ${session.laboratoryId} AND r.requested_by = ${session.userId}
+          AND (
+            (r.status = 'APPROVED' AND r.consumed_at IS NULL AND (r.expires_at IS NULL OR r.expires_at > now()))
+            OR (r.status = 'REJECTED' AND r.reviewed_at > now() - INTERVAL '7 days')
+          )
+        ORDER BY r.reviewed_at DESC LIMIT 30
+      `;
+      for (const row of mineRows as Array<Record<string, unknown>>) {
+        const approved = String(row.status) === "APPROVED";
+        items.push({
+          key: `controlled:${row.id}:${String(row.status)}`,
+          type: "controlled",
+          severity: approved ? "INFO" : "WARNING",
+          title: approved
+            ? `Uso autorizado: ${String(row.item_name ?? "reactivo controlado")}`
+            : `Solicitud rechazada: ${String(row.item_name ?? "reactivo controlado")}`,
+          body: approved
+            ? `${String(row.approved_quantity ?? row.quantity)} ${String(row.unit ?? "")} autorizados por ${String(row.reviewed_by_name ?? "el responsable")} · folio ${String(row.request_code)}. Ya puedes registrar el consumo.`.trim()
+            : `${String(row.reviewed_by_name ?? "El responsable")}: ${String(row.review_note ?? "sin motivo indicado")}`,
+          targetUrl: `/app/controlled?tab=authorizations&requestId=${row.id}`,
+          createdAt: toIso(row.reviewed_at ?? row.expires_at),
+          isRead: false,
+        });
+      }
+    } catch (error) {
+      if (!isMissingAuthorizationMigration(error)) throw error;
     }
   }
 

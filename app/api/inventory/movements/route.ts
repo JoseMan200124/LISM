@@ -7,7 +7,16 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { convertQuantity } from "@/lib/units";
-import { isStockReducingMovement, missingControlledFields, controlledLogErrorMessage } from "@/lib/controlled-reagents";
+import {
+  isStockReducingMovement,
+  missingControlledFields,
+  controlledLogErrorMessage,
+  authorizationState,
+  authorizationRequiredMessage,
+  checkAuthorizedQuantity,
+  AUTHORIZATION_STATE_MESSAGE,
+} from "@/lib/controlled-reagents";
+import { canAuthorizeControlled, loadControlledContext } from "@/lib/controlled-usage-service";
 
 const schema = z.object({
   inventoryItemId: databaseIdSchema,
@@ -30,6 +39,9 @@ const schema = z.object({
   usagePurpose: z.string().max(1000).optional(),
   usedByPerson: z.string().max(200).optional(),
   authorizedBy: z.string().max(200).optional(),
+  // Autorización previa del responsable que ampara este consumo. Cuando viene,
+  // el servidor toma de ella la trazabilidad (fuente de verdad) y la cierra.
+  usageRequestId: databaseIdSchema.optional(),
 }).superRefine((value, ctx) => {
   if (value.movementType === "TRANSFER" && (!value.fromLocationId || !value.toLocationId || value.fromLocationId === value.toLocationId)) {
     ctx.addIssue({ code: "custom", path: ["toLocationId"], message: "La transferencia requiere ubicaciones de origen y destino diferentes." });
@@ -78,14 +90,75 @@ export async function POST(request: Request) {
 
   // Regla clave: un reactivo controlado (doble uso o precursor) no puede
   // descontarse del inventario sin un registro de consumo con trazabilidad
-  // completa (área/proyecto, finalidad y quién lo utilizó).
+  // completa (área/proyecto, finalidad y quién lo utilizó). Desde la migración
+  // 0020 ese registro puede venir de una autorización previa del responsable:
+  // el usuario ya no llena nada al consumir, solo elige su autorización.
   const reducesStock = isStockReducingMovement(payload.movementType, payload.direction);
+  let trace = {
+    usageArea: payload.usageArea?.trim() || null,
+    usagePurpose: payload.usagePurpose?.trim() || null,
+    usedByPerson: payload.usedByPerson?.trim() || null,
+    authorizedBy: payload.authorizedBy?.trim() || null,
+  };
+  let authorization: Record<string, unknown> | null = null;
+
   if (item.is_controlled && reducesStock) {
-    const missing = missingControlledFields({
-      usageArea: payload.usageArea,
-      usagePurpose: payload.usagePurpose,
-      usedByPerson: payload.usedByPerson,
-    });
+    const { policy, available } = await loadControlledContext(session.laboratoryId);
+
+    if (payload.usageRequestId) {
+      if (!available) {
+        return NextResponse.json({ message: "La autorización digital estará disponible al aplicar la actualización de base de datos (migración 0020)." }, { status: 503 });
+      }
+      const found = await sql`
+        SELECT r.*, rv.full_name AS reviewed_by_name
+        FROM controlled_usage_requests r
+        LEFT JOIN users rv ON rv.id = r.reviewed_by
+        WHERE r.id = ${payload.usageRequestId} AND r.laboratory_id = ${session.laboratoryId}
+        LIMIT 1
+      `;
+      const candidate = found[0] as Record<string, unknown> | undefined;
+      if (!candidate) return NextResponse.json({ message: "Autorización no encontrada." }, { status: 404 });
+      if (String(candidate.inventory_item_id) !== payload.inventoryItemId) {
+        return NextResponse.json({ message: "La autorización corresponde a otro reactivo." }, { status: 400 });
+      }
+      // Solo puede usarla quien la solicitó o el responsable del laboratorio.
+      if (String(candidate.requested_by) !== session.userId && !canAuthorizeControlled(session)) {
+        return NextResponse.json({ message: "Esta autorización pertenece a otra persona." }, { status: 403 });
+      }
+      const state = authorizationState({
+        status: String(candidate.status),
+        quantity: Number(candidate.quantity),
+        approved_quantity: candidate.approved_quantity as number | null,
+        expires_at: candidate.expires_at as string | null,
+        consumed_at: candidate.consumed_at as string | null,
+      });
+      if (state !== "USABLE") {
+        return NextResponse.json(
+          { success: false, error: "AUTHORIZATION_NOT_USABLE", message: AUTHORIZATION_STATE_MESSAGE[state] },
+          { status: 409 },
+        );
+      }
+      authorization = candidate;
+      // La trazabilidad la manda la autorización, no el formulario.
+      trace = {
+        usageArea: String(candidate.usage_area),
+        usagePurpose: String(candidate.usage_purpose),
+        usedByPerson: String(candidate.used_by_person),
+        authorizedBy: `${String(candidate.reviewed_by_name ?? "Responsable del laboratorio")} · ${String(candidate.request_code)}`,
+      };
+    } else if (available && policy.requirePreapproval && !canAuthorizeControlled(session)) {
+      // Sin autorización previa y sin potestad para autorizar: es exactamente el
+      // caso que antes obligaba a llevar la hoja firmada al responsable.
+      return NextResponse.json(
+        { success: false, error: "CONTROLLED_AUTHORIZATION_REQUIRED", message: authorizationRequiredMessage(String(item.name ?? "")) },
+        { status: 400 },
+      );
+    } else if (!trace.authorizedBy && canAuthorizeControlled(session)) {
+      // El responsable autoriza en el acto: queda registrado como tal.
+      trace.authorizedBy = `${session.name} (autorizado en el acto)`;
+    }
+
+    const missing = missingControlledFields(trace);
     if (missing.length > 0) {
       return NextResponse.json(
         { success: false, error: "CONTROLLED_LOG_REQUIRED", message: controlledLogErrorMessage(missing), fields: missing },
@@ -111,6 +184,18 @@ export async function POST(request: Request) {
   }
   const quantityDelta = signedQuantity(quantity, payload);
 
+  // La cantidad a descontar debe caber en lo que el responsable autorizó.
+  if (authorization) {
+    const overLimit = checkAuthorizedQuantity(
+      { status: String(authorization.status), quantity: Number(authorization.quantity), approved_quantity: authorization.approved_quantity as number | null },
+      quantity,
+      itemUnit,
+    );
+    if (overLimit) {
+      return NextResponse.json({ success: false, error: "OVER_AUTHORIZED_QUANTITY", message: overLimit }, { status: 400 });
+    }
+  }
+
   // Validación amistosa de saldo: el trigger de la base también lo impide,
   // pero aquí se explica cuánto hay disponible y en qué unidad.
   const available = Number(item.quantity);
@@ -133,10 +218,35 @@ export async function POST(request: Request) {
     ) VALUES (
       ${session.laboratoryId}, ${payload.inventoryItemId}, ${payload.movementType}, ${quantityDelta}, ${conversionNote},
       ${session.userId}, ${session.userId}, ${payload.referenceType ?? null}, ${payload.referenceId ?? null}, ${payload.reasonCode}, ${payload.fromLocationId ?? null}, ${payload.toLocationId ?? null}, ${payload.movementType === "TRANSFER" ? quantity : null},
-      ${payload.usageArea?.trim() || null}, ${payload.usagePurpose?.trim() || null}, ${payload.usedByPerson?.trim() || null}, ${payload.authorizedBy?.trim() || null}
+      ${trace.usageArea}, ${trace.usagePurpose}, ${trace.usedByPerson}, ${trace.authorizedBy}
     ) RETURNING *
   `;
   if (payload.movementType === "TRANSFER") await sql`UPDATE inventory_items SET storage_location_id = ${payload.toLocationId!}, updated_at = now() WHERE id = ${payload.inventoryItemId} AND laboratory_id = ${session.laboratoryId}`;
+
+  // Cierra la autorización: queda consumida y ligada al movimiento, de modo que
+  // no puede reutilizarse y el historial muestra su folio.
+  if (authorization) {
+    await sql`
+      UPDATE controlled_usage_requests
+      SET status = 'CONSUMED', consumed_movement_id = ${String(rows[0].id)}, consumed_quantity = ${quantity},
+        consumed_at = now(), updated_at = now()
+      WHERE id = ${String(authorization.id)} AND laboratory_id = ${session.laboratoryId} AND consumed_at IS NULL
+    `;
+    await sql`
+      UPDATE inventory_movements SET usage_request_id = ${String(authorization.id)}
+      WHERE id = ${String(rows[0].id)} AND laboratory_id = ${session.laboratoryId}
+    `;
+    await writeAuditEvent(session, {
+      action: "CONTROLLED_USAGE_CONSUMED",
+      entityType: "controlled_usage_request",
+      entityId: String(authorization.id),
+      previousValue: { status: authorization.status },
+      newValue: { status: "CONSUMED", movementId: rows[0].id, quantity },
+      reason: `Consumo amparado por la autorización ${String(authorization.request_code)}`,
+      metadata: { itemId: payload.inventoryItemId, sku: item.sku },
+      request,
+    });
+  }
   await writeAuditEvent(session, { action: "INVENTORY_MOVEMENT_CREATED", entityType: "inventory_item", entityId: payload.inventoryItemId, previousValue: { quantity: rows[0].previous_quantity }, newValue: { quantity: rows[0].resulting_quantity }, reason: payload.note || payload.reasonCode, metadata: { movementId: rows[0].id, movementType: payload.movementType }, request });
   return NextResponse.json({ data: rows[0] }, { status: 201 });
 }

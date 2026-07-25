@@ -77,10 +77,12 @@ const STATUS_PILL_MAP: Record<string, string> = {
   completada: "status-pill-success", completado: "status-pill-success",
   implementado: "status-pill-success", entregada: "status-pill-success",
   aprobada: "status-pill-success", aprobado: "status-pill-success",
-  devuelta: "status-pill-success",
+  devuelta: "status-pill-success", autorizada: "status-pill-success",
+  autorizado: "status-pill-success", vigente: "status-pill-success",
   // Advertencia / en proceso
   preparación: "status-pill-warning", "en preparación": "status-pill-warning",
   pendiente: "status-pill-warning", vigilar: "status-pill-warning",
+  "por autorizar": "status-pill-warning",
   "en mantenimiento": "status-pill-warning", "en curso": "status-pill-warning",
   "en revisión": "status-pill-warning", parcial: "status-pill-partial",
   // Info / planificado
@@ -93,10 +95,11 @@ const STATUS_PILL_MAP: Record<string, string> = {
   // Oscuro / finalizado
   ejecutada: "status-pill-dark", ejecutado: "status-pill-dark",
   cerrada: "status-pill-dark", cerrado: "status-pill-dark",
+  consumida: "status-pill-dark", consumido: "status-pill-dark",
   // Peligro / crítico
   cancelada: "status-pill-danger", cancelado: "status-pill-danger",
   rechazada: "status-pill-danger", rechazado: "status-pill-danger",
-  vencido: "status-pill-danger", crítica: "status-pill-danger",
+  vencido: "status-pill-danger", vencida: "status-pill-danger", crítica: "status-pill-danger",
   alta: "status-pill-danger", reponer: "status-pill-danger",
   "fuera de servicio": "status-pill-danger",
   // Severidades

@@ -80,8 +80,81 @@ obliga a capturar la información mínima que exige una auditoría regulatoria.
 > trazabilidad completa: **qué se usó, cuánto se usó, cuándo, quién lo usó y para
 > qué se usó.**
 
+## Ampliación — Autorización digital previa (julio 2026)
+
+Antes, aunque el consumo quedaba registrado, el permiso para usar el reactivo se
+gestionaba **en papel**: la persona llenaba una hoja, la llevaba físicamente al
+responsable, esperaba la firma y regresaba con ella para poder usar el reactivo.
+Ese ir y venir ya ocurre dentro del sistema.
+
+### Flujo
+
+1. **Solicitar uso.** En *Reactivos controlados* → **Solicitar uso**, la persona
+   llena una sola vez el reactivo, la cantidad, quién lo usará, el área o
+   proyecto, la finalidad y (opcional) la fecha prevista. El sistema asigna un
+   folio correlativo `AU-<año>-NNN`.
+2. **Notificación al responsable.** La solicitud aparece en su bandeja
+   *Autorizaciones* y en sus notificaciones, sin que nadie tenga que buscarlo.
+3. **Autorizar o rechazar.** El responsable autoriza (pudiendo ajustar la
+   cantidad y la vigencia) o rechaza indicando el motivo. Todo queda con su
+   nombre y sello de tiempo.
+4. **Aviso de vuelta.** El solicitante recibe la notificación de la respuesta.
+5. **Consumo en un clic.** Con la autorización vigente, *Registrar consumo* solo
+   pide confirmar la cantidad: la trazabilidad ya viene de la autorización y no
+   se vuelve a escribir. El movimiento descuenta existencia y **cierra** la
+   autorización (`CONSUMED`), que no puede reutilizarse ni vencer dos veces.
+
+### Reglas
+
+- **CA11 — Autorización previa obligatoria.** Si el laboratorio exige
+  autorización previa, un usuario sin potestad de autorizar no puede descontar un
+  reactivo controlado sin una autorización **aprobada y vigente**; el sistema lo
+  rechaza explicando cómo solicitarla y **no** descuenta existencia.
+- **CA12 — El responsable no se bloquea.** Quien puede crear y editar inventario
+  (`inventory.manage`) puede consumir sin solicitud previa: el movimiento se
+  registra como *autorizado en el acto* por él mismo, con su nombre.
+- **CA13 — Cantidad acotada.** El consumo no puede exceder la cantidad
+  autorizada; si el responsable autorizó menos de lo pedido, manda su cantidad.
+- **CA14 — Vigencia.** Una autorización aprobada vence según la política del
+  laboratorio (72 horas por defecto, configurable de 1 a 720). Vencida, deja de
+  habilitar el consumo.
+- **CA15 — Un solo uso.** Cada autorización ampara un consumo. Al consumirse
+  queda ligada al movimiento (`inventory_movements.usage_request_id`) y su folio
+  aparece en el historial del reactivo.
+- **CA16 — Cancelación.** El solicitante (o el responsable) puede cancelar una
+  solicitud mientras no se haya consumido.
+- **CA17 — Trazabilidad de la autorización.** Solicitud, autorización, rechazo,
+  cancelación y consumo escriben en la bitácora
+  (`CONTROLLED_USAGE_REQUESTED / APPROVED / REJECTED / CANCELLED / CONSUMED`).
+- **CA18 — Exportación.** La bandeja de autorizaciones se exporta a CSV con
+  folio, cantidades solicitada y autorizada, quién solicita, quién autoriza,
+  fechas, vigencia y consumo.
+
+### Política configurable
+
+Un administrador (`configuration.manage`) decide en *Reactivos controlados →
+Autorizaciones*:
+
+- **Exigir autorización previa** antes de consumir (activado por defecto, pues
+  reproduce el control que el laboratorio ya ejercía en papel).
+- **Vigencia de la autorización** en horas.
+
+Se guarda en `laboratory_settings.controlled_usage_policy`. Con la autorización
+previa desactivada, el consumo se comporta como antes: exige el registro de
+trazabilidad completa, sin aprobación de nadie.
+
 ## Notas de implementación (referencia técnica)
 
+- **Autorización digital** (`database/0020_controlled_usage_authorization.sql`):
+  `controlled_usage_requests` (folio, cantidad solicitada y autorizada, vigencia,
+  cierre por consumo), `inventory_movements.usage_request_id` y
+  `laboratory_settings.controlled_usage_policy`. Reglas puras en
+  `lib/controlled-reagents.ts` (estados, vigencia, cantidad autorizada, política),
+  acceso a datos en `lib/controlled-usage-service.ts`, APIs en
+  `app/api/inventory/controlled/requests/` y `.../controlled/policy/`, y UI en
+  `components/controlled-reagents-center.tsx` (pestaña *Autorizaciones*) más el
+  selector de autorización del modal de consumo en `components/resources-center.tsx`.
+  Las notificaciones de ida y vuelta se resuelven en `lib/notifications.ts`.
 - **Base de datos** (`database/0018_controlled_reagents.sql`, aditiva e idempotente):
   `inventory_items.is_controlled`, `inventory_items.control_kind`; y en
   `inventory_movements`: `usage_area`, `usage_purpose`, `used_by_person`,
@@ -100,6 +173,9 @@ obliga a capturar la información mínima que exige una auditoría regulatoria.
 
 ## Fuera de alcance (posible backlog futuro)
 
-- Flujo de aprobación previa (workflow) del responsable que autoriza antes del consumo.
 - Cupos o límites máximos de consumo por período y alertas asociadas.
 - Reporte regulatorio con formato oficial específico por país.
+- Firma electrónica reautenticada (`electronic_signatures`) sobre la autorización,
+  además del registro en bitácora.
+- Consumos parciales sucesivos sobre una misma autorización (hoy cada
+  autorización ampara un consumo).
