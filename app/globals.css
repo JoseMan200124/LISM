@@ -720,6 +720,15 @@ html { scroll-behavior: smooth; }
 .landing-capability-grid article > span { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 9px; }
 .landing-capability-grid h3 { margin: 0; color: #3b5156; font-size: 13px; }
 .landing-capability-grid p { margin: 5px 0 0; color: #849194; font-size: 11px; line-height: 1.45; }
+/* App móvil (aún sin publicar): tarjetas informativas, sin enlaces de descarga. */
+.landing-mobile-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 46px; }
+.landing-mobile-grid article { display: flex; min-height: 104px; align-items: flex-start; gap: 13px; padding: 18px; border: 1px solid #e2ebe8; border-radius: 11px; background: #fff; box-shadow: 0 7px 20px rgba(38,65,64,.028); transition: .2s ease; }
+.landing-mobile-grid article:hover { border-color: #d3e2de; transform: translateY(-2px); }
+.landing-mobile-grid article > span { display: grid; width: 36px; height: 36px; flex: 0 0 auto; border-radius: 10px; color: var(--primary); background: var(--primary-soft); place-items: center; }
+.landing-mobile-grid h3 { margin: 0; color: #30484d; font-size: 15px; }
+.landing-mobile-grid p { margin: 6px 0 0; color: #77878a; font-size: 12.5px; line-height: 1.62; }
+.landing-mobile-note { max-width: 640px; margin: 26px auto 0; color: #7c8b8e; font-size: 12.5px; line-height: 1.7; text-align: center; }
+
 .landing-cta-section { padding: 0 0 86px; background: #fff; }
 .landing-cta-card { display: flex; align-items: center; justify-content: space-between; gap: 38px; overflow: hidden; padding: 48px; border-radius: 16px; background: radial-gradient(circle at 92% 12%,rgba(255,255,255,.11),transparent 27%), linear-gradient(135deg,#1d625c,#174f4a); box-shadow: 0 20px 44px rgba(32,83,79,.15); }
 .landing-cta-card .landing-eyebrow { color: #b9ddd6; }
@@ -754,6 +763,7 @@ html { scroll-behavior: smooth; }
   .landing-benefit-card h3 { margin-top: 22px; }
   .landing-workflow-layout { grid-template-columns: 1fr; gap: 30px; }
   .landing-capability-grid { grid-template-columns: repeat(2,minmax(0,1fr)); margin-top: 34px; }
+  .landing-mobile-grid { margin-top: 34px; }
   .landing-cta-section { padding-bottom: 58px; }
   .landing-cta-card { align-items: flex-start; flex-direction: column; padding: 31px; }
 }
@@ -790,6 +800,7 @@ html { scroll-behavior: smooth; }
   .landing-workflow-list article > span { width: 32px; height: 32px; }
   .landing-workflow-list p { font-size: 11px; }
   .landing-capability-grid { grid-template-columns: 1fr; gap: 7px; }
+  .landing-mobile-grid { grid-template-columns: 1fr; gap: 8px; }
   .landing-capability-grid article { min-height: 80px; }
   .landing-footer-inner { align-items: flex-start; flex-direction: column; gap: 10px; padding-block: 22px; }
   .landing-footer-inner p { margin: 0; }
@@ -2386,6 +2397,7 @@ html { scroll-behavior: smooth; }
   .landing-benefit-card,
   .landing-workflow-list article,
   .landing-capability-grid article,
+  .landing-mobile-grid article,
   .landing-pricing-card,
   .landing-faq-item
 ) {
@@ -2409,6 +2421,7 @@ html { scroll-behavior: smooth; }
   .landing-benefit-card h3,
   .landing-workflow-list h3,
   .landing-capability-grid h3,
+  .landing-mobile-grid h3,
   .landing-pricing-card h3,
   .landing-faq-item summary,
   .landing-product-heading strong,
@@ -2427,6 +2440,8 @@ html { scroll-behavior: smooth; }
   .landing-benefit-card p,
   .landing-workflow-list p,
   .landing-capability-grid p,
+  .landing-mobile-grid p,
+  .landing-mobile-note,
   .landing-pricing-description,
   .landing-pricing-features li,
   .landing-faq-item p,
@@ -2437,6 +2452,7 @@ html { scroll-behavior: smooth; }
   .landing-product-topbar p
 ) { color: var(--muted); }
 :root[data-theme="dark"] .landing-capability-grid article:hover,
+:root[data-theme="dark"] .landing-mobile-grid article:hover,
 :root[data-theme="dark"] .landing-benefit-card:hover,
 :root[data-theme="dark"] .landing-pricing-card:hover { border-color: var(--line-strong); background: var(--surface-hover); }
 :root[data-theme="dark"] .landing-secondary-button {

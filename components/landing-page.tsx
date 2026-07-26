@@ -13,6 +13,8 @@ import {
   Microscope,
   ScanLine,
   ShieldCheck,
+  Smartphone,
+  TabletSmartphone,
   UsersRound,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
@@ -82,6 +84,32 @@ const workflow = [
     icon: FileCheck2,
     title: "Cierre",
     description: "Se registra el consumo final, se cierra la práctica y queda disponible en la auditoría.",
+  },
+];
+
+// App móvil: en desarrollo, todavía sin publicar en las tiendas. Se anuncia sin
+// enlaces ni botones de descarga a propósito, para no prometer algo que aún no
+// se puede instalar.
+const mobileHighlights = [
+  {
+    icon: Smartphone,
+    title: "Las mismas funciones",
+    text: "Inventario, equipos, prácticas, reservas y alertas, con tu mismo usuario, rol y permisos.",
+  },
+  {
+    icon: BellRing,
+    title: "Avisos al momento",
+    text: "Las alertas y los avisos del laboratorio llegan como notificación al teléfono, aunque la app esté cerrada.",
+  },
+  {
+    icon: ScanLine,
+    title: "Escaneo con la cámara",
+    text: "Lee el QR de un reactivo o un equipo y abre su ficha sin escribir códigos.",
+  },
+  {
+    icon: TabletSmartphone,
+    title: "Teléfono y tablet",
+    text: "La interfaz se adapta al tamaño de la pantalla, útil para trabajar dentro del laboratorio.",
   },
 ];
 
@@ -308,6 +336,37 @@ export function LandingPage() {
               </article>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="landing-section landing-section-tinted" id="movil" aria-labelledby="mobile-title">
+        <div className="landing-container">
+          <div className="landing-section-heading">
+            <p className="landing-eyebrow"><span /> Próximamente</p>
+            <h2 id="mobile-title">También en tu teléfono.</h2>
+            <p>
+              Estamos preparando la app móvil de NexaLab para iOS y Android. Es la misma
+              aplicación que ya usas en el navegador, pensada para consultarla y actualizarla
+              desde el propio laboratorio.
+            </p>
+          </div>
+
+          <div className="landing-mobile-grid">
+            {mobileHighlights.map(({ icon: Icon, title, text }) => (
+              <article key={title}>
+                <span><Icon size={17} aria-hidden="true" /></span>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <p className="landing-mobile-note">
+            Aún no está disponible para descargar. Cuando se publique en App Store y Google Play
+            lo anunciaremos aquí; tu cuenta actual funcionará sin ningún cambio.
+          </p>
         </div>
       </section>
 
