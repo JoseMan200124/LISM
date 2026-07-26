@@ -18,6 +18,9 @@ import { formatDate, formatDateTime, toDateInputValue } from "@/lib/dates";
 import { BUSINESS_DAYS, WEEKDAY_OPTIONS, frequencyLabel, normalizeWeekDays, weekDaysLabel } from "@/lib/equipment-frequency";
 import { COMMON_UNITS, convertQuantity } from "@/lib/units";
 import { CustomFieldInputs, collectCustomValues, useCustomFieldDefs } from "@/components/custom-fields";
+import { GhsPictogramRow } from "@/components/ghs-pictogram";
+import { normalizePictograms, normalizeSafetyProcedures, type GhsCode } from "@/lib/ghs";
+import { SafetyButton, SafetyFields, collectSafetyProcedures, type SafetyItem } from "@/components/reagent-safety";
 import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
 
 type ModalKey = "item" | "item-edit" | "movement" | "location" | "equipment" | "plan" | "certificate" | "event" | "equipment-edit" | null;
@@ -216,6 +219,9 @@ export function InventoryCenter() {
         quantity: `${r.quantity ?? 0} ${r.unit ?? ""}`.trim(),
         minimum: `${r.reorder_point ?? 0} ${r.unit ?? ""}`.trim(),
         expires: fmtDate(r.expires_at),
+        // Los pictogramas viajan como códigos separados por coma: SimpleTable
+        // los dibuja en la columna "hazards".
+        hazards: normalizePictograms(r.hazard_pictograms).join(","),
         status: INVENTORY_STATUS_LABEL[String(r.status)] ?? String(r.status ?? "—"),
       })));
       setMovements((mData.data ?? []).map((r) => ({
@@ -369,7 +375,7 @@ export function InventoryCenter() {
                 ))}
               </div>
               <SimpleTable
-                columns={[{ key: "sku", label: "Código" }, { key: "name", label: "Artículo" }, { key: "category", label: "Categoría" }, { key: "lot", label: "Lote" }, { key: "location", label: "Ubicación" }, { key: "quantity", label: "Existencia" }, { key: "minimum", label: "Mínimo" }, { key: "expires", label: "Vence" }, { key: "status", label: "Estado" }]}
+                columns={[{ key: "sku", label: "Código" }, { key: "name", label: "Artículo" }, { key: "hazards", label: "Peligros" }, { key: "category", label: "Categoría" }, { key: "lot", label: "Lote" }, { key: "location", label: "Ubicación" }, { key: "quantity", label: "Existencia" }, { key: "minimum", label: "Mínimo" }, { key: "expires", label: "Vence" }, { key: "status", label: "Estado" }]}
                 rows={filteredItems}
                 onRowClick={(row) => { if (row.id) void openDetail(String(row.id)); }}
                 searchPlaceholder="Buscar reactivo, lote o ubicación…"
@@ -747,6 +753,17 @@ function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, o
               {item.is_controlled ? <div className="field-span-two"><small>Control regulatorio</small><strong className="controlled-badge"><Lock size={13} /> Reactivo controlado{item.control_kind ? ` · ${CONTROL_KIND_LABEL[item.control_kind as keyof typeof CONTROL_KIND_LABEL] ?? String(item.control_kind)}` : ""}</strong></div> : null}
               {item.safety_sheet_url ? <div className="field-span-two"><small>Ficha de seguridad</small><strong><a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">Abrir ficha</a></strong></div> : null}
             </div>
+            {/* Peligrosidad siempre visible: pictogramas y acceso directo a los
+                procedimientos de emergencia y a la SDS. */}
+            <div className="safety-summary">
+              <div>
+                <span className="field-label">Peligrosidad</span>
+                {normalizePictograms(item.hazard_pictograms).length
+                  ? <GhsPictogramRow codes={normalizePictograms(item.hazard_pictograms)} size={38} showNames />
+                  : <p className="modal-note">Sin pictogramas declarados.</p>}
+              </div>
+              <SafetyButton item={item as SafetyItem} />
+            </div>
             {defs.length > 0 ? (
               <div className="details-grid" style={{ marginTop: 10 }}>
                 {defs.map((d) => <div key={d.id}><small>{d.label}</small><strong>{cv[d.field_key] === undefined || cv[d.field_key] === "" ? "—" : String(cv[d.field_key])}</strong></div>)}
@@ -867,8 +884,10 @@ function CertificateDetailModal({ certificate, onClose, onChanged }: Readonly<{ 
 function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: boolean; item: Record<string, unknown> | null; onClose: () => void; onSave: (id: string, payload: Record<string, unknown>, safetyFile?: File | null) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const [controlled, setControlled] = useState("no");
+  const [pictograms, setPictograms] = useState<GhsCode[]>([]);
   const defs = useCustomFieldDefs("inventory");
   useEffect(() => { setControlled(item?.is_controlled ? "yes" : "no"); }, [item]);
+  useEffect(() => { setPictograms(normalizePictograms(item?.hazard_pictograms)); }, [item]);
   if (!open || !item) return null;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -876,6 +895,9 @@ function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: bo
     const safetyFile = data.get("safetySheetFile");
     setSaving(true);
     const ok = await onSave(String(item!.id), {
+      hazardPictograms: pictograms,
+      hazardStatements: String(data.get("hazardStatements") ?? "").trim(),
+      safetyProcedures: collectSafetyProcedures(data),
       name: String(data.get("name") ?? "").trim(), itemType: String(data.get("itemType")), vendor: String(data.get("vendor") ?? "").trim(),
       concentration: String(data.get("concentration") ?? "").trim(), presentation: String(data.get("presentation") ?? "").trim(),
       reorderPoint: Number(data.get("minimum") ?? 0), expiresAt: String(data.get("expires") ?? "") || null,
@@ -889,7 +911,7 @@ function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: bo
     setSaving(false); if (ok) onClose();
   }
   const customValues = (item.custom_values ?? {}) as Record<string, unknown>;
-  return <ActionModal open title={`Editar ${String(item.sku)}`} description="Actualiza los datos y controles. La existencia solo cambia mediante movimientos." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(item.name ?? "")} /></label><label><span>Tipo</span><select name="itemType" defaultValue={String(item.item_type ?? "OTHER")}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label><label><span>Proveedor</span><input name="vendor" defaultValue={String(item.vendor ?? "")} /></label><label><span>Concentración</span><input name="concentration" defaultValue={String(item.concentration ?? "")} /></label><label><span>Presentación</span><input name="presentation" defaultValue={String(item.presentation ?? "")} /></label><label><span>Stock mínimo</span><input name="minimum" type="number" min="0" step="0.001" defaultValue={String(item.reorder_point ?? 0)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={toDateInputValue(item.expires_at)} /></label><label className="field-span-two"><span>Condiciones de almacenamiento</span><textarea name="storageConditions" rows={2} defaultValue={String(item.storage_conditions ?? "")} /></label><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked={item.track_stock !== false} /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked={item.alert_low_stock !== false} /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={item.alert_expiry !== false} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input name="requiresUsageLog" type="checkbox" defaultChecked={Boolean(item.requires_usage_log)} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" defaultChecked={Boolean(item.allow_direct_discard)} /><span>Permitir descarte directo</span></label><span className="form-section-title field-span-two"><Lock size={14} /> Control de doble uso o precursores</span><div className="field-span-two controlled-question"><span className="controlled-question-label">¿Es reactivo de doble uso o precursor? *</span><div className="radio-row"><label className="radio-option"><input type="radio" name="isControlled" value="no" required checked={controlled === "no"} onChange={() => setControlled("no")} /><span>No</span></label><label className="radio-option"><input type="radio" name="isControlled" value="yes" required checked={controlled === "yes"} onChange={() => setControlled("yes")} /><span>Sí — reactivo controlado</span></label></div></div>{controlled === "yes" ? <><label className="field-span-two"><span>Tipo de control *</span><select name="controlKind" required defaultValue={String(item.control_kind ?? "")}><option value="" disabled>Selecciona…</option>{CONTROL_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><p className="modal-note field-span-two controlled-note">Marcado como <strong>controlado</strong>: cada consumo o descarte exigirá registro de trazabilidad completa antes de descontar del inventario.</p></> : null}<span className="form-section-title field-span-two">Ficha de seguridad o técnica</span><div className="field-span-two"><FileDropZone name="safetySheetFile" hint={item.safety_sheet_url ? "Arrastra un archivo para reemplazar la ficha actual" : "Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla"} /></div>{item.safety_sheet_url ? <p className="modal-note field-span-two">Ficha actual: <a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">abrir</a></p> : null}<label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} defaultValue={String(item.notes ?? "")} /></label><CustomFieldInputs defs={defs} values={customValues} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  return <ActionModal open title={`Editar ${String(item.sku)}`} description="Actualiza los datos y controles. La existencia solo cambia mediante movimientos." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(item.name ?? "")} /></label><label><span>Tipo</span><select name="itemType" defaultValue={String(item.item_type ?? "OTHER")}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label><label><span>Proveedor</span><input name="vendor" defaultValue={String(item.vendor ?? "")} /></label><label><span>Concentración</span><input name="concentration" defaultValue={String(item.concentration ?? "")} /></label><label><span>Presentación</span><input name="presentation" defaultValue={String(item.presentation ?? "")} /></label><label><span>Stock mínimo</span><input name="minimum" type="number" min="0" step="0.001" defaultValue={String(item.reorder_point ?? 0)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={toDateInputValue(item.expires_at)} /></label><label className="field-span-two"><span>Condiciones de almacenamiento</span><textarea name="storageConditions" rows={2} defaultValue={String(item.storage_conditions ?? "")} /></label><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked={item.track_stock !== false} /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked={item.alert_low_stock !== false} /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={item.alert_expiry !== false} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input name="requiresUsageLog" type="checkbox" defaultChecked={Boolean(item.requires_usage_log)} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" defaultChecked={Boolean(item.allow_direct_discard)} /><span>Permitir descarte directo</span></label><span className="form-section-title field-span-two"><Lock size={14} /> Control de doble uso o precursores</span><div className="field-span-two controlled-question"><span className="controlled-question-label">¿Es reactivo de doble uso o precursor? *</span><div className="radio-row"><label className="radio-option"><input type="radio" name="isControlled" value="no" required checked={controlled === "no"} onChange={() => setControlled("no")} /><span>No</span></label><label className="radio-option"><input type="radio" name="isControlled" value="yes" required checked={controlled === "yes"} onChange={() => setControlled("yes")} /><span>Sí — reactivo controlado</span></label></div></div>{controlled === "yes" ? <><label className="field-span-two"><span>Tipo de control *</span><select name="controlKind" required defaultValue={String(item.control_kind ?? "")}><option value="" disabled>Selecciona…</option>{CONTROL_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><p className="modal-note field-span-two controlled-note">Marcado como <strong>controlado</strong>: cada consumo o descarte exigirá registro de trazabilidad completa antes de descontar del inventario.</p></> : null}<SafetyFields pictograms={pictograms} onPictogramsChange={setPictograms} defaultStatements={String(item.hazard_statements ?? "")} defaultProcedures={normalizeSafetyProcedures(item.safety_procedures)} /><span className="form-section-title field-span-two">Ficha de datos de seguridad (SDS)</span><div className="field-span-two"><FileDropZone name="safetySheetFile" hint={item.safety_sheet_url ? "Arrastra un archivo para reemplazar la ficha actual" : "Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla"} /></div>{item.safety_sheet_url ? <p className="modal-note field-span-two">Ficha actual: <a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">abrir</a></p> : null}<label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} defaultValue={String(item.notes ?? "")} /></label><CustomFieldInputs defs={defs} values={customValues} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
 function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ open: boolean; categories: CategoryOption[]; onClose: () => void; onSave: (payload: Record<string, unknown>, safetyFile?: File | null) => Promise<boolean> }>) {
@@ -897,6 +919,7 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
   const [itemType, setItemType] = useState("REAGENT");
   // "" = sin elegir (obligatorio elegir Sí/No), "yes" = controlado, "no" = normal.
   const [controlled, setControlled] = useState("");
+  const [pictograms, setPictograms] = useState<GhsCode[]>([]);
   const customDefs = useCustomFieldDefs("inventory");
   const requirements = useInventoryFieldRequirements();
   // Obligatoriedad configurada por el administrador para el tipo de artículo activo.
@@ -991,10 +1014,13 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
       requiresUsageLog: data.get("requiresUsageLog") === "on",
       isControlled: controlled === "yes",
       controlKind: controlled === "yes" ? (String(data.get("controlKind") ?? "") || undefined) : undefined,
+      hazardPictograms: pictograms,
+      hazardStatements: String(data.get("hazardStatements") ?? "").trim(),
+      safetyProcedures: collectSafetyProcedures(data),
       customValues: collectCustomValues(customDefs, data),
     }, safetyFile instanceof File && safetyFile.size > 0 ? safetyFile : aiFile);
     setSaving(false);
-    if (ok) { onClose(); setControlled(""); }
+    if (ok) { onClose(); setControlled(""); setPictograms([]); }
   }
   const reagent = itemType === "REAGENT";
   const material = itemType === "MATERIAL";
@@ -1032,7 +1058,8 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
       <label className="field-span-two"><span>Tipo de control *</span><select name="controlKind" required defaultValue=""><option value="" disabled>Selecciona…</option>{CONTROL_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
       <p className="modal-note field-span-two controlled-note">Quedará marcado como <strong>controlado</strong>: cada consumo o descarte exigirá un registro con trazabilidad completa (quién lo usó, cuánto, cuándo, para qué y en qué área o proyecto) antes de descontar del inventario.</p>
     </> : null}
-    <span className="form-section-title field-span-two">Ficha de seguridad o técnica{isRequired("safetySheet") ? " *" : ""}</span>
+    <SafetyFields pictograms={pictograms} onPictogramsChange={setPictograms} />
+    <span className="form-section-title field-span-two">Ficha de datos de seguridad (SDS){isRequired("safetySheet") ? " *" : ""}</span>
     <div className="field-span-two"><FileDropZone name="safetySheetFile" required={isRequired("safetySheet")} hint="Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla" /></div>
     <label className="field-span-two"><span>… o enlace externo a la ficha (URL)</span><input name="safetySheetUrl" type="url" placeholder="https://…" /></label>
     {(reagent || culture) ? <label className="field-span-two"><span>Condiciones de almacenamiento{isRequired("storageConditions") ? " *" : ""}</span><textarea name="storageConditions" rows={2} required={isRequired("storageConditions")} defaultValue={prefill.storageConditions} /></label> : null}<label className="field-span-two"><span>Observaciones{isRequired("notes") ? " *" : ""}</span><textarea name="notes" rows={2} required={isRequired("notes")} defaultValue={prefill.notes} /></label><CustomFieldInputs defs={customDefs} />

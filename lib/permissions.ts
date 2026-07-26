@@ -14,4 +14,5 @@ export const roleLabels: Record<UserSession["role"], string> = {
   CONSULTATION: "Consulta",
   PROFESSOR: "Profesor",
   STUDENT: "Estudiante",
+  GUEST: "Invitado",
 };

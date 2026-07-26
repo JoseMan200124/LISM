@@ -6,14 +6,30 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { SIGNATURE_MEANINGS } from "@/lib/signatures";
+import { loadSignatures } from "@/lib/signature-service";
 
 const schema = z.object({
   password: z.string().min(8),
   entityType: z.string().min(2).max(80),
   entityId: databaseIdSchema,
-  meaning: z.enum(["REVIEW", "APPROVAL", "RELEASE", "INVESTIGATION_CLOSE", "DOCUMENT_APPROVAL", "LOGBOOK_CONFIRMATION"]),
+  meaning: z.enum(SIGNATURE_MEANINGS),
   contentHash: z.string().min(16).max(128),
 });
+
+// Firmas ya estampadas sobre un registro: ?entityType=…&entityId=…
+export async function GET(request: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+  const url = new URL(request.url);
+  const entityType = url.searchParams.get("entityType");
+  const entityId = url.searchParams.get("entityId");
+  if (!entityType || !entityId || !databaseIdSchema.safeParse(entityId).success) {
+    return NextResponse.json({ message: "Indica el registro cuyas firmas quieres consultar." }, { status: 400 });
+  }
+  const signatures = await loadSignatures(session.laboratoryId, entityType, [entityId]).catch(() => new Map());
+  return NextResponse.json({ data: signatures.get(entityId) ?? [] });
+}
 
 export async function POST(request: Request) {
   const session = await getSession();

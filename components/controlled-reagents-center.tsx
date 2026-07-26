@@ -17,6 +17,9 @@ import {
   type ControlledUsagePolicy,
 } from "@/lib/controlled-reagents";
 import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
+import { GhsPictogramRow } from "@/components/ghs-pictogram";
+import { normalizePictograms } from "@/lib/ghs";
+import { SafetyButton, type SafetyItem } from "@/components/reagent-safety";
 
 const MOVEMENT_TYPE_LABEL: Record<string, string> = {
   RECEIPT: "Entrada", CONSUMPTION: "Consumo", ADJUSTMENT: "Ajuste", DISPOSAL: "Descarte", TRANSFER: "Transferencia", RETURN: "Devolución",
@@ -27,6 +30,8 @@ type ControlledRow = {
   quantity: number | string; unit: string; category: string; location: string; status: string;
   last_consumption_at: string | null; total_consumed: number | string; consumption_count: number | string;
   pending_requests?: number | string;
+  hazard_pictograms?: unknown; hazard_statements?: string | null; safety_procedures?: unknown;
+  safety_sheet_url?: string | null; storage_conditions?: string | null;
 };
 
 type ControlledMovement = {
@@ -157,6 +162,7 @@ export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserS
     sku: row.sku,
     name: row.name,
     kind: kindLabel(row.control_kind),
+    hazards: normalizePictograms(row.hazard_pictograms).join(","),
     category: row.category,
     quantity: `${row.quantity ?? 0} ${row.unit ?? ""}`.trim(),
     pending: Number(row.pending_requests ?? 0) > 0 ? `${row.pending_requests} por autorizar` : "—",
@@ -292,6 +298,7 @@ export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserS
                     { key: "sku", label: "Código" },
                     { key: "name", label: "Reactivo" },
                     { key: "kind", label: "Control" },
+                    { key: "hazards", label: "Peligros" },
                     { key: "category", label: "Categoría" },
                     { key: "quantity", label: "Existencia" },
                     { key: "pending", label: "Solicitudes" },
@@ -481,6 +488,7 @@ function NewRequestModal({ items, onClose, onDone, onError }: Readonly<{
           usagePurpose: String(data.get("usagePurpose") ?? "").trim(),
           plannedFor: plannedRaw ? new Date(plannedRaw).toISOString() : undefined,
           notes: String(data.get("notes") ?? "").trim() || undefined,
+          signaturePassword: String(data.get("signaturePassword") ?? ""),
         }),
       });
       const payload = await response.json() as { data?: { request_code?: string }; message?: string };
@@ -542,11 +550,18 @@ function NewRequestModal({ items, onClose, onDone, onError }: Readonly<{
               <Lock size={13} /> {kindLabel(selected.control_kind)}: la autorización y el consumo quedan en la bitácora con folio, hora y responsable.
             </p>
           ) : null}
+          <label className="field-span-two">
+            <span>Tu contraseña <small>(firma electrónica de la solicitud)</small></span>
+            <input name="signaturePassword" type="password" autoComplete="current-password" minLength={8} required />
+          </label>
+          <p className="modal-note field-span-two">
+            Al firmar quedas registrado como solicitante con fecha, hora y huella del contenido. Sustituye a tu firma en la hoja de papel.
+          </p>
         </div>
         <footer className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
           <button type="submit" className="primary-button" disabled={saving || !itemId}>
-            {saving ? "Enviando…" : "Enviar solicitud"}
+            {saving ? "Enviando…" : "Firmar y enviar solicitud"}
           </button>
         </footer>
       </form>
@@ -662,6 +677,7 @@ function RequestModal({ request, canAuthorize, isMine, defaultValidityHours, onC
                   approvedQuantity: Number(data.get("approvedQuantity")),
                   validityHours: Number(data.get("validityHours")),
                   note: String(data.get("note") ?? "").trim(),
+                  signaturePassword: String(data.get("signaturePassword") ?? ""),
                 },
                 `Uso autorizado (folio ${request.request_code}). La persona ya puede registrar el consumo.`,
               );
@@ -670,9 +686,14 @@ function RequestModal({ request, canAuthorize, isMine, defaultValidityHours, onC
             <label><span>Cantidad autorizada * <small>({unit})</small></span><input name="approvedQuantity" type="number" min="0.001" step="0.001" max={Number(request.quantity)} required defaultValue={Number(request.quantity)} /></label>
             <label><span>Vigencia (horas) *</span><input name="validityHours" type="number" min={1} max={720} required defaultValue={defaultValidityHours} /></label>
             <label className="field-span-two"><span>Nota o condiciones <small>(opcional)</small></span><textarea name="note" rows={2} /></label>
+            <label className="field-span-two">
+              <span>Tu contraseña <small>(firma electrónica de la autorización)</small></span>
+              <input name="signaturePassword" type="password" autoComplete="current-password" minLength={8} required />
+            </label>
+            <p className="modal-note field-span-two">Tu firma queda ligada a la cantidad autorizada y a su vigencia.</p>
             <footer className="modal-actions field-span-two">
               <button type="button" className="secondary-button" onClick={() => setMode("view")}>Volver</button>
-              <button type="submit" className="primary-button" disabled={busy}>{busy ? "Autorizando…" : "Confirmar autorización"}</button>
+              <button type="submit" className="primary-button" disabled={busy}>{busy ? "Autorizando…" : "Firmar y autorizar"}</button>
             </footer>
           </form>
         ) : null}
@@ -802,6 +823,18 @@ function ControlledDetailModal({ open, loading, detail, onClose }: Readonly<{ op
               <div><small>Ubicación</small><strong>{detail.location}</strong></div>
               <div><small>Estado</small><strong>{detail.status === "ARCHIVED" ? "Archivado" : "Activo"}</strong></div>
               <div><small>Consumos registrados</small><strong>{consumptions.length}</strong></div>
+            </div>
+
+            {/* Un reactivo controlado suele ser también peligroso: la ficha de
+                seguridad queda a un clic desde su propio historial. */}
+            <div className="safety-summary">
+              <div>
+                <span className="field-label">Peligrosidad</span>
+                {normalizePictograms(detail.hazard_pictograms).length
+                  ? <GhsPictogramRow codes={normalizePictograms(detail.hazard_pictograms)} size={38} showNames />
+                  : <p className="modal-note">Sin pictogramas declarados.</p>}
+              </div>
+              <SafetyButton item={detail as SafetyItem} />
             </div>
 
             {requests.length > 0 ? (

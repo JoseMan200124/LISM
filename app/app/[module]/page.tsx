@@ -3,7 +3,7 @@ import { ModuleView } from "@/components/module-view";
 import { canAccessModule } from "@/lib/authorization";
 import { getSession } from "@/lib/session";
 import type { ModuleKey } from "@/lib/navigation";
-import { isEducationalProfile } from "@/lib/lab-profile";
+import { isEducationalProfile, isResearchModule, isResearchProfile, researchProfileModules } from "@/lib/lab-profile";
 
 const supportedModules = new Set<ModuleKey>([
   "workbench",
@@ -17,6 +17,12 @@ const supportedModules = new Set<ModuleKey>([
   "controlled",
   "equipment",
   "education",
+  "projects",
+  "protocols",
+  "samples",
+  "biobank",
+  "notebook",
+  "library",
   "purchasing",
   "quality",
   "documents",
@@ -40,8 +46,15 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
   if (!session) redirect("/login");
   const { module } = await params;
   if (!supportedModules.has(module as ModuleKey)) notFound();
-  if (isEducationalProfile(session.profileCode) && !educationalModules.has(module as ModuleKey)) redirect("/app");
-  if (!canAccessModule(session, module as ModuleKey)) redirect("/app");
+
+  const moduleKey = module as ModuleKey;
+  const research = isResearchProfile(session.profileCode);
+  // Los módulos de investigación existen siempre en el código pero solo se
+  // abren cuando el laboratorio activa ese perfil desde Configuración.
+  if (isResearchModule(moduleKey) && !research) redirect("/app");
+  if (research && !researchProfileModules.has(moduleKey)) redirect("/app");
+  if (!research && isEducationalProfile(session.profileCode) && !educationalModules.has(moduleKey)) redirect("/app");
+  if (!canAccessModule(session, moduleKey)) redirect("/app");
 
   return <ModuleView module={module as Exclude<ModuleKey, "dashboard">} session={session} />;
 }

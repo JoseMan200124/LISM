@@ -11,13 +11,17 @@ import {
   CreditCard,
   FileCheck2,
   FlaskConical,
+  FolderKanban,
   Gauge,
   GitBranch,
   GraduationCap,
+  Library,
   Lock,
   Microscope,
+  NotebookPen,
   PackageSearch,
   ScanBarcode,
+  Snowflake,
   Settings2,
   ShieldAlert,
   ShieldCheck,
@@ -42,6 +46,12 @@ export type ModuleKey =
   | "controlled"
   | "equipment"
   | "education"
+  | "projects"
+  | "protocols"
+  | "samples"
+  | "biobank"
+  | "notebook"
+  | "library"
   | "purchasing"
   | "quality"
   | "documents"
@@ -245,6 +255,59 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
     },
   ],
 };
+
+// Navegación de una sesión abierta con código de invitado. Se filtra después
+// por los permisos del código, así que un invitado sin alcance sobre equipos
+// no llega a ver la entrada.
+export const guestNavigation: EducationalNavGroup[] = [
+  {
+    title: "Invitado",
+    items: [
+      { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+      { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+      { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+      { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+    ],
+  },
+];
+
+// Navegación del perfil "Laboratorio de investigación". Se filtra por permiso
+// igual que la del perfil general: aquí solo se declara el orden y el
+// agrupamiento propios del trabajo por proyecto.
+export const researchNavigation: EducationalNavGroup[] = [
+  {
+    title: "Investigación",
+    items: [
+      { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+      { key: "projects", label: "Proyectos", icon: FolderKanban, href: "/app/projects" },
+      { key: "protocols", label: "Protocolos y SOP", icon: FileCheck2, href: "/app/protocols" },
+      { key: "samples", label: "Muestras", icon: TestTube2, href: "/app/samples" },
+      { key: "biobank", label: "Biobancos", icon: Snowflake, href: "/app/biobank" },
+      { key: "notebook", label: "Cuaderno electrónico", icon: NotebookPen, href: "/app/notebook" },
+      { key: "library", label: "Gestión documental", icon: Library, href: "/app/library" },
+    ],
+  },
+  {
+    title: "Recursos",
+    items: [
+      { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+      { key: "controlled", label: "Reactivos controlados", icon: Lock, href: "/app/controlled" },
+      { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+      { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
+      { key: "alerts", label: "Alertas", icon: AlertTriangle, href: "/app/alerts" },
+      { key: "incidents", label: "Incidencias", icon: ShieldAlert, href: "/app/incidents" },
+    ],
+  },
+  {
+    title: "Administración",
+    items: [
+      { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
+      { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
+      { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
+      { key: "billing", label: "Suscripción", icon: CreditCard, href: "/app/billing" },
+    ],
+  },
+];
 
 export const educationalNavigationFallback: EducationalNavGroup[] = [
   {

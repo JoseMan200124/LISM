@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import { databaseIdSchema } from "@/lib/validation";
 import { dispatchPush } from "@/lib/push";
 import { notifyPurchaseStatus } from "@/lib/push-events";
+import { loadSignaturePolicy, loadSignatures, signRecord } from "@/lib/signature-service";
 
 const STATUSES = ["DRAFT", "PENDING", "APPROVED", "ORDERED", "RECEIVED", "CANCELLED"] as const;
 const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
@@ -17,6 +18,9 @@ const patchSchema = z.object({
   supplier: z.string().max(200).optional().nullable(),
   neededBy: z.string().date().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
+  // Contraseña de quien autoriza. Obligatoria al aprobar si la política del
+  // laboratorio exige firma (lo es por omisión).
+  signaturePassword: z.string().max(200).optional(),
 }).refine((value) => Object.keys(value).length > 0, { message: "No hay cambios que aplicar." });
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -45,7 +49,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     WHERE pri.purchase_request_id = ${id} AND pri.laboratory_id = ${session.laboratoryId}
     ORDER BY pri.created_at ASC
   `;
-  return NextResponse.json({ data: { ...headers[0], items } });
+  const signatures = await loadSignatures(session.laboratoryId, "purchase_request", [id]).catch(() => new Map());
+  return NextResponse.json({ data: { ...headers[0], items, signatures: signatures.get(id) ?? [] } });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -64,8 +69,35 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const existing = await sql`SELECT * FROM purchase_requests WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
   if (!existing.length) return NextResponse.json({ message: "Solicitud no encontrada." }, { status: 404 });
 
-  // Al pasar a APROBADA se registra quién y cuándo aprobó.
+  // Al pasar a APROBADA se registra quién y cuándo aprobó, con su firma.
   const approve = payload.status === "APPROVED" && existing[0].status !== "APPROVED";
+  const policy = await loadSignaturePolicy(session.laboratoryId);
+  let approvalSignatureId: string | null = null;
+  if (approve && policy.purchaseApproval) {
+    if (!payload.signaturePassword) {
+      return NextResponse.json(
+        { success: false, error: "SIGNATURE_REQUIRED", message: "La autorización debe ir firmada. Confirma tu contraseña para autorizar." },
+        { status: 400 },
+      );
+    }
+    const signature = await signRecord(session, {
+      password: payload.signaturePassword,
+      entityType: "purchase_request",
+      entityId: id,
+      meaning: "AUTHORIZATION",
+      content: {
+        requestCode: existing[0].request_code,
+        title: existing[0].title,
+        supplier: payload.supplier === undefined ? existing[0].supplier : payload.supplier,
+        neededBy: payload.neededBy === undefined ? existing[0].needed_by : payload.neededBy,
+        approvedBy: session.userId,
+      },
+      request,
+    });
+    if (!signature.ok) return NextResponse.json({ success: false, error: "SIGNATURE_FAILED", message: signature.message }, { status: signature.status });
+    approvalSignatureId = signature.signatureId;
+  }
+
   const rows = await sql`
     UPDATE purchase_requests SET
       status = COALESCE(${payload.status ?? null}, status),
@@ -75,6 +107,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       notes = ${payload.notes === undefined ? existing[0].notes : payload.notes},
       approved_by = ${approve ? session.userId : (existing[0].approved_by ?? null)},
       approved_at = ${approve ? new Date().toISOString() : (existing[0].approved_at ?? null)},
+      approval_signature_id = COALESCE(${approvalSignatureId}, approval_signature_id),
       updated_at = now()
     WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}
     RETURNING *

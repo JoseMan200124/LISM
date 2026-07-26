@@ -51,6 +51,12 @@ import { QualityCenter } from "@/components/quality-center";
 import { EquipmentCenter, InventoryCenter } from "@/components/resources-center";
 import { ControlledReagentsCenter } from "@/components/controlled-reagents-center";
 import { PurchasingCenter } from "@/components/purchasing-center";
+import { ProjectsCenter } from "@/components/research/projects-center";
+import { ProtocolsCenter } from "@/components/research/protocols-center";
+import { SamplesCenter } from "@/components/research/samples-center";
+import { BiobankCenter } from "@/components/research/biobank-center";
+import { NotebookCenter } from "@/components/research/notebook-center";
+import { DocumentsCenter } from "@/components/research/documents-center";
 import { ActionModal, DetailsModal, QuickRecordModal, Toast, downloadCsv, useToast } from "@/components/action-kit";
 import type { UserSession } from "@/lib/session";
 
@@ -177,6 +183,12 @@ export function ModuleView({ module, session }: { module: Exclude<ModuleKey, "da
   if (module === "equipment") return <EquipmentCenter />;
   if (module === "purchasing") return <PurchasingCenter session={session} />;
   if (module === "education") return <EducationCenter role={role as Parameters<typeof EducationCenter>[0]["role"]} />;
+  if (module === "projects") return <ProjectsCenter />;
+  if (module === "protocols") return <ProtocolsCenter />;
+  if (module === "samples") return <SamplesCenter />;
+  if (module === "biobank") return <BiobankCenter />;
+  if (module === "notebook") return <NotebookCenter />;
+  if (module === "library") return <DocumentsCenter />;
   if (module === "quality") return <QualityCenter />;
   if (module === "documents") return <QualityCenter initialTab="documents" />;
   if (module === "logbooks") return <QualityCenter initialTab="logbooks" />;

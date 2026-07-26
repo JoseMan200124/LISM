@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/authorization";
 import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { computeNextPurchaseCode, demoPurchaseRequests } from "@/lib/purchasing";
+import { loadSignaturePolicy, signRecord } from "@/lib/signature-service";
 
 const STATUSES = ["DRAFT", "PENDING", "APPROVED", "ORDERED", "RECEIVED", "CANCELLED"] as const;
 const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
@@ -25,6 +26,9 @@ const schema = z.object({
     estimatedUnitPrice: z.coerce.number().nonnegative().optional().nullable(),
     notes: z.string().max(500).optional(),
   })).min(1, "Añade al menos un artículo a la solicitud.").max(100),
+  // Contraseña de quien solicita: firma electrónicamente la solicitud en el
+  // mismo acto de crearla, igual que antes se firmaba la requisición en papel.
+  signaturePassword: z.string().max(200).optional(),
 });
 
 async function nextRequestCode(sql: ReturnType<typeof getSql>, laboratoryId: string): Promise<string> {
@@ -69,6 +73,17 @@ export async function POST(request: Request) {
   const payload = parsed.data;
   const status = payload.status ?? "DRAFT";
 
+  // Un borrador todavía no compromete nada: la firma se exige cuando la
+  // solicitud sale a circulación (cualquier estado distinto de DRAFT).
+  const policy = await loadSignaturePolicy(session.laboratoryId);
+  const signatureRequired = policy.purchaseRequest && status !== "DRAFT";
+  if (signatureRequired && !payload.signaturePassword) {
+    return NextResponse.json(
+      { success: false, error: "SIGNATURE_REQUIRED", message: "Esta solicitud debe ir firmada. Confirma tu contraseña para firmarla." },
+      { status: 400 },
+    );
+  }
+
   if (!hasDatabase()) {
     return NextResponse.json({ data: { id: crypto.randomUUID(), request_code: "OC-DEMO-001", title: payload.title, status, priority: payload.priority ?? "NORMAL", supplier: payload.supplier ?? null, currency: payload.currency ?? "GTQ", needed_by: payload.neededBy ?? null }, mode: "demo" }, { status: 201 });
   }
@@ -107,6 +122,29 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[api/purchasing] POST", error);
     return NextResponse.json({ success: false, error: "INTERNAL_ERROR", message: "No fue posible crear la solicitud de compra. Intenta nuevamente." }, { status: 500 });
+  }
+
+  // La firma se estampa con el registro ya creado, sobre su contenido exacto.
+  if (payload.signaturePassword) {
+    const signature = await signRecord(session, {
+      password: payload.signaturePassword,
+      entityType: "purchase_request",
+      entityId: String(rows[0].id),
+      meaning: "REQUEST",
+      content: { requestCode, title: payload.title, supplier: payload.supplier ?? null, neededBy: payload.neededBy ?? null, items },
+      request,
+    });
+    if (!signature.ok) {
+      // Sin firma válida la solicitud no puede quedar en circulación: se
+      // conserva como borrador para que nadie la tramite sin respaldo.
+      if (signatureRequired) {
+        await sql`UPDATE purchase_requests SET status = 'DRAFT', updated_at = now() WHERE id = ${String(rows[0].id)} AND laboratory_id = ${session.laboratoryId}`;
+      }
+      return NextResponse.json({ success: false, error: "SIGNATURE_FAILED", message: signature.message }, { status: signature.status });
+    }
+    if (signature.signatureId) {
+      await sql`UPDATE purchase_requests SET request_signature_id = ${signature.signatureId} WHERE id = ${String(rows[0].id)} AND laboratory_id = ${session.laboratoryId}`;
+    }
   }
 
   await writeAuditEvent(session, { action: "PURCHASE_REQUEST_CREATED", entityType: "purchase_request", entityId: String(rows[0].id), newValue: rows[0], reason: "Alta de solicitud de compra", request });

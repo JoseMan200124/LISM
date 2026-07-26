@@ -3,6 +3,8 @@
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, CircleDashed, FlaskConical, Plus, RefreshCw, Search, TriangleAlert, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { GhsPictogramRow } from "@/components/ghs-pictogram";
+import { normalizePictograms } from "@/lib/ghs";
 
 export type TableColumn = { key: string; label: string };
 export type TableRow = Record<string, string | number | boolean | null | undefined>;
@@ -163,6 +165,12 @@ function highlight(text: string, terms: string[]): React.ReactNode {
 
 function renderCell(key: string, value: TableRow[string], terms: string[]) {
   const text = value === null || value === undefined ? "—" : String(value);
+  // Columna de peligrosidad: los códigos SGA se dibujan como pictogramas para
+  // que el riesgo se reconozca de un vistazo en la propia lista.
+  if (key === "hazards") {
+    const codes = normalizePictograms(text.split(","));
+    return codes.length ? <GhsPictogramRow codes={codes} size={22} /> : <span className="table-muted">—</span>;
+  }
   if (["status", "state", "severity", "active", "blocking"].includes(key)) {
     const cls = statusPillClass(text);
     return <span className={`status-pill ${cls}`}>{highlight(text, terms)}</span>;

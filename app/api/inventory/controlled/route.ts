@@ -43,6 +43,7 @@ export async function GET(request: Request) {
       }
       const items = await sql`
         SELECT i.id, i.sku, i.name, i.item_type, i.control_kind, i.quantity, i.unit, i.status,
+          i.hazard_pictograms, i.hazard_statements, i.safety_procedures, i.safety_sheet_url, i.storage_conditions,
           c.name AS category, COALESCE(l.name, 'Sin ubicación') AS location
         FROM inventory_items i
         JOIN inventory_categories c ON c.id = i.category_id AND c.laboratory_id = i.laboratory_id
@@ -81,6 +82,7 @@ export async function GET(request: Request) {
 
     const rows = await sql`
       SELECT i.id, i.sku, i.name, i.item_type, i.control_kind, i.quantity, i.unit, i.status,
+        i.hazard_pictograms, i.safety_sheet_url,
         c.name AS category, COALESCE(l.name, 'Sin ubicación') AS location,
         (SELECT max(m.performed_at) FROM inventory_movements m
            WHERE m.inventory_item_id = i.id AND m.quantity_delta < 0) AS last_consumption_at,

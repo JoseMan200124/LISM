@@ -64,10 +64,11 @@ export async function GET() {
   const rows = await sql`
     SELECT m.id, i.sku, i.name, i.lot_number, i.unit, m.movement_type, m.quantity_delta,
       m.previous_quantity, m.resulting_quantity, m.reason_code, m.note,
-      u.full_name AS performed_by, m.performed_at
+      COALESCE(u.full_name, gs.display_name || ' (invitado)') AS performed_by, m.performed_at
     FROM inventory_movements m
     JOIN inventory_items i ON i.id = m.inventory_item_id AND i.laboratory_id = m.laboratory_id
     LEFT JOIN users u ON u.id = m.performed_by
+    LEFT JOIN guest_access_sessions gs ON gs.id = m.guest_session_id
     WHERE m.laboratory_id = ${session.laboratoryId}
     ORDER BY m.performed_at DESC LIMIT 200
   `;
@@ -81,6 +82,13 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ message: "Movimiento inválido.", issues: parsed.error.issues }, { status: 400 });
   const payload = parsed.data;
+
+  // El invitado con alcance de consumo solo puede descontar lo que usó en la
+  // práctica: no da entradas, no ajusta, no transfiere y no descarta.
+  const guest = session.guest ?? null;
+  if (guest && payload.movementType !== "CONSUMPTION") {
+    return NextResponse.json({ message: "Con un acceso de invitado solo puedes registrar consumos." }, { status: 403 });
+  }
 
   if (!hasDatabase()) return NextResponse.json({ data: { id: crypto.randomUUID(), ...payload, quantityDelta: signedQuantity(payload.quantity, payload) }, mode: "demo" }, { status: 201 });
   const sql = getSql();
@@ -101,6 +109,12 @@ export async function POST(request: Request) {
     authorizedBy: payload.authorizedBy?.trim() || null,
   };
   let authorization: Record<string, unknown> | null = null;
+
+  // Un reactivo controlado exige autorización nominal de un responsable: eso no
+  // puede resolverse con un código de aula compartido.
+  if (guest && item.is_controlled) {
+    return NextResponse.json({ message: "Los reactivos controlados no pueden consumirse con un acceso de invitado. Pide a tu docente que registre el consumo." }, { status: 403 });
+  }
 
   if (item.is_controlled && reducesStock) {
     const { policy, available } = await loadControlledContext(session.laboratoryId);
@@ -210,15 +224,18 @@ export async function POST(request: Request) {
   const conversionNote = payload.unit && payload.unit.trim() && quantity !== payload.quantity
     ? `${payload.note ? `${payload.note} ` : ""}[Registrado: ${payload.quantity} ${payload.unit} = ${quantity} ${itemUnit}]`
     : payload.note;
+  // El consumo de un invitado se firma con el nombre que declaró al entrar: la
+  // bitácora no puede quedar sin responsable identificable.
+  const guestNote = guest ? `${conversionNote ? `${conversionNote} ` : ""}[Invitado: ${session.name} · ${guest.grantLabel}]` : conversionNote;
   const rows = await sql`
     INSERT INTO inventory_movements (
       laboratory_id, inventory_item_id, movement_type, quantity_delta, note,
       performed_by, responsible_user_id, reference_type, reference_id, reason_code, from_location_id, to_location_id, transferred_quantity,
-      usage_area, usage_purpose, used_by_person, authorized_by
+      usage_area, usage_purpose, used_by_person, authorized_by, guest_session_id
     ) VALUES (
-      ${session.laboratoryId}, ${payload.inventoryItemId}, ${payload.movementType}, ${quantityDelta}, ${conversionNote},
-      ${session.userId}, ${session.userId}, ${payload.referenceType ?? null}, ${payload.referenceId ?? null}, ${payload.reasonCode}, ${payload.fromLocationId ?? null}, ${payload.toLocationId ?? null}, ${payload.movementType === "TRANSFER" ? quantity : null},
-      ${trace.usageArea}, ${trace.usagePurpose}, ${trace.usedByPerson}, ${trace.authorizedBy}
+      ${session.laboratoryId}, ${payload.inventoryItemId}, ${payload.movementType}, ${quantityDelta}, ${guestNote},
+      ${guest ? null : session.userId}, ${guest ? null : session.userId}, ${payload.referenceType ?? null}, ${payload.referenceId ?? null}, ${payload.reasonCode}, ${payload.fromLocationId ?? null}, ${payload.toLocationId ?? null}, ${payload.movementType === "TRANSFER" ? quantity : null},
+      ${trace.usageArea}, ${trace.usagePurpose}, ${guest ? session.name : trace.usedByPerson}, ${trace.authorizedBy}, ${guest?.sessionId ?? null}
     ) RETURNING *
   `;
   if (payload.movementType === "TRANSFER") await sql`UPDATE inventory_items SET storage_location_id = ${payload.toLocationId!}, updated_at = now() WHERE id = ${payload.inventoryItemId} AND laboratory_id = ${session.laboratoryId}`;

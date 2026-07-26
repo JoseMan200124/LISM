@@ -77,6 +77,9 @@ export function LoginForm() {
         </button>
       </form>
       <p className="login-footer">
+        ¿Tienes un código de tu profesor? <a href="/invitado">Entrar como invitado</a>
+      </p>
+      <p className="login-footer">
         ¿No tienes cuenta? <a href="/#precios">Ver planes y crear una cuenta</a>
       </p>
       <p className="login-footer">NexaLab · Entorno protegido · v0.1</p>

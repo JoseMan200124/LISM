@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { CalendarClock, ClipboardList, Plus, Trash2, TriangleAlert, Wallet } from "lucide-react";
+import { CalendarClock, ClipboardList, LockKeyhole, PenLine, Plus, Trash2, TriangleAlert, Wallet } from "lucide-react";
 import type { UserSession } from "@/lib/session";
 import { hasPermission } from "@/lib/authorization";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, type TableRow } from "@/components/lims-ui";
 import { PURCHASE_PRIORITY_LABEL, PURCHASE_STATUS_LABEL } from "@/lib/purchasing";
+import { SignatureList, type StampedSignature } from "@/components/signature";
 
 type PurchaseRow = TableRow & {
   id?: string; request_code?: string; title?: string; supplier?: string | null;
@@ -24,7 +25,7 @@ type PurchaseDetail = {
   id: string; request_code?: string; title?: string; supplier?: string | null;
   status?: string; priority?: string; currency?: string; needed_by?: string | null;
   notes?: string | null; requested_by_name?: string | null; approved_by_name?: string | null;
-  created_at?: string; items?: PurchaseItem[];
+  created_at?: string; items?: PurchaseItem[]; signatures?: StampedSignature[];
 };
 
 type LineDraft = { description: string; quantity: number; unit: string; estimatedUnitPrice: number | null; inventoryItemId: string | null };
@@ -33,7 +34,7 @@ type LowStockItem = { id: string; label: string; unit: string; suggestedQty: num
 
 type CreatePayload = {
   title: string; supplier?: string; priority?: string; currency?: string;
-  neededBy?: string | null; notes?: string;
+  neededBy?: string | null; notes?: string; status?: string; signaturePassword?: string;
   items: Array<{ inventoryItemId?: string | null; description: string; quantity: number; unit: string; estimatedUnitPrice?: number | null; notes?: string }>;
 };
 
@@ -96,7 +97,10 @@ export function PurchasingCenter({ session }: Readonly<{ session?: UserSession }
     try {
       const response = await fetch("/api/purchasing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo crear la solicitud. Revisa los campos.")); return false; }
-      setCreateOpen(false); showToast("Solicitud de compra creada."); await load(); return true;
+      setCreateOpen(false);
+      showToast(payload.signaturePassword ? "Solicitud firmada y enviada a aprobación." : "Solicitud guardada como borrador.");
+      await load();
+      return true;
     } catch { showError("No se pudo conectar con el servidor."); return false; }
   }
 
@@ -109,13 +113,18 @@ export function PurchasingCenter({ session }: Readonly<{ session?: UserSession }
     } catch { showError("No se pudo conectar con el servidor."); }
   }
 
-  async function updateStatus(id: string, status: string) {
+  async function updateStatus(id: string, status: string, signaturePassword?: string): Promise<boolean> {
     try {
-      const response = await fetch(`/api/purchasing/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-      if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo actualizar la solicitud.")); return; }
-      showToast("Estado de la solicitud actualizado.");
+      const response = await fetch(`/api/purchasing/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(signaturePassword ? { status, signaturePassword } : { status }),
+      });
+      if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo actualizar la solicitud.")); return false; }
+      showToast(status === "APPROVED" ? "Solicitud autorizada y firmada." : "Estado de la solicitud actualizado.");
       setDetail(null); await load();
-    } catch { showError("No se pudo conectar con el servidor."); }
+      return true;
+    } catch { showError("No se pudo conectar con el servidor."); return false; }
   }
 
   const openRows = rows.filter((row) => OPEN_STATUSES.has(String(row.status)));
@@ -203,6 +212,8 @@ function PurchaseModal({ onClose, onSave }: Readonly<{ onClose: () => void; onSa
   const [draftPrice, setDraftPrice] = useState("");
   const [draftInventoryId, setDraftInventoryId] = useState<string | null>(null);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
+  const [sign, setSign] = useState(true);
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -258,6 +269,9 @@ function PurchaseModal({ onClose, onSave }: Readonly<{ onClose: () => void; onSa
     const title = String(data.get("title") ?? "").trim();
     if (title.length < 3) { setError("El título debe tener al menos 3 caracteres."); return; }
     if (items.length === 0) { setError("Añade al menos un artículo a la solicitud."); return; }
+    // Enviar a aprobación exige la firma de quien solicita; guardar como
+    // borrador no, porque todavía no compromete a nadie.
+    if (sign && password.length < 8) { setError("Escribe tu contraseña para firmar la solicitud."); return; }
     setSaving(true);
     const ok = await onSave({
       title,
@@ -266,10 +280,12 @@ function PurchaseModal({ onClose, onSave }: Readonly<{ onClose: () => void; onSa
       currency: String(data.get("currency") ?? "GTQ").trim() || "GTQ",
       neededBy: String(data.get("neededBy") ?? "") || null,
       notes: String(data.get("notes") ?? "").trim() || undefined,
+      status: sign ? "PENDING" : "DRAFT",
+      signaturePassword: sign ? password : undefined,
       items: items.map((item) => ({ inventoryItemId: item.inventoryItemId, description: item.description, quantity: item.quantity, unit: item.unit, estimatedUnitPrice: item.estimatedUnitPrice ?? undefined })),
     });
     setSaving(false);
-    if (!ok) return;
+    if (!ok) setPassword("");
   }
 
   return (
@@ -329,24 +345,67 @@ function PurchaseModal({ onClose, onSave }: Readonly<{ onClose: () => void; onSa
         {estimatedTotal > 0 ? <p className="ai-digitize-note" style={{ textAlign: "right", fontWeight: 600 }}>Total estimado: {formatMoney(estimatedTotal)}</p> : null}
 
         <label><span>Observaciones (opcional)</span><textarea name="notes" rows={2} placeholder="Detalles para quien realiza la compra…" /></label>
+
+        <span className="form-section-title">Firma electrónica</span>
+        <div className="signature-inline">
+          <label className="check-line">
+            <input type="checkbox" checked={sign} onChange={(event) => setSign(event.target.checked)} />
+            <span>Firmar y enviar a aprobación ahora</span>
+          </label>
+          {sign ? (
+            <>
+              <label>
+                <span>Tu contraseña</span>
+                <div className="input-with-icon">
+                  <LockKeyhole size={16} />
+                  <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} />
+                </div>
+              </label>
+              <p className="form-help">Tu firma queda ligada al contenido exacto de esta solicitud, con fecha y hora. Sustituye a la requisición firmada en papel.</p>
+            </>
+          ) : (
+            <p className="form-help">Sin firmar se guarda como borrador: podrás revisarla y firmarla después.</p>
+          )}
+        </div>
+
         <footer className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Crear solicitud"}</button>
+          <button type="submit" className="primary-button" disabled={saving}>
+            {sign ? <PenLine size={15} /> : null}
+            {saving ? "Guardando…" : sign ? "Firmar y enviar" : "Guardar borrador"}
+          </button>
         </footer>
       </form>
     </ActionModal>
   );
 }
 
-function PurchaseDetailModal({ detail, canManage, onClose, onAction }: Readonly<{ detail: PurchaseDetail | null; canManage: boolean; onClose: () => void; onAction: (id: string, status: string) => void | Promise<void> }>) {
+function PurchaseDetailModal({ detail, canManage, onClose, onAction }: Readonly<{ detail: PurchaseDetail | null; canManage: boolean; onClose: () => void; onAction: (id: string, status: string, signaturePassword?: string) => Promise<boolean> }>) {
   const [busy, setBusy] = useState(false);
+  const [signingFor, setSigningFor] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
   if (!detail) return null;
   const currency = detail.currency ?? "GTQ";
   const items = detail.items ?? [];
   const total = items.reduce((sum, item) => sum + Number(item.quantity ?? 0) * Number(item.estimated_unit_price ?? 0), 0);
   const actions = nextActions(String(detail.status));
+  const signatures = detail.signatures ?? [];
 
-  async function run(status: string) { setBusy(true); try { await onAction(detail!.id, status); } finally { setBusy(false); } }
+  // Autorizar exige firma; el resto de transiciones (pedida, recibida) no.
+  async function run(status: string) {
+    if (status === "APPROVED") { setSigningFor(status); return; }
+    setBusy(true);
+    try { await onAction(detail!.id, status); } finally { setBusy(false); }
+  }
+
+  async function confirmSignature() {
+    if (password.length < 8) return;
+    setBusy(true);
+    try {
+      const ok = await onAction(detail!.id, "APPROVED", password);
+      if (ok) { setSigningFor(null); setPassword(""); }
+    } finally { setBusy(false); }
+  }
 
   return (
     <ActionModal open title={`${detail.request_code ?? ""} · ${detail.title ?? "Solicitud"}`} description="Detalle de la solicitud de compra y sus artículos." onClose={onClose} wide>
@@ -377,9 +436,37 @@ function PurchaseDetailModal({ detail, canManage, onClose, onAction }: Readonly<
           })}
         </ul>
         {total > 0 ? <p className="ai-digitize-note" style={{ textAlign: "right", fontWeight: 600 }}>Total estimado: {formatMoney(total, currency)}</p> : null}
+
+        {signatures.length ? (
+          <>
+            <p className="form-section-title" style={{ marginTop: 12 }}>Firmas</p>
+            <SignatureList signatures={signatures} />
+          </>
+        ) : null}
+
+        {signingFor ? (
+          <div className="signature-inline">
+            <p className="form-section-title">Autorizar con tu firma</p>
+            <p className="form-help">Vas a autorizar {detail.request_code ?? "esta solicitud"} por {formatMoney(total, currency)}. Confirma tu contraseña para firmar.</p>
+            <label>
+              <span>Tu contraseña</span>
+              <div className="input-with-icon">
+                <LockKeyhole size={16} />
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} />
+              </div>
+            </label>
+            <div className="modal-actions">
+              <button type="button" className="secondary-button" onClick={() => { setSigningFor(null); setPassword(""); }}>Cancelar</button>
+              <button type="button" className="primary-button" disabled={busy || password.length < 8} onClick={() => void confirmSignature()}>
+                <PenLine size={15} /> {busy ? "Firmando…" : "Firmar y autorizar"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <footer className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Cerrar</button>
-          {canManage ? actions.map((action) => (
+          {canManage && !signingFor ? actions.map((action) => (
             <button key={action.status} type="button" className={action.primary ? "primary-button" : "secondary-button"} disabled={busy} onClick={() => void run(action.status)}>{action.label}</button>
           )) : null}
         </footer>

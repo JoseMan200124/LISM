@@ -218,6 +218,28 @@ export async function notifyPurchaseStatus(
   });
 }
 
+// ─── Investigación ───────────────────────────────────────────────────────────
+
+/**
+ * Nueva versión vigente de un protocolo. Se avisa a los investigadores de los
+ * proyectos que lo tienen vinculado: son quienes lo aplican en el banco de
+ * trabajo y no pueden seguir con la versión anterior.
+ */
+export async function notifyProtocolVersion(
+  session: UserSession,
+  input: { protocolId: string; code: string; title: string; versionNumber: number; recipients: string[] },
+): Promise<void> {
+  const recipients = input.recipients.filter((userId) => userId && userId !== session.userId);
+  if (!recipients.length) return;
+  await sendPushToUsers(recipients, {
+    title: `Nueva versión vigente: ${input.code}`,
+    body: `${input.title} pasó a la versión ${input.versionNumber}. Revísala antes de tu próximo experimento.`,
+    channelId: "general",
+    targetUrl: `/protocols?protocolId=${input.protocolId}`,
+    data: { type: "protocol", protocolId: input.protocolId, versionNumber: String(input.versionNumber) },
+  });
+}
+
 // ─── Alertas ─────────────────────────────────────────────────────────────────
 
 export async function notifyAlertRaised(

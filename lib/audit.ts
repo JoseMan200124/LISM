@@ -17,15 +17,23 @@ export async function writeAuditEvent(session: UserSession, input: AuditInput): 
   const sql = getSql();
   const forwardedFor = input.request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
   const userAgent = input.request?.headers.get("user-agent") || null;
+  // Un invitado no es un usuario registrado: el actor queda vacío y su
+  // identidad declarada (nombre, código con el que entró) se conserva en los
+  // metadatos, de modo que la acción nunca queda huérfana en la bitácora.
+  const guest = session.guest;
+  const actorUserId = guest ? null : session.userId;
+  const metadata = guest
+    ? { ...(input.metadata ?? {}), guest: { name: session.name, grantId: guest.grantId, sessionId: guest.sessionId, grantLabel: guest.grantLabel } }
+    : (input.metadata ?? {});
   await sql`
     INSERT INTO audit_logs (
       organization_id, laboratory_id, actor_user_id, action, entity_type, entity_id,
       previous_value, new_value, reason, metadata, ip_address, user_agent
     ) VALUES (
-      ${session.organizationId}, ${session.laboratoryId}, ${session.userId}, ${input.action}, ${input.entityType}, ${input.entityId ?? null},
+      ${session.organizationId}, ${session.laboratoryId}, ${actorUserId}, ${input.action}, ${input.entityType}, ${input.entityId ?? null},
       ${input.previousValue === undefined ? null : JSON.stringify(input.previousValue)}::jsonb,
       ${input.newValue === undefined ? null : JSON.stringify(input.newValue)}::jsonb,
-      ${input.reason ?? null}, ${JSON.stringify(input.metadata ?? {})}::jsonb,
+      ${input.reason ?? null}, ${JSON.stringify(metadata)}::jsonb,
       ${forwardedFor}, ${userAgent}
     )
   `;

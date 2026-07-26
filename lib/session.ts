@@ -9,7 +9,7 @@ export type UserSession = {
   userId: string;
   name: string;
   email: string;
-  role: "OWNER" | "LAB_ADMIN" | "SCIENTIST" | "TECHNICIAN" | "REVIEWER" | "VIEWER" | "HEAD_OF_LAB" | "ANALYST" | "ASSISTANT" | "AUDITOR" | "CONSULTATION" | "PROFESSOR" | "STUDENT";
+  role: "OWNER" | "LAB_ADMIN" | "SCIENTIST" | "TECHNICIAN" | "REVIEWER" | "VIEWER" | "HEAD_OF_LAB" | "ANALYST" | "ASSISTANT" | "AUDITOR" | "CONSULTATION" | "PROFESSOR" | "STUDENT" | "GUEST";
   organizationId: string;
   laboratoryId: string;
   laboratoryName: string;
@@ -19,6 +19,16 @@ export type UserSession = {
   // anulaciones del laboratorio). Ausente en sesiones anteriores: en ese caso
   // hasPermission usa la matriz base del rol.
   permissions?: string[];
+  // Presente solo en las sesiones abiertas con un código de invitado. Los
+  // permisos vienen del alcance del código y userId apunta a la sesión de
+  // invitado, no a un usuario registrado.
+  guest?: {
+    grantId: string;
+    sessionId: string;
+    grantLabel: string;
+    scopes: string[];
+    expiresAt: string;
+  };
 };
 
 // Las integraciones internas firmadas pueden reutilizar exactamente los mismos
@@ -36,11 +46,11 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
-export async function createSessionToken(session: UserSession): Promise<string> {
+export async function createSessionToken(session: UserSession, ttlSeconds: number = SESSION_TTL_SECONDS): Promise<string> {
   return new SignJWT(session)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
+    .setExpirationTime(`${Math.max(60, Math.floor(ttlSeconds))}s`)
     .sign(secret());
 }
 
@@ -80,13 +90,13 @@ export async function getSession(): Promise<UserSession | null> {
   return verifySessionToken(bearerToken(headerStore.get("authorization")));
 }
 
-export async function setSessionCookie(token: string): Promise<void> {
+export async function setSessionCookie(token: string, maxAgeSeconds: number = SESSION_TTL_SECONDS): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: Math.max(60, Math.floor(maxAgeSeconds)),
     path: "/",
   });
 }

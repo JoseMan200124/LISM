@@ -26,14 +26,20 @@ export type PermissionKey =
   | "alerts.manage"
   | "purchasing.view"
   | "purchasing.manage"
-  | "signatures.create";
+  | "signatures.create"
+  | "guests.manage"
+  | "research.view"
+  | "research.manage"
+  | "protocols.approve"
+  | "documents.manage";
 
 export const allPermissions: PermissionKey[] = [
   "configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage",
   "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter",
   "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view",
   "education.view", "education.manage", "incidents.view", "incidents.manage", "alerts.view", "alerts.manage",
-  "purchasing.view", "purchasing.manage", "signatures.create",
+  "purchasing.view", "purchasing.manage", "signatures.create", "guests.manage",
+  "research.view", "research.manage", "protocols.approve", "documents.manage",
 ];
 
 export const permissionLabels: Record<PermissionKey, string> = {
@@ -62,22 +68,30 @@ export const permissionLabels: Record<PermissionKey, string> = {
   "purchasing.view": "Ver compras y solicitudes",
   "purchasing.manage": "Crear y gestionar solicitudes de compra",
   "signatures.create": "Firmar electrónicamente",
+  "guests.manage": "Emitir y revocar accesos de invitado",
+  "research.view": "Ver proyectos, protocolos, muestras y biobancos",
+  "research.manage": "Gestionar proyectos, muestras, biobancos y cuadernos",
+  "protocols.approve": "Aprobar protocolos y procedimientos normalizados",
+  "documents.manage": "Administrar el repositorio documental",
 };
 
 export const permissionsByRole: Record<UserSession["role"], PermissionKey[]> = {
   OWNER: allPermissions,
   LAB_ADMIN: allPermissions,
-  SCIENTIST: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view", "purchasing.manage", "signatures.create"],
-  TECHNICIAN: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view"],
-  REVIEWER: ["inventory.view", "equipment.view", "specimens.view", "specimens.transition", "results.view", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "purchasing.view", "signatures.create"],
-  VIEWER: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "education.view", "purchasing.view"],
-  HEAD_OF_LAB: ["configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "education.view", "education.manage", "incidents.view", "incidents.manage", "purchasing.view", "purchasing.manage", "signatures.create"],
-  ANALYST: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view", "signatures.create"],
-  ASSISTANT: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "education.view", "purchasing.view"],
-  AUDITOR: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "audit.view", "compliance.view", "education.view", "incidents.view", "purchasing.view"],
-  CONSULTATION: ["inventory.view", "equipment.view", "specimens.view", "education.view"],
-  PROFESSOR: ["inventory.view", "equipment.view", "education.view", "education.manage", "incidents.view", "incidents.manage", "alerts.view", "purchasing.view", "purchasing.manage"],
+  SCIENTIST: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view", "purchasing.manage", "signatures.create", "research.view", "research.manage", "documents.manage"],
+  TECHNICIAN: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view", "research.view"],
+  REVIEWER: ["inventory.view", "equipment.view", "specimens.view", "specimens.transition", "results.view", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "purchasing.view", "signatures.create", "research.view", "protocols.approve", "documents.manage"],
+  VIEWER: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "education.view", "purchasing.view", "research.view"],
+  HEAD_OF_LAB: ["configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "education.view", "education.manage", "incidents.view", "incidents.manage", "purchasing.view", "purchasing.manage", "signatures.create", "guests.manage", "research.view", "research.manage", "protocols.approve", "documents.manage"],
+  ANALYST: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view", "signatures.create", "research.view", "research.manage"],
+  ASSISTANT: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "education.view", "purchasing.view", "research.view"],
+  AUDITOR: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "audit.view", "compliance.view", "education.view", "incidents.view", "purchasing.view", "research.view"],
+  CONSULTATION: ["inventory.view", "equipment.view", "specimens.view", "education.view", "research.view"],
+  PROFESSOR: ["inventory.view", "equipment.view", "education.view", "education.manage", "incidents.view", "incidents.manage", "alerts.view", "purchasing.view", "purchasing.manage", "signatures.create", "guests.manage", "research.view", "research.manage"],
   STUDENT: ["inventory.view", "equipment.view", "education.view"],
+  // El invitado no tiene matriz base: sus permisos son exactamente el alcance
+  // del código con el que entró (lib/guest-access.ts) y viajan en la sesión.
+  GUEST: [],
 };
 
 export function hasPermission(session: UserSession, permission: PermissionKey): boolean {
@@ -120,6 +134,12 @@ const modulePermissions: Partial<Record<ModuleKey, PermissionKey[]>> = {
   controlled: ["inventory.view"],
   equipment: ["equipment.view"],
   education: ["education.view"],
+  projects: ["research.view"],
+  protocols: ["research.view"],
+  samples: ["research.view"],
+  biobank: ["research.view"],
+  notebook: ["research.view"],
+  library: ["research.view"],
   incidents: ["incidents.view"],
   quality: ["quality.view"],
   documents: ["quality.view"],

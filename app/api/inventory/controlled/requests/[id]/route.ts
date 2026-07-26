@@ -14,6 +14,7 @@ import {
 import { canAuthorizeControlled, isMissingAuthorizationMigration, loadControlledPolicy } from "@/lib/controlled-usage-service";
 import { dispatchPush } from "@/lib/push";
 import { notifyControlledResolved } from "@/lib/push-events";
+import { loadSignaturePolicy, signRecord } from "@/lib/signature-service";
 
 // Resolución de una solicitud de uso de reactivo controlado: el responsable
 // autoriza o rechaza (lo que antes era firmar la hoja en papel) y el solicitante
@@ -28,6 +29,8 @@ const schema = z.object({
   // El responsable puede autorizar menos de lo solicitado.
   approvedQuantity: z.coerce.number().positive().optional(),
   validityHours: z.coerce.number().min(MIN_VALIDITY_HOURS).max(MAX_VALIDITY_HOURS).optional(),
+  // Firma del responsable: es lo que antes era su firma manuscrita en la hoja.
+  signaturePassword: z.string().max(200).optional(),
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -141,11 +144,39 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const policy = await loadControlledPolicy(session.laboratoryId);
     const validityHours = clampValidityHours(payload.validityHours ?? policy.validityHours);
     const expiresAt = authorizationExpiry(new Date(), validityHours);
+
+    // La autorización se firma antes de aplicarse: si la firma falla, la
+    // solicitud sigue pendiente y nadie puede consumir el reactivo.
+    const signaturePolicy = await loadSignaturePolicy(session.laboratoryId);
+    let reviewSignatureId: string | null = null;
+    if (signaturePolicy.controlledApproval) {
+      if (!payload.signaturePassword) {
+        return NextResponse.json(
+          { success: false, error: "SIGNATURE_REQUIRED", message: "La autorización debe ir firmada. Confirma tu contraseña para autorizar." },
+          { status: 400 },
+        );
+      }
+      const signature = await signRecord(session, {
+        password: payload.signaturePassword,
+        entityType: "controlled_usage_request",
+        entityId: id,
+        meaning: "AUTHORIZATION",
+        content: {
+          requestCode: usageRequest.request_code, sku: usageRequest.sku, approvedQuantity, unit: itemUnit,
+          usedByPerson: usageRequest.used_by_person, usagePurpose: usageRequest.usage_purpose, expiresAt: expiresAt.toISOString(),
+        },
+        request,
+      });
+      if (!signature.ok) return NextResponse.json({ success: false, error: "SIGNATURE_FAILED", message: signature.message }, { status: signature.status });
+      reviewSignatureId = signature.signatureId;
+    }
+
     const updated = await sql`
       UPDATE controlled_usage_requests
       SET status = 'APPROVED', reviewed_by = ${session.userId}, reviewed_at = now(),
         review_note = ${payload.note.trim() || null}, approved_quantity = ${approvedQuantity},
-        expires_at = ${expiresAt.toISOString()}, updated_at = now()
+        expires_at = ${expiresAt.toISOString()}, review_signature_id = COALESCE(${reviewSignatureId}, review_signature_id),
+        updated_at = now()
       WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}
       RETURNING *
     `;

@@ -13,10 +13,18 @@ import { getSession } from "@/lib/session";
 // sin IDs reales) — se mantiene el mismo fallback de demo para cuando no
 // hay base de datos, pero en modo real consulta memberships/users para que
 // cada fila tenga un id real y así se pueda mostrar su foto de perfil.
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "No autorizado." }, { status: 401 });
-  if (!hasPermission(session, "configuration.manage")) {
+
+  // ?scope=directory devuelve solo nombre y correo: es lo que necesitan los
+  // selectores de responsable, investigador o firmante. No expone rol ni
+  // estado, así que basta con poder ver los módulos que los usan.
+  const directoryOnly = new URL(request.url).searchParams.get("scope") === "directory";
+  const allowed = directoryOnly
+    ? hasPermission(session, "research.view") || hasPermission(session, "education.manage") || hasPermission(session, "configuration.manage")
+    : hasPermission(session, "configuration.manage");
+  if (!allowed) {
     return NextResponse.json({ message: "No tienes permiso para consultar usuarios." }, { status: 403 });
   }
 
@@ -28,6 +36,16 @@ export async function GET() {
   }
 
   const sql = getSql();
+  if (directoryOnly) {
+    const directory = await sql`
+      SELECT u.id, u.full_name, u.email
+      FROM users u
+      JOIN memberships m ON m.user_id = u.id
+      WHERE m.laboratory_id = ${session.laboratoryId} AND m.status = 'ACTIVE' AND u.status = 'ACTIVE'
+      ORDER BY u.full_name ASC
+    `;
+    return NextResponse.json({ data: directory, mode: "database" });
+  }
   const rows = await sql`
     SELECT u.id, u.full_name, u.email, u.status, m.role, m.status AS membership_status
     FROM users u

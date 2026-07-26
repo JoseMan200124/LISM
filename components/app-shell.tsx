@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ChevronDown,
   Command,
+  KeyRound,
   LogOut,
   Menu,
   Moon,
@@ -18,8 +19,10 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { navigation, educationalNavigationByRole, educationalNavigationFallback } from "@/lib/navigation";
+import { navigation, educationalNavigationByRole, educationalNavigationFallback, guestNavigation, researchNavigation, type ModuleKey } from "@/lib/navigation";
+import type { LucideIcon } from "lucide-react";
 import type { UserSession } from "@/lib/session";
+import { isGuestSession } from "@/lib/guest-access";
 import { NewAccessionModal } from "@/components/new-accession-modal";
 import { OrganizationLogo } from "@/components/organization-logo";
 import { roleLabels } from "@/lib/permissions";
@@ -31,13 +34,19 @@ import { TutorialProvider } from "@/components/tutorial/tutorial-context";
 import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay";
 import { TutorialPrompt } from "@/components/tutorial/tutorial-prompt";
 import { TutorialTriggerButton } from "@/components/tutorial/tutorial-trigger-button";
-import { isEducationalProfile } from "@/lib/lab-profile";
+import { isEducationalProfile, isResearchProfile } from "@/lib/lab-profile";
+import { GuestAccessTrigger } from "@/components/guest-access-center";
 import { SidebarAlertCount } from "@/components/sidebar-alert-count";
 import { isThemePreference, resolveTheme, type ThemePreference } from "@/lib/theme";
 import { DeveloperCredit } from "@/components/developer-credit";
 import { DiloWidget } from "@/components/dilo-widget";
 
 type DialogKey = "laboratory" | "preferences" | null;
+
+type NavGroupLike = {
+  title: string;
+  items: ReadonlyArray<{ key: ModuleKey; label: string; icon: LucideIcon; href: string }>;
+};
 
 export function AppShell({ session, children }: Readonly<{ session: UserSession; children: React.ReactNode }>) {
   const pathname = usePathname();
@@ -58,14 +67,28 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
   const { message, toastType, showToast, showError, clearToast } = useToast();
 
   const isEducational = isEducationalProfile(session.profileCode);
+  const isResearch = isResearchProfile(session.profileCode);
+  const isGuest = isGuestSession(session);
 
-  const visibleNavigation = isEducational
-    ? (educationalNavigationByRole[session.role] ?? educationalNavigationFallback)
-    : navigation
-        .map((group) => ({ ...group, items: group.items.filter((item) => canAccessModule(session, item.key)) }))
-        .filter((group) => group.items.length > 0);
+  // El invitado y el perfil de investigación se filtran siempre por permiso:
+  // el primero porque su alcance lo define el código con el que entró, el
+  // segundo porque los módulos nuevos conviven con los de recursos.
+  const filterByPermission = (groups: readonly NavGroupLike[]): NavGroupLike[] =>
+    groups
+      .map((group) => ({ ...group, items: group.items.filter((item) => canAccessModule(session, item.key)) }))
+      .filter((group) => group.items.length > 0);
 
-  const canReceiveSpecimens = !isEducational && hasPermission(session, "specimens.receive");
+  const visibleNavigation = isGuest
+    ? filterByPermission(guestNavigation)
+    : isResearch
+      ? filterByPermission(researchNavigation)
+      : isEducational
+        ? (educationalNavigationByRole[session.role] ?? educationalNavigationFallback)
+        : filterByPermission(navigation);
+
+  const canReceiveSpecimens = !isEducational && !isGuest && hasPermission(session, "specimens.receive");
+  const canManageGuests = !isGuest && hasPermission(session, "guests.manage");
+  const guestExpiry = session.guest?.expiresAt ? new Date(session.guest.expiresAt) : null;
 
   function applyTheme(preference: ThemePreference) {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -247,6 +270,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         <div className="sidebar-footer">
           <TutorialTriggerButton />
           <button className="sidebar-link" onClick={() => setDialog("preferences")}><Settings size={17} /><span>Preferencias</span></button>
+          {canManageGuests ? <GuestAccessTrigger /> : null}
           <DeveloperCredit variant="compact" className="sidebar-developer-credit" />
         </div>
       </aside>
@@ -266,7 +290,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
             <button className="icon-button theme-toggle-button" aria-label={resolvedDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"} title={resolvedDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"} onClick={() => void toggleTheme()}>
               {resolvedDark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <NotificationCenter />
+            {isGuest ? null : <NotificationCenter />}
             <div className="profile-menu-wrap">
               <button className="profile-button" onClick={() => setProfileOpen((open) => !open)}>
                 <UserAvatar userId={session.userId} name={session.name} size="sm" cacheBust={avatarCacheBust} />
@@ -292,7 +316,22 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
             </div>
           </div>
         </header>
-        <main className="main-content">{children}</main>
+        <main className="main-content">
+          {isGuest ? (
+            <div className="guest-session-banner" role="status">
+              <KeyRound size={16} />
+              <p>
+                <strong>Estás dentro como invitado.</strong>
+                <span>
+                  {session.guest?.grantLabel ? `${session.guest.grantLabel}. ` : ""}
+                  {guestExpiry ? `El acceso vence el ${guestExpiry.toLocaleDateString("es-GT", { day: "2-digit", month: "long", year: "numeric" })}.` : ""}
+                  {" "}Lo que registres queda a tu nombre: {session.name}.
+                </span>
+              </p>
+            </div>
+          ) : null}
+          {children}
+        </main>
       </div>
       {canReceiveSpecimens ? <NewAccessionModal open={newSpecimenOpen} onClose={() => setNewSpecimenOpen(false)} /> : null}
       <ActionModal open={dialog === "laboratory"} title="Laboratorio activo" description="La versión inicial mantiene una sede activa por sesión. El selector ya está preparado para habilitar sedes adicionales." onClose={() => setDialog(null)}>

@@ -5,6 +5,7 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { normalizePictograms, normalizeSafetyProcedures } from "@/lib/ghs";
 
 const patchSchema = z.object({
   name: z.string().min(2).max(180).optional(),
@@ -31,6 +32,10 @@ const patchSchema = z.object({
   reorderPoint: z.coerce.number().nonnegative().optional(),
   expiresAt: z.string().date().optional().nullable(),
   safetySheetUrl: z.string().url().optional().nullable().or(z.literal("")),
+  // Peligrosidad SGA/GHS y procedimientos de seguridad del reactivo.
+  hazardPictograms: z.array(z.string()).max(9).optional(),
+  hazardStatements: z.string().max(4000).optional().nullable(),
+  safetyProcedures: z.record(z.string(), z.string().max(4000)).optional(),
   customValues: z.record(z.string(), z.unknown()).optional(),
   // Archivar: solo cambio de estado permitido desde aquí (el stock nunca se
   // edita directamente, solo por movimientos).
@@ -86,6 +91,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const previous = await sql`SELECT * FROM inventory_items WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
   if (previous.length === 0) return NextResponse.json({ message: "Artículo no encontrado." }, { status: 404 });
   const customValues = payload.customValues === undefined ? null : JSON.stringify(payload.customValues);
+  // Los pictogramas se normalizan al catálogo oficial y los procedimientos a las
+  // claves conocidas: nada llega crudo a la base.
+  const pictograms = payload.hazardPictograms === undefined ? null : JSON.stringify(normalizePictograms(payload.hazardPictograms));
+  const procedures = payload.safetyProcedures === undefined ? null : JSON.stringify(normalizeSafetyProcedures(payload.safetyProcedures));
   // Estado de control resultante: un reactivo controlado siempre exige registro
   // de consumo; al quitarle el control se limpia el tipo (control_kind).
   const prior = previous[0] as Record<string, unknown>;
@@ -122,6 +131,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       reorder_point = COALESCE(${payload.reorderPoint ?? null}, reorder_point),
       expires_at = COALESCE(${payload.expiresAt ?? null}, expires_at),
       safety_sheet_url = COALESCE(${payload.safetySheetUrl || null}, safety_sheet_url),
+      hazard_pictograms = COALESCE(${pictograms}::jsonb, hazard_pictograms),
+      hazard_statements = COALESCE(${payload.hazardStatements ?? null}, hazard_statements),
+      safety_procedures = COALESCE(${procedures}::jsonb, safety_procedures),
       custom_values = COALESCE(${customValues}::jsonb, custom_values),
       status = COALESCE(${payload.status ?? null}, status),
       updated_at = now()

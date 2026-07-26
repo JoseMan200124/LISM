@@ -10,6 +10,7 @@ import { computeNextRequestCode, DEFAULT_CONTROLLED_POLICY } from "@/lib/control
 import { canAuthorizeControlled, isMissingAuthorizationMigration, loadControlledPolicy } from "@/lib/controlled-usage-service";
 import { dispatchPush } from "@/lib/push";
 import { notifyControlledRequest } from "@/lib/push-events";
+import { loadSignaturePolicy, signRecord } from "@/lib/signature-service";
 
 // Solicitudes de autorización de uso de reactivos controlados: la versión
 // digital de la hoja que antes se llenaba en papel, se llevaba al responsable y
@@ -30,6 +31,8 @@ const createSchema = z.object({
   usagePurpose: z.string().min(2).max(1000),
   plannedFor: z.string().datetime({ offset: true }).optional(),
   notes: z.string().max(1000).optional(),
+  // Firma de quien solicita: reemplaza la firma manuscrita de la hoja de papel.
+  signaturePassword: z.string().max(200).optional(),
 });
 
 async function nextRequestCode(sql: ReturnType<typeof getSql>, laboratoryId: string): Promise<string> {
@@ -133,8 +136,17 @@ export async function POST(request: Request) {
     );
   }
   const payload = parsed.data;
+
+  const signaturePolicy = await loadSignaturePolicy(session.laboratoryId);
+  if (signaturePolicy.controlledRequest && !payload.signaturePassword) {
+    return NextResponse.json(
+      { success: false, error: "SIGNATURE_REQUIRED", message: "Esta solicitud debe ir firmada. Confirma tu contraseña para firmarla." },
+      { status: 400 },
+    );
+  }
+
   if (!hasDatabase()) {
-    return NextResponse.json({ data: { id: crypto.randomUUID(), request_code: "AU-DEMO-001", status: "PENDING", ...payload }, mode: "demo" }, { status: 201 });
+    return NextResponse.json({ data: { id: crypto.randomUUID(), request_code: "AU-DEMO-001", status: "PENDING", ...payload, signaturePassword: undefined }, mode: "demo" }, { status: 201 });
   }
 
   const sql = getSql();
@@ -193,6 +205,28 @@ export async function POST(request: Request) {
     }
     if (!created) {
       return NextResponse.json({ success: false, error: "INTERNAL_ERROR", message: "No fue posible generar el folio de la solicitud. Intenta nuevamente." }, { status: 500 });
+    }
+
+    if (payload.signaturePassword) {
+      const signature = await signRecord(session, {
+        password: payload.signaturePassword,
+        entityType: "controlled_usage_request",
+        entityId: String(created.id),
+        meaning: "REQUEST",
+        content: {
+          requestCode: created.request_code, sku: item.sku, quantity, unit: itemUnit,
+          usedByPerson: payload.usedByPerson.trim(), usageArea: payload.usageArea.trim(), usagePurpose: payload.usagePurpose.trim(),
+        },
+        request,
+      });
+      if (!signature.ok) {
+        // La solicitud no puede quedar circulando sin la firma de quien la pide.
+        await sql`DELETE FROM controlled_usage_requests WHERE id = ${String(created.id)} AND laboratory_id = ${session.laboratoryId} AND status = 'PENDING'`;
+        return NextResponse.json({ success: false, error: "SIGNATURE_FAILED", message: signature.message }, { status: signature.status });
+      }
+      if (signature.signatureId) {
+        await sql`UPDATE controlled_usage_requests SET request_signature_id = ${signature.signatureId} WHERE id = ${String(created.id)} AND laboratory_id = ${session.laboratoryId}`;
+      }
     }
 
     await writeAuditEvent(session, {

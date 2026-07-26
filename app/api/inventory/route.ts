@@ -8,6 +8,7 @@ import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { createDemoQrLabel, createOpaqueToken } from "@/lib/qr-security";
 import { missingRequiredFields, type CustomFieldDefinition } from "@/lib/custom-fields";
+import { normalizePictograms, normalizeSafetyProcedures } from "@/lib/ghs";
 
 const inventorySchema = z.object({
   sku: z.string().min(2).max(80),
@@ -40,6 +41,11 @@ const inventorySchema = z.object({
   allowDirectDiscard: z.boolean().optional().default(false),
   notes: z.string().max(2000).optional().default(""),
   safetySheetUrl: z.string().url().optional().or(z.literal("")),
+  // Pictogramas de peligrosidad SGA/GHS declarados al ingresar el reactivo y
+  // procedimientos de seguridad propios del laboratorio.
+  hazardPictograms: z.array(z.string()).max(9).optional().default([]),
+  hazardStatements: z.string().max(4000).optional().default(""),
+  safetyProcedures: z.record(z.string(), z.string().max(4000)).optional().default({}),
   // No se fuerza a true (§3.6): el control de consumo es opcional por artículo.
   // La UI decide el valor por defecto según el tipo (reactivo/medio -> true).
   requiresUsageLog: z.boolean().optional().default(false),
@@ -90,6 +96,8 @@ export async function GET() {
       i.requires_usage_log,
       i.is_controlled,
       i.control_kind,
+      i.hazard_pictograms,
+      i.safety_sheet_url,
       i.track_stock,
       i.alert_low_stock,
       i.alert_expiry,
@@ -195,13 +203,15 @@ export async function POST(request: Request) {
       quantity, reorder_point, unit, expires_at, received_at, safety_sheet_url, internal_formula,
       requires_usage_log, is_controlled, control_kind, custom_values, created_by, item_type, concentration, brand, model,
       presentation, manufacturing_material, is_reusable, storage_conditions, culture_media_type,
-      preparation_type, track_stock, alert_low_stock, alert_expiry, allow_direct_discard, notes
+      preparation_type, track_stock, alert_low_stock, alert_expiry, allow_direct_discard, notes,
+      hazard_pictograms, hazard_statements, safety_procedures
     ) VALUES (
       ${session.laboratoryId}, ${categoryId}, ${storageLocationId ?? null}, ${payload.sku}, ${payload.name}, ${payload.vendor || null}, ${payload.lotNumber},
       ${payload.quantity}, ${payload.reorderPoint}, ${payload.unit}, ${payload.expiresAt ?? null}, ${payload.receivedAt ?? null}, ${payload.safetySheetUrl || null}, ${payload.internalFormula || null},
       ${requiresUsageLog}, ${payload.isControlled}, ${controlKind}, ${JSON.stringify(customValues)}::jsonb, ${session.userId}, ${payload.itemType}, ${payload.concentration || null}, ${payload.brand || null}, ${payload.model || null},
       ${payload.presentation || null}, ${payload.manufacturingMaterial || null}, ${payload.isReusable}, ${payload.storageConditions || null}, ${payload.cultureMediaType || null},
-      ${payload.preparationType ?? null}, ${payload.trackStock}, ${payload.alertLowStock}, ${payload.alertExpiry}, ${payload.allowDirectDiscard}, ${payload.notes || null}
+      ${payload.preparationType ?? null}, ${payload.trackStock}, ${payload.alertLowStock}, ${payload.alertExpiry}, ${payload.allowDirectDiscard}, ${payload.notes || null},
+      ${JSON.stringify(normalizePictograms(payload.hazardPictograms))}::jsonb, ${payload.hazardStatements || null}, ${JSON.stringify(normalizeSafetyProcedures(payload.safetyProcedures))}::jsonb
     )
     RETURNING id, sku, name, quantity, reorder_point, unit, status, is_controlled, control_kind
   `;
