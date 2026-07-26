@@ -70,10 +70,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const sql = getSql();
   const rows = await sql`
     UPDATE message_thread_participants SET
-      last_read_at = CASE WHEN ${parsed.data.action} = 'READ' THEN now() ELSE last_read_at END,
+      last_read_at = CASE WHEN ${parsed.data.action}::text = 'READ' THEN now() ELSE last_read_at END,
       archived_at = CASE
-        WHEN ${parsed.data.action} = 'ARCHIVE' THEN now()
-        WHEN ${parsed.data.action} = 'UNARCHIVE' THEN NULL
+        WHEN ${parsed.data.action}::text = 'ARCHIVE' THEN now()
+        WHEN ${parsed.data.action}::text = 'UNARCHIVE' THEN NULL
         ELSE archived_at END
     WHERE thread_id = ${id} AND user_id = ${session.userId} AND organization_id = ${session.organizationId}
     RETURNING thread_id, last_read_at, archived_at

@@ -76,9 +76,9 @@ export async function POST(request: Request) {
     LEFT JOIN inventory_categories ic ON ic.id = i.category_id
     WHERE i.laboratory_id = ${session.laboratoryId} AND i.status = 'ACTIVE'
       AND (
-        ${payload.scope} = 'ALL'
-        OR (${payload.scope} = 'CONTROLLED' AND (i.is_controlled = TRUE OR rc.category IN ('CONTROLLED','DUAL_USE','PRECURSOR')))
-        OR (${payload.scope} = 'CATEGORY' AND ic.name = ${payload.categoryName ?? ""})
+        ${payload.scope}::text = 'ALL'
+        OR (${payload.scope}::text = 'CONTROLLED' AND (i.is_controlled = TRUE OR rc.category IN ('CONTROLLED','DUAL_USE','PRECURSOR')))
+        OR (${payload.scope}::text = 'CATEGORY' AND ic.name = ${payload.categoryName ?? ""}::text)
       )
     RETURNING id
   `;
