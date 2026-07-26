@@ -5,6 +5,8 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { dispatchPush } from "@/lib/push";
+import { notifyIncidentAssigned } from "@/lib/push-events";
 import { INCIDENT_SEVERITIES, INCIDENT_STATUSES, isMissingRelationError } from "@/lib/incidents";
 
 const patchSchema = z.object({
@@ -87,6 +89,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       RETURNING *
     `;
     await writeAuditEvent(session, { action: "INCIDENT_UPDATED", entityType: "incident", entityId: id, previousValue: previous[0], newValue: rows[0], reason: "Actualización de incidencia", request });
+    // Solo se avisa cuando la incidencia cambia de responsable: recibir un push
+    // por cada edición menor volvería inútil la notificación.
+    if (payload.assignedTo && String(previous[0].assigned_to ?? "") !== String(payload.assignedTo)) {
+      dispatchPush(notifyIncidentAssigned(session, {
+        incidentId: id,
+        code: String(rows[0].incident_code ?? ""),
+        title: String(rows[0].title ?? ""),
+        assignedTo: String(payload.assignedTo),
+      }));
+    }
     return NextResponse.json({ data: rows[0] });
   } catch (error) {
     if (isMissingRelationError(error)) return NextResponse.json({ success: false, error: "MODULE_NOT_PROVISIONED", message: "El módulo de incidencias aún no está habilitado. Aplica la migración 0014." }, { status: 503 });

@@ -6,6 +6,8 @@ import { resultRows } from "@/lib/demo-data";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { dispatchPush } from "@/lib/push";
+import { notifyAlertRaised } from "@/lib/push-events";
 
 const resultSchema = z.object({
   orderTestId: databaseIdSchema,
@@ -96,10 +98,17 @@ export async function POST(request: Request) {
       ) RETURNING id
     `;
     investigationId = String(investigations[0].id);
-    await sql`
+    const alertRows = await sql`
       INSERT INTO alerts (organization_id, laboratory_id, severity, source_type, source_id, title, details)
       VALUES (${session.organizationId}, ${session.laboratoryId}, 'CRITICAL', 'RESULT', ${String(result.id)}, 'Resultado fuera de especificación', 'Se abrió una investigación OOS automática para conservar el resultado original y documentar la decisión.')
+      RETURNING id, title, details, severity
     `;
+    dispatchPush(notifyAlertRaised(session.laboratoryId, {
+      alertId: String(alertRows[0].id),
+      title: String(alertRows[0].title),
+      details: alertRows[0].details ? String(alertRows[0].details) : null,
+      severity: "CRITICAL",
+    }));
   }
   await writeAuditEvent(session, { action: "RESULT_CREATED", entityType: "result_record", entityId: String(result.id), newValue: result, reason: payload.note || "Captura de resultado", metadata: { outsideSpecification: outside, investigationId }, request });
   return NextResponse.json({ data: result, oosOpened: outside, investigationId }, { status: 201 });

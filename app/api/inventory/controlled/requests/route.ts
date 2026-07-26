@@ -8,6 +8,8 @@ import { hasPermission } from "@/lib/authorization";
 import { convertQuantity } from "@/lib/units";
 import { computeNextRequestCode, DEFAULT_CONTROLLED_POLICY } from "@/lib/controlled-reagents";
 import { canAuthorizeControlled, isMissingAuthorizationMigration, loadControlledPolicy } from "@/lib/controlled-usage-service";
+import { dispatchPush } from "@/lib/push";
+import { notifyControlledRequest } from "@/lib/push-events";
 
 // Solicitudes de autorización de uso de reactivos controlados: la versión
 // digital de la hoja que antes se llenaba en papel, se llevaba al responsable y
@@ -202,6 +204,15 @@ export async function POST(request: Request) {
       metadata: { itemId: payload.inventoryItemId, sku: item.sku, quantity, unit: itemUnit },
       request,
     });
+
+    dispatchPush(notifyControlledRequest(session, {
+      requestId: String(created.id),
+      itemName: String(item.name ?? "reactivo controlado"),
+      quantity,
+      unit: itemUnit,
+      purpose: payload.usagePurpose.trim(),
+    }));
+
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {
     if (isMissingAuthorizationMigration(error)) {

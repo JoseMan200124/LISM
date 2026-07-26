@@ -5,6 +5,8 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { dispatchPush } from "@/lib/push";
+import { notifyIncidentCreated } from "@/lib/push-events";
 import { INCIDENT_CATEGORIES, INCIDENT_RELATED_TYPES, INCIDENT_SEVERITIES, computeNextIncidentCode, isMissingRelationError } from "@/lib/incidents";
 
 const createSchema = z.object({
@@ -85,6 +87,13 @@ export async function POST(request: Request) {
       ) RETURNING *
     `;
     await writeAuditEvent(session, { action: "INCIDENT_CREATED", entityType: "incident", entityId: String(rows[0].id), newValue: rows[0], reason: "Registro de incidencia/hallazgo", request });
+    dispatchPush(notifyIncidentCreated(session, {
+      incidentId: String(rows[0].id),
+      code: String(rows[0].incident_code ?? ""),
+      title: String(rows[0].title ?? payload.title),
+      severity: String(rows[0].severity ?? payload.severity),
+      assignedTo: payload.assignedTo ?? null,
+    }));
     return NextResponse.json({ data: rows[0] }, { status: 201 });
   } catch (error) {
     if (isMissingRelationError(error)) return NextResponse.json({ success: false, error: "MODULE_NOT_PROVISIONED", message: "El módulo de incidencias aún no está habilitado en la base de datos. Aplica la migración 0014." }, { status: 503 });

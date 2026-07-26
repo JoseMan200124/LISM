@@ -3,12 +3,15 @@ import { compare } from "bcryptjs";
 import { z } from "zod";
 import { getSql, hasDatabase } from "@/lib/db";
 import { writeAuditEvent } from "@/lib/audit";
-import { effectivePermissions } from "@/lib/authorization";
-import { createSessionToken, setSessionCookie, type UserSession } from "@/lib/session";
+import { effectivePermissions, permissionsByRole } from "@/lib/authorization";
+import { createSessionToken, setSessionCookie, SESSION_TTL_SECONDS, type UserSession } from "@/lib/session";
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  // Los clientes nativos no reciben la cookie httpOnly: piden explícitamente
+  // el token de sesión para guardarlo en el almacén seguro del dispositivo.
+  client: z.enum(["web", "mobile"]).optional().default("web"),
 });
 
 const demoSession: UserSession = {
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Revisa el correo y la contraseña." }, { status: 400 });
   }
 
-  const { email, password } = parsed.data;
+  const { email, password, client } = parsed.data;
   const databaseConfigured = hasDatabase();
   let session: UserSession | null = null;
   let authenticatedFromDatabase = false;
@@ -142,6 +145,26 @@ export async function POST(request: Request) {
 
   const token = await createSessionToken(session);
   await setSessionCookie(token);
+
+  if (client === "mobile") {
+    return NextResponse.json({
+      ok: true,
+      token,
+      expiresInSeconds: SESSION_TTL_SECONDS,
+      session: {
+        userId: session.userId,
+        name: session.name,
+        email: session.email,
+        role: session.role,
+        organizationId: session.organizationId,
+        laboratoryId: session.laboratoryId,
+        laboratoryName: session.laboratoryName,
+        profileCode: session.profileCode,
+        sessionMode: session.sessionMode,
+        permissions: session.permissions ?? permissionsByRole[session.role] ?? [],
+      },
+    });
+  }
 
   return NextResponse.json({ ok: true, session: { name: session.name, laboratoryName: session.laboratoryName } });
 }

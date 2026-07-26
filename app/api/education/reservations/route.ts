@@ -6,6 +6,8 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { educationalReservations } from "@/lib/compliance-data";
+import { dispatchPush } from "@/lib/push";
+import { notifyReservationCreated, notifyReservationResolved } from "@/lib/push-events";
 
 const createSchema = z.object({
   practiceId: databaseIdSchema.optional().nullable(),
@@ -128,6 +130,12 @@ export async function POST(request: Request) {
     metadata: { practiceId: payload.practiceId, resourceType: payload.resourceType },
     request,
   });
+  dispatchPush(notifyReservationCreated(session, {
+    reservationId: String(rows[0].id),
+    resourceName: payload.resourceName ?? String(payload.resourceType === "EQUIPMENT" ? "equipo" : "recurso"),
+    quantity: payload.quantity ?? null,
+    unit: payload.unit ?? null,
+  }));
   return NextResponse.json({ data: rows[0] }, { status: 201 });
 }
 
@@ -169,5 +177,11 @@ export async function PATCH(request: Request) {
     reason: payload.note,
     request,
   });
+  dispatchPush(notifyReservationResolved(session, {
+    reservationId: payload.id,
+    requestedBy: String(previous[0].requested_by ?? ""),
+    resourceName: String(rows[0].reservation_code ?? "Reserva"),
+    status: payload.status,
+  }));
   return NextResponse.json({ data: rows[0] });
 }

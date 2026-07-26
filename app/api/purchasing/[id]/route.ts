@@ -5,6 +5,8 @@ import { hasPermission } from "@/lib/authorization";
 import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { databaseIdSchema } from "@/lib/validation";
+import { dispatchPush } from "@/lib/push";
+import { notifyPurchaseStatus } from "@/lib/push-events";
 
 const STATUSES = ["DRAFT", "PENDING", "APPROVED", "ORDERED", "RECEIVED", "CANCELLED"] as const;
 const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
@@ -78,5 +80,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     RETURNING *
   `;
   await writeAuditEvent(session, { action: "PURCHASE_REQUEST_UPDATED", entityType: "purchase_request", entityId: id, previousValue: existing[0], newValue: rows[0], reason: "Actualización de solicitud de compra", request });
+  if (payload.status && payload.status !== existing[0].status) {
+    dispatchPush(notifyPurchaseStatus(session, {
+      requestId: id,
+      code: String(rows[0].request_code ?? ""),
+      title: String(rows[0].title ?? ""),
+      status: payload.status,
+      requestedBy: existing[0].requested_by ? String(existing[0].requested_by) : null,
+    }));
+  }
   return NextResponse.json({ data: rows[0] });
 }

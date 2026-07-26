@@ -12,6 +12,8 @@ import {
   MIN_VALIDITY_HOURS,
 } from "@/lib/controlled-reagents";
 import { canAuthorizeControlled, isMissingAuthorizationMigration, loadControlledPolicy } from "@/lib/controlled-usage-service";
+import { dispatchPush } from "@/lib/push";
+import { notifyControlledResolved } from "@/lib/push-events";
 
 // Resolución de una solicitud de uso de reactivo controlado: el responsable
 // autoriza o rechaza (lo que antes era firmar la hoja en papel) y el solicitante
@@ -113,6 +115,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         metadata: { sku: usageRequest.sku },
         request,
       });
+
+      dispatchPush(notifyControlledResolved(session, {
+        requestId: id,
+        requestedBy: String(usageRequest.requested_by ?? ""),
+        itemName: String(usageRequest.item_name ?? usageRequest.name ?? "reactivo controlado"),
+        approved: false,
+        note: payload.note.trim(),
+      }));
+
       return NextResponse.json({ data: updated[0] });
     }
 
@@ -148,6 +159,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       metadata: { sku: usageRequest.sku, approvedQuantity, validityHours, expiresAt: expiresAt.toISOString() },
       request,
     });
+
+    dispatchPush(notifyControlledResolved(session, {
+      requestId: id,
+      requestedBy: String(usageRequest.requested_by ?? ""),
+      itemName: String(usageRequest.item_name ?? usageRequest.name ?? "reactivo controlado"),
+      approved: true,
+      quantity: approvedQuantity,
+      unit: itemUnit,
+    }));
+
     return NextResponse.json({ data: updated[0] });
   } catch (error) {
     if (isMissingAuthorizationMigration(error)) {

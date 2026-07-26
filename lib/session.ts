@@ -1,8 +1,9 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 export const SESSION_COOKIE = "nexalab_session";
+export const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
 export type UserSession = {
   userId: string;
@@ -39,7 +40,7 @@ export async function createSessionToken(session: UserSession): Promise<string> 
   return new SignJWT(session)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("12h")
+    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
     .sign(secret());
 }
 
@@ -54,11 +55,29 @@ export async function verifySessionToken(token?: string): Promise<UserSession | 
   }
 }
 
+/**
+ * Token de sesión enviado por un cliente que no maneja cookies httpOnly (la
+ * app móvil nativa). Es exactamente el mismo JWT que viaja en la cookie: no
+ * introduce un segundo mecanismo de autenticación ni amplía privilegios.
+ */
+function bearerToken(authorization: string | null): string | undefined {
+  if (!authorization) return undefined;
+  const [scheme, ...rest] = authorization.split(" ");
+  if (scheme.toLowerCase() !== "bearer") return undefined;
+  const token = rest.join(" ").trim();
+  return token || undefined;
+}
+
 export async function getSession(): Promise<UserSession | null> {
   const serviceSession = serviceSessionStorage.getStore();
   if (serviceSession) return serviceSession;
+
   const cookieStore = await cookies();
-  return verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
+  const fromCookie = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
+  if (fromCookie) return fromCookie;
+
+  const headerStore = await headers();
+  return verifySessionToken(bearerToken(headerStore.get("authorization")));
 }
 
 export async function setSessionCookie(token: string): Promise<void> {
@@ -67,7 +86,7 @@ export async function setSessionCookie(token: string): Promise<void> {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 12,
+    maxAge: SESSION_TTL_SECONDS,
     path: "/",
   });
 }

@@ -5,6 +5,8 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
+import { dispatchPush } from "@/lib/push";
+import { notifyEducationalAudience } from "@/lib/push-events";
 
 const createSchema = z.object({
   notificationType: z.enum(["GENERAL", "PRACTICE"]).default("GENERAL"),
@@ -99,7 +101,7 @@ export async function POST(request: Request) {
       ${payload.title}, ${payload.body}, ${payload.audience},
       ${payload.publishAt ?? new Date().toISOString()}, ${payload.publishAt && new Date(payload.publishAt) > new Date() ? "SCHEDULED" : "PUBLISHED"}, ${session.userId}
     )
-    RETURNING id, title, body, audience, publish_at, created_at
+    RETURNING id, title, body, audience, status, publish_at, created_at
   `;
   await writeAuditEvent(session, {
     action: "EDUCATIONAL_NOTIFICATION_PUBLISHED",
@@ -110,5 +112,20 @@ export async function POST(request: Request) {
     metadata: { audience: payload.audience, practiceId: payload.practiceId },
     request,
   });
+
+  // Push a la app móvil. Solo para avisos ya publicados: los programados los
+  // verá el destinatario cuando llegue su fecha, igual que en la campana web.
+  const published = String(rows[0].status ?? "PUBLISHED") !== "SCHEDULED";
+  if (published) {
+    dispatchPush(notifyEducationalAudience(session, {
+      notificationId: String(rows[0].id),
+      title: payload.title,
+      body: payload.body,
+      audience: payload.audience,
+      practiceId: payload.practiceId ?? null,
+      groupId: payload.groupId ?? null,
+    }));
+  }
+
   return NextResponse.json({ data: rows[0] }, { status: 201 });
 }
