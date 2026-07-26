@@ -24,6 +24,7 @@ const supportedModules = new Set<ModuleKey>([
   "notebook",
   "library",
   "purchasing",
+  "messages",
   "quality",
   "documents",
   "logbooks",
@@ -39,7 +40,7 @@ const supportedModules = new Set<ModuleKey>([
   "billing",
 ]);
 
-const educationalModules = new Set<ModuleKey>(["inventory", "controlled", "equipment", "education", "purchasing", "alerts", "incidents", "audit", "configuration", "administration", "billing"]);
+const educationalModules = new Set<ModuleKey>(["inventory", "controlled", "equipment", "education", "purchasing", "messages", "alerts", "incidents", "audit", "configuration", "administration", "billing"]);
 
 export default async function ModulePage({ params }: { params: Promise<{ module: string }> }) {
   const session = await getSession();

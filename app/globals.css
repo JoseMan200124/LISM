@@ -2742,3 +2742,62 @@ html { scroll-behavior: smooth; }
 .field-hint { display: block; margin-top: 3px; font-size: 10.5px; color: var(--muted); }
 .configuration-section { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
 .configuration-section + .configuration-section { padding-top: 20px; border-top: 1px solid var(--line); }
+
+/* ── Mensajería interna ──────────────────────────────────────────────────── */
+.messages-indicator { position: relative; }
+.messages-indicator-badge { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 10px; background: var(--nexa-danger, #d64545); color: #fff; font-size: 9.5px; font-weight: 750; line-height: 16px; text-align: center; }
+.messages-panel { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; min-height: 520px; overflow: hidden; }
+.messages-list { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-right: 1px solid var(--line); max-height: 620px; overflow-y: auto; }
+.message-thread { display: flex; flex-direction: column; gap: 3px; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; transition: .15s ease; }
+.message-thread:hover { background: var(--surface-soft); }
+.message-thread-active { border-color: var(--primary); background: var(--primary-soft); }
+.message-thread-unread strong { color: var(--primary-dark); }
+.message-thread-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.message-thread strong { font-size: 12.5px; color: var(--text); }
+.message-thread em { font-style: normal; font-size: 11px; color: var(--muted-strong); }
+.message-thread p { margin: 0; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.message-thread small { font-size: 10px; color: var(--muted); }
+.message-unread-badge { min-width: 18px; padding: 1px 6px; border-radius: 10px; background: var(--nexa-danger, #d64545); color: #fff; font-size: 10px; font-weight: 750; text-align: center; }
+.messages-thread { display: flex; flex-direction: column; min-height: 0; }
+.messages-thread-head { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+.messages-thread-head strong { display: block; font-size: 13px; color: var(--text); }
+.messages-thread-head small { font-size: 11px; color: var(--muted); }
+.messages-scroll { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 16px; max-height: 460px; overflow-y: auto; }
+.message-bubble { max-width: 76%; padding: 10px 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.message-bubble-mine { align-self: flex-end; border-color: var(--primary-soft); background: var(--primary-soft); }
+.message-bubble header { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.message-bubble header strong { font-size: 12px; color: var(--text); }
+.message-bubble header span { font-size: 10.5px; color: var(--muted); }
+.message-bubble header em { font-style: normal; font-size: 10px; color: var(--muted); margin-left: auto; }
+.message-bubble p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted-strong); white-space: pre-wrap; }
+.messages-composer { display: flex; gap: 10px; align-items: flex-end; padding: 12px 16px; border-top: 1px solid var(--line); }
+.messages-composer textarea { flex: 1; resize: vertical; min-height: 44px; }
+@media (max-width: 860px) {
+  .messages-panel { grid-template-columns: 1fr; }
+  .messages-list { border-right: 0; border-bottom: 1px solid var(--line); max-height: 260px; }
+}
+
+/* ── Resumen al iniciar sesión ───────────────────────────────────────────── */
+.session-summary-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.session-summary-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); text-align: left; cursor: pointer; transition: .15s ease; }
+.session-summary-item:hover { border-color: var(--primary); background: var(--primary-soft); }
+.session-summary-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; background: var(--surface); color: var(--primary-dark); flex-shrink: 0; }
+.session-summary-danger .session-summary-icon { color: var(--nexa-danger, #d64545); }
+.session-summary-warning .session-summary-icon { color: #b7791f; }
+.session-summary-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.session-summary-copy strong { font-size: 12.5px; color: var(--text); }
+.session-summary-copy small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Cumplimiento de reactivos ───────────────────────────────────────────── */
+.compliance-documents { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.count-lines { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.count-line { display: grid; grid-template-columns: minmax(180px, 2fr) 110px minmax(160px, 1.6fr) 120px auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.count-line-difference { border-color: #e2b04a; background: #fdf8ec; }
+:root[data-theme="dark"] .count-line-difference { border-color: #6b5220; background: #2a2418; }
+.count-line-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.count-line-info strong { font-size: 12.5px; color: var(--text); }
+.count-line-info small { font-size: 10.5px; color: var(--muted); }
+.count-line-diff { font-size: 11.5px; font-weight: 650; color: var(--muted-strong); }
+@media (max-width: 900px) {
+  .count-line { grid-template-columns: 1fr; }
+}

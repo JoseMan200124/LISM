@@ -17,6 +17,7 @@ import {
   GraduationCap,
   Library,
   Lock,
+  MessageSquare,
   Microscope,
   NotebookPen,
   PackageSearch,
@@ -53,6 +54,7 @@ export type ModuleKey =
   | "notebook"
   | "library"
   | "purchasing"
+  | "messages"
   | "quality"
   | "documents"
   | "logbooks"
@@ -120,6 +122,7 @@ export const navigation = [
   {
     title: "Cuenta",
     items: [
+      { key: "messages", label: "Mensajes", icon: MessageSquare, href: "/app/messages" },
       { key: "billing", label: "Suscripción y facturación", icon: CreditCard, href: "/app/billing" },
     ],
   },
@@ -163,6 +166,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
     {
       title: "Administración",
       items: [
+        { key: "messages", label: "Mensajes", icon: MessageSquare, href: "/app/messages" },
         { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
         { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
         { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
@@ -186,6 +190,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
     {
       title: "Administración",
       items: [
+        { key: "messages", label: "Mensajes", icon: MessageSquare, href: "/app/messages" },
         { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
         { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
         { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
@@ -209,6 +214,7 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
     {
       title: "Administración",
       items: [
+        { key: "messages", label: "Mensajes", icon: MessageSquare, href: "/app/messages" },
         { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
         { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
         { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },
@@ -301,6 +307,7 @@ export const researchNavigation: EducationalNavGroup[] = [
   {
     title: "Administración",
     items: [
+      { key: "messages", label: "Mensajes", icon: MessageSquare, href: "/app/messages" },
       { key: "administration", label: "Usuarios", icon: UsersRound, href: "/app/administration" },
       { key: "audit", label: "Bitácora", icon: Archive, href: "/app/audit" },
       { key: "configuration", label: "Configuración", icon: Settings2, href: "/app/configuration" },

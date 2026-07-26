@@ -29,6 +29,13 @@ const schema = z.object({
   // Contraseña de quien solicita: firma electrónicamente la solicitud en el
   // mismo acto de crearla, igual que antes se firmaba la requisición en papel.
   signaturePassword: z.string().max(200).optional(),
+  // Datos regulatorios de la compra. Obligatorios cuando la solicitud incluye
+  // reactivos controlados o de doble uso: sin licencia ni permiso vigentes no
+  // se puede adquirir el material.
+  purchaseOrderNumber: z.string().max(120).optional(),
+  licenseNumber: z.string().max(120).optional(),
+  permitNumber: z.string().max(120).optional(),
+  permitId: z.string().uuid().optional().nullable(),
 });
 
 async function nextRequestCode(sql: ReturnType<typeof getSql>, laboratoryId: string): Promise<string> {
@@ -96,6 +103,36 @@ export async function POST(request: Request) {
     if (found.length !== new Set(linkedIds).size) return NextResponse.json({ message: "Uno de los artículos vinculados no pertenece a este laboratorio." }, { status: 400 });
   }
 
+  // ¿La solicitud incluye material controlado? Lo decide el servidor a partir
+  // de los artículos ligados y del catálogo, no lo que declare el usuario.
+  let hasControlled = false;
+  if (linkedIds.length) {
+    const controlledRows = await sql`
+      SELECT count(*)::int AS total FROM inventory_items i
+      LEFT JOIN reagent_catalog c ON c.id = i.catalog_id
+      WHERE i.laboratory_id = ${session.laboratoryId} AND i.id = ANY(${linkedIds})
+        AND (i.is_controlled = TRUE OR c.category IN ('CONTROLLED','DUAL_USE','PRECURSOR'))
+    `.catch(() => [{ total: 0 }]);
+    hasControlled = Number(controlledRows[0]?.total ?? 0) > 0;
+  }
+
+  if (hasControlled && status !== "DRAFT") {
+    const missing: string[] = [];
+    if (!payload.licenseNumber?.trim()) missing.push("Número de licencia");
+    if (!payload.permitNumber?.trim()) missing.push("Número de permiso");
+    if (missing.length) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "REGULATORY_DATA_REQUIRED",
+          message: `La solicitud incluye reactivos controlados: faltan ${missing.join(" y ")}.`,
+          fields: missing,
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   const requestCode = await nextRequestCode(sql, session.laboratoryId);
   const items = payload.items.map((item) => ({
     inventory_item_id: item.inventoryItemId ?? null,
@@ -110,8 +147,12 @@ export async function POST(request: Request) {
   try {
     rows = await sql`
       WITH created AS (
-        INSERT INTO purchase_requests (laboratory_id, request_code, title, supplier, status, priority, currency, needed_by, notes, requested_by, created_by)
-        VALUES (${session.laboratoryId}, ${requestCode}, ${payload.title}, ${payload.supplier ?? null}, ${status}, ${payload.priority ?? "NORMAL"}, ${payload.currency ?? "GTQ"}, ${payload.neededBy ?? null}, ${payload.notes ?? null}, ${session.userId}, ${session.userId})
+        INSERT INTO purchase_requests (
+          laboratory_id, request_code, title, supplier, status, priority, currency, needed_by, notes,
+          requested_by, created_by, purchase_order_number, license_number, permit_number, permit_id, has_controlled_items
+        )
+        VALUES (${session.laboratoryId}, ${requestCode}, ${payload.title}, ${payload.supplier ?? null}, ${status}, ${payload.priority ?? "NORMAL"}, ${payload.currency ?? "GTQ"}, ${payload.neededBy ?? null}, ${payload.notes ?? null}, ${session.userId}, ${session.userId},
+                ${payload.purchaseOrderNumber ?? null}, ${payload.licenseNumber ?? null}, ${payload.permitNumber ?? null}, ${payload.permitId ?? null}, ${hasControlled})
         RETURNING *
       ), created_items AS (
         INSERT INTO purchase_request_items (laboratory_id, purchase_request_id, inventory_item_id, description, quantity, unit, estimated_unit_price, notes)

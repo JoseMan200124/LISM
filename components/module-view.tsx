@@ -51,6 +51,7 @@ import { QualityCenter } from "@/components/quality-center";
 import { EquipmentCenter, InventoryCenter } from "@/components/resources-center";
 import { ControlledReagentsCenter } from "@/components/controlled-reagents-center";
 import { PurchasingCenter } from "@/components/purchasing-center";
+import { MessagesCenter } from "@/components/messages-center";
 import { ProjectsCenter } from "@/components/research/projects-center";
 import { ProtocolsCenter } from "@/components/research/protocols-center";
 import { SamplesCenter } from "@/components/research/samples-center";
@@ -182,6 +183,7 @@ export function ModuleView({ module, session }: { module: Exclude<ModuleKey, "da
   if (module === "controlled") return <ControlledReagentsCenter session={session} />;
   if (module === "equipment") return <EquipmentCenter />;
   if (module === "purchasing") return <PurchasingCenter session={session} />;
+  if (module === "messages") return <MessagesCenter session={session} />;
   if (module === "education") return <EducationCenter role={role as Parameters<typeof EducationCenter>[0]["role"]} />;
   if (module === "projects") return <ProjectsCenter />;
   if (module === "protocols") return <ProtocolsCenter />;

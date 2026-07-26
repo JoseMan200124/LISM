@@ -96,6 +96,7 @@ export const researchProfileModules: ReadonlySet<ModuleKey> = new Set<ModuleKey>
   "controlled",
   "equipment",
   "purchasing",
+  "messages",
   "alerts",
   "incidents",
   "audit",

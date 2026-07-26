@@ -20,6 +20,17 @@ import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, Skel
 import { GhsPictogramRow } from "@/components/ghs-pictogram";
 import { normalizePictograms } from "@/lib/ghs";
 import { SafetyButton, type SafetyItem } from "@/components/reagent-safety";
+import {
+  DisposalsTab,
+  PermitsTab,
+  PhysicalCountsTab,
+  ReagentCatalogTab,
+  ReceiptsTab,
+} from "@/components/compliance/reagent-compliance";
+import { ReagentReports } from "@/components/compliance/reagent-reports";
+
+/** Pestañas del módulo: consumo controlado y todo el expediente regulatorio. */
+type ControlledTab = "registry" | "authorizations" | "catalog" | "receipts" | "permits" | "counts" | "disposals" | "reports";
 
 const MOVEMENT_TYPE_LABEL: Record<string, string> = {
   RECEIPT: "Entrada", CONSUMPTION: "Consumo", ADJUSTMENT: "Ajuste", DISPOSAL: "Descarte", TRANSFER: "Transferencia", RETURN: "Devolución",
@@ -78,7 +89,7 @@ function requestQuantityLabel(request: UsageRequest): string {
 
 export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserSession }>) {
   const [state, setState] = useState<"loading" | "error" | "ready">("loading");
-  const [tab, setTab] = useState<"registry" | "authorizations">("registry");
+  const [tab, setTab] = useState<ControlledTab>("registry");
   const [pendingMigration, setPendingMigration] = useState(false);
   const [rows, setRows] = useState<ControlledRow[]>([]);
   const [requests, setRequests] = useState<UsageRequest[]>([]);
@@ -132,7 +143,10 @@ export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserS
   // Enlace profundo desde las notificaciones: ?tab=authorizations&requestId=…
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "authorizations") setTab("authorizations");
+    const requested = params.get("tab");
+    // Las notificaciones enlazan a la pestaña concreta (?tab=permits, …).
+    const valid: ControlledTab[] = ["registry", "authorizations", "catalog", "receipts", "permits", "counts", "disposals", "reports"];
+    if (requested && valid.includes(requested as ControlledTab)) setTab(requested as ControlledTab);
     const requestId = params.get("requestId");
     if (!requestId) return;
     const found = requests.find((request) => request.id === requestId);
@@ -262,9 +276,15 @@ export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserS
           items={[
             { key: "registry", label: "Registro de reactivos" },
             { key: "authorizations", label: pendingRequests.length > 0 ? `Autorizaciones (${pendingRequests.length})` : "Autorizaciones" },
+            { key: "catalog", label: "Catálogo" },
+            { key: "receipts", label: "Entradas" },
+            { key: "permits", label: "Licencias" },
+            { key: "counts", label: "Inventario físico" },
+            { key: "disposals", label: "Destrucción" },
+            { key: "reports", label: "Reportes" },
           ]}
           active={tab}
-          onChange={(key) => setTab(key as "registry" | "authorizations")}
+          onChange={(key) => setTab(key as ControlledTab)}
         />
         {canRequest && rows.length > 0 ? (
           <button type="button" className="primary-button" onClick={() => setNewRequestOpen(true)}>
@@ -278,6 +298,13 @@ export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserS
           La autorización digital de reactivos de doble uso o precursores estará disponible en cuanto se aplique la actualización de base de datos (migración 0020).
         </InlineNotice>
       ) : null}
+
+      {tab === "catalog" ? <ReagentCatalogTab session={session} /> : null}
+      {tab === "receipts" ? <ReceiptsTab session={session} /> : null}
+      {tab === "permits" ? <PermitsTab session={session} /> : null}
+      {tab === "counts" ? <PhysicalCountsTab session={session} /> : null}
+      {tab === "disposals" ? <DisposalsTab session={session} /> : null}
+      {tab === "reports" ? <ReagentReports session={session} /> : null}
 
       {tab === "registry" ? (
         <>

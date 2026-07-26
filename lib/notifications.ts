@@ -1,4 +1,4 @@
-import { hasPermission } from "@/lib/authorization";
+import { hasAnyPermission, hasPermission } from "@/lib/authorization";
 import { getSql, hasDatabase } from "@/lib/db";
 import { incidentRows } from "@/lib/demo-data";
 import { isEducationalProfile } from "@/lib/lab-profile";
@@ -9,7 +9,7 @@ export type NotificationSeverity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 
 export type NotificationItem = {
   key: string;
-  type: "alert" | "education" | "controlled";
+  type: "alert" | "education" | "controlled" | "message" | "expiry" | "permit";
   severity: NotificationSeverity;
   title: string;
   body: string | null;
@@ -204,6 +204,113 @@ export async function resolveNotifications(
       }
     } catch (error) {
       if (!isMissingAuthorizationMigration(error)) throw error;
+    }
+  }
+
+  // Mensajes internos sin leer: la campanita es el primer sitio donde se mira.
+  if (!session.guest) {
+    try {
+      const messageRows = await sql`
+        SELECT t.id, t.subject, t.last_message_at, t.last_message_preview,
+               (
+                 SELECT count(*)::int FROM messages m
+                 WHERE m.thread_id = t.id AND m.sender_user_id <> ${session.userId}
+                   AND (p.last_read_at IS NULL OR m.created_at > p.last_read_at)
+               ) AS unread_count,
+               (
+                 SELECT string_agg(u.full_name, ', ' ORDER BY u.full_name)
+                 FROM message_thread_participants tp JOIN users u ON u.id = tp.user_id
+                 WHERE tp.thread_id = t.id AND tp.user_id <> ${session.userId}
+               ) AS participants
+        FROM message_thread_participants p
+        JOIN message_threads t ON t.id = p.thread_id
+        WHERE p.user_id = ${session.userId} AND p.organization_id = ${session.organizationId} AND p.archived_at IS NULL
+        ORDER BY t.last_message_at DESC LIMIT 20
+      `;
+      for (const row of messageRows as Array<Record<string, unknown>>) {
+        const unread = Number(row.unread_count ?? 0);
+        if (unread <= 0) continue;
+        items.push({
+          key: `message:${row.id}:${toIso(row.last_message_at)}`,
+          type: "message",
+          severity: "INFO",
+          title: `Mensaje de ${String(row.participants ?? "un compañero")}`,
+          body: row.last_message_preview ? String(row.last_message_preview) : `${unread} mensaje(s) sin leer`,
+          targetUrl: `/app/messages?threadId=${row.id}`,
+          createdAt: toIso(row.last_message_at),
+          isRead: false,
+        });
+      }
+    } catch {
+      // La mensajería llega con la migración 0025: hasta entonces se omite.
+    }
+  }
+
+  // Reactivos por vencer y ya vencidos: es la alerta que más cuesta cara en una
+  // inspección y la que el equipo necesita ver sin entrar al módulo.
+  if (hasPermission(session, "inventory.view")) {
+    try {
+      const expiryRows = await sql`
+        SELECT i.id, i.sku, i.name, i.expires_at, i.quantity, i.unit,
+               (i.expires_at - current_date) AS days_left,
+               (i.is_controlled OR c.category IN ('CONTROLLED','DUAL_USE','PRECURSOR')) AS controlled
+        FROM inventory_items i
+        LEFT JOIN reagent_catalog c ON c.id = i.catalog_id
+        WHERE i.laboratory_id = ${session.laboratoryId} AND i.status = 'ACTIVE'
+          AND i.alert_expiry = TRUE AND i.expires_at IS NOT NULL
+          AND i.expires_at <= current_date + 30 AND i.quantity > 0
+        ORDER BY i.expires_at LIMIT 25
+      `;
+      for (const row of expiryRows as Array<Record<string, unknown>>) {
+        const daysLeft = Number(row.days_left ?? 0);
+        const expired = daysLeft < 0;
+        items.push({
+          key: `expiry:${row.id}:${String(row.expires_at)}`,
+          type: "expiry",
+          severity: expired ? "HIGH" : "WARNING",
+          title: expired
+            ? `Reactivo vencido: ${String(row.name)}`
+            : `Por vencer en ${daysLeft} día(s): ${String(row.name)}`,
+          body: `${String(row.sku)} · quedan ${String(row.quantity)} ${String(row.unit ?? "")}${row.controlled ? " · reactivo controlado" : ""}`.trim(),
+          targetUrl: `/app/inventory?itemId=${row.id}`,
+          createdAt: toIso(row.expires_at),
+          isRead: false,
+        });
+      }
+    } catch {
+      // Sin la migración 0024 el catálogo no existe todavía.
+    }
+  }
+
+  // Licencias y permisos por vencer: sin ellos no se puede comprar ni usar.
+  if (hasAnyPermission(session, ["compliance.view", "compliance.manage"])) {
+    try {
+      const permitRows = await sql`
+        SELECT id, permit_type, authority, permit_number, expires_on,
+               (expires_on - current_date) AS days_left
+        FROM regulatory_permits
+        WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'
+          AND expires_on IS NOT NULL AND expires_on <= current_date + 60
+        ORDER BY expires_on LIMIT 20
+      `;
+      for (const row of permitRows as Array<Record<string, unknown>>) {
+        const daysLeft = Number(row.days_left ?? 0);
+        const expired = daysLeft < 0;
+        items.push({
+          key: `permit:${row.id}:${String(row.expires_on)}`,
+          type: "permit",
+          severity: expired ? "CRITICAL" : "HIGH",
+          title: expired
+            ? `Licencia vencida: ${String(row.permit_number)}`
+            : `Licencia por vencer en ${daysLeft} día(s): ${String(row.permit_number)}`,
+          body: `${String(row.authority)} · renovar antes de seguir comprando o usando reactivos controlados`,
+          targetUrl: `/app/controlled?tab=permits&permitId=${row.id}`,
+          createdAt: toIso(row.expires_on),
+          isRead: false,
+        });
+      }
+    } catch {
+      // Sin la migración 0024 la tabla no existe todavía.
     }
   }
 

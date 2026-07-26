@@ -28,6 +28,7 @@ export type PermissionKey =
   | "purchasing.manage"
   | "signatures.create"
   | "guests.manage"
+  | "compliance.manage"
   | "research.view"
   | "research.manage"
   | "protocols.approve"
@@ -38,7 +39,7 @@ export const allPermissions: PermissionKey[] = [
   "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter",
   "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view",
   "education.view", "education.manage", "incidents.view", "incidents.manage", "alerts.view", "alerts.manage",
-  "purchasing.view", "purchasing.manage", "signatures.create", "guests.manage",
+  "purchasing.view", "purchasing.manage", "signatures.create", "guests.manage", "compliance.manage",
   "research.view", "research.manage", "protocols.approve", "documents.manage",
 ];
 
@@ -69,6 +70,7 @@ export const permissionLabels: Record<PermissionKey, string> = {
   "purchasing.manage": "Crear y gestionar solicitudes de compra",
   "signatures.create": "Firmar electrónicamente",
   "guests.manage": "Emitir y revocar accesos de invitado",
+  "compliance.manage": "Administrar licencias, conteos físicos y destrucciones",
   "research.view": "Ver proyectos, protocolos, muestras y biobancos",
   "research.manage": "Gestionar proyectos, muestras, biobancos y cuadernos",
   "protocols.approve": "Aprobar protocolos y procedimientos normalizados",
@@ -80,9 +82,9 @@ export const permissionsByRole: Record<UserSession["role"], PermissionKey[]> = {
   LAB_ADMIN: allPermissions,
   SCIENTIST: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view", "purchasing.manage", "signatures.create", "research.view", "research.manage", "documents.manage"],
   TECHNICIAN: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view", "research.view"],
-  REVIEWER: ["inventory.view", "equipment.view", "specimens.view", "specimens.transition", "results.view", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "purchasing.view", "signatures.create", "research.view", "protocols.approve", "documents.manage"],
+  REVIEWER: ["inventory.view", "equipment.view", "specimens.view", "specimens.transition", "results.view", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "purchasing.view", "signatures.create", "research.view", "protocols.approve", "documents.manage", "compliance.manage"],
   VIEWER: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "education.view", "purchasing.view", "research.view"],
-  HEAD_OF_LAB: ["configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "education.view", "education.manage", "incidents.view", "incidents.manage", "purchasing.view", "purchasing.manage", "signatures.create", "guests.manage", "research.view", "research.manage", "protocols.approve", "documents.manage"],
+  HEAD_OF_LAB: ["configuration.manage", "inventory.view", "inventory.manage", "inventory.move", "equipment.view", "equipment.manage", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "results.approve", "quality.view", "quality.manage", "audit.view", "compliance.view", "education.view", "education.manage", "incidents.view", "incidents.manage", "purchasing.view", "purchasing.manage", "signatures.create", "guests.manage", "research.view", "research.manage", "protocols.approve", "documents.manage", "compliance.manage"],
   ANALYST: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "results.view", "results.enter", "quality.view", "education.view", "purchasing.view", "signatures.create", "research.view", "research.manage"],
   ASSISTANT: ["inventory.view", "inventory.move", "equipment.view", "specimens.view", "specimens.receive", "specimens.transition", "education.view", "purchasing.view", "research.view"],
   AUDITOR: ["inventory.view", "equipment.view", "specimens.view", "results.view", "quality.view", "audit.view", "compliance.view", "education.view", "incidents.view", "purchasing.view", "research.view"],
@@ -158,6 +160,9 @@ const modulePermissions: Partial<Record<ModuleKey, PermissionKey[]>> = {
 
 export function canAccessModule(session: UserSession, moduleKey: ModuleKey): boolean {
   if (moduleKey === "dashboard") return true;
+  // La mensajería interna es de toda la institución y no depende de permisos de
+  // módulo; lo único que la limita es no ser un acceso de invitado.
+  if (moduleKey === "messages") return !session.guest && session.role !== "GUEST";
   const permissions = modulePermissions[moduleKey];
   return permissions ? hasAnyPermission(session, permissions) : false;
 }

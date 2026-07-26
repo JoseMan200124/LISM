@@ -218,6 +218,24 @@ export async function notifyPurchaseStatus(
   });
 }
 
+// ─── Mensajería interna ──────────────────────────────────────────────────────
+
+/** Mensaje directo entre personas de la misma institución. */
+export async function notifyDirectMessage(
+  session: UserSession,
+  input: { threadId: string; body: string; recipients: string[] },
+): Promise<void> {
+  const recipients = input.recipients.filter((userId) => userId && userId !== session.userId);
+  if (!recipients.length) return;
+  await sendPushToUsers(recipients, {
+    title: `Mensaje de ${session.name}`,
+    body: input.body.slice(0, 240),
+    channelId: "general",
+    targetUrl: `/messages?threadId=${input.threadId}`,
+    data: { type: "message", threadId: input.threadId },
+  });
+}
+
 // ─── Investigación ───────────────────────────────────────────────────────────
 
 /**

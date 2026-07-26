@@ -29,6 +29,8 @@ import { roleLabels } from "@/lib/permissions";
 import { canAccessModule, hasPermission } from "@/lib/authorization";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { NotificationCenter } from "@/components/notification-center";
+import { MessagesIndicator } from "@/components/messages-indicator";
+import { SessionSummary } from "@/components/session-summary";
 import { UserAvatar } from "@/components/user-avatar";
 import { TutorialProvider } from "@/components/tutorial/tutorial-context";
 import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay";
@@ -290,6 +292,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
             <button className="icon-button theme-toggle-button" aria-label={resolvedDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"} title={resolvedDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"} onClick={() => void toggleTheme()}>
               {resolvedDark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+            {isGuest ? null : <MessagesIndicator />}
             {isGuest ? null : <NotificationCenter />}
             <div className="profile-menu-wrap">
               <button className="profile-button" onClick={() => setProfileOpen((open) => !open)}>
@@ -341,6 +344,7 @@ export function AppShell({ session, children }: Readonly<{ session: UserSession;
         <div className="modal-form"><fieldset className="theme-options"><legend>Tema</legend><label><input type="radio" name="theme" checked={theme === "light"} onChange={() => { setTheme("light"); applyTheme("light"); }} /> Claro</label><label><input type="radio" name="theme" checked={theme === "dark"} onChange={() => { setTheme("dark"); applyTheme("dark"); }} /> Oscuro</label><label><input type="radio" name="theme" checked={theme === "system"} onChange={() => { setTheme("system"); applyTheme("system"); }} /> Usar configuración del sistema</label></fieldset><label className="check-line"><input type="checkbox" checked={compactTables} onChange={(event) => setCompactTables(event.target.checked)} /> <span>Usar tablas compactas</span></label><footer className="modal-actions"><button className="secondary-button" onClick={() => setDialog(null)}>Cancelar</button><button className="primary-button" disabled={preferencesSaving} onClick={() => void savePreferences()}>{preferencesSaving ? "Guardando…" : "Guardar"}</button></footer></div>
       </ActionModal>
       <Toast message={message} type={toastType} onClose={clearToast} />
+      {isGuest ? null : <SessionSummary />}
       <DiloWidget session={session} />
       <TutorialOverlay />
       <TutorialPrompt />

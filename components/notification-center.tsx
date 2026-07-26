@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bell, CheckCheck, CircleAlert, GraduationCap, Info, Lock } from "lucide-react";
+import { AlertTriangle, Bell, CalendarClock, CheckCheck, CircleAlert, FileWarning, GraduationCap, Info, Lock, MessageSquare } from "lucide-react";
 import type { NotificationItem, NotificationSeverity } from "@/lib/notifications";
 import { notifyNotificationCountChanged } from "@/components/sidebar-alert-count";
 
 function severityIcon(item: NotificationItem) {
   if (item.type === "education") return <GraduationCap size={15} />;
   if (item.type === "controlled") return <Lock size={15} />;
+  if (item.type === "message") return <MessageSquare size={15} />;
+  if (item.type === "expiry") return <CalendarClock size={15} />;
+  if (item.type === "permit") return <FileWarning size={15} />;
   const bySeverity: Record<NotificationSeverity, React.ReactNode> = {
     CRITICAL: <AlertTriangle size={15} />,
     HIGH: <AlertTriangle size={15} />,
@@ -19,7 +22,7 @@ function severityIcon(item: NotificationItem) {
 }
 
 function severityToneClass(item: NotificationItem): string {
-  if (item.type === "education") return "notif-avatar-teal";
+  if (item.type === "education" || item.type === "message") return "notif-avatar-teal";
   const map: Record<NotificationSeverity, string> = {
     CRITICAL: "notif-avatar-red",
     HIGH: "notif-avatar-red",
@@ -30,7 +33,7 @@ function severityToneClass(item: NotificationItem): string {
 }
 
 function badgeClass(item: NotificationItem): string {
-  if (item.type === "education") return "notification-badge-info";
+  if (item.type === "education" || item.type === "message") return "notification-badge-info";
   const map: Record<NotificationSeverity, string> = {
     CRITICAL: "notification-badge-danger",
     HIGH: "notification-badge-danger",
@@ -43,6 +46,9 @@ function badgeClass(item: NotificationItem): string {
 function badgeLabel(item: NotificationItem): string {
   if (item.type === "education") return "Aviso";
   if (item.type === "controlled") return "Autorización";
+  if (item.type === "message") return "Mensaje";
+  if (item.type === "expiry") return "Vencimiento";
+  if (item.type === "permit") return "Licencia";
   const map: Record<NotificationSeverity, string> = {
     CRITICAL: "Crítica", HIGH: "Alta", WARNING: "Advertencia", INFO: "Info",
   };

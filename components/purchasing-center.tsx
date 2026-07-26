@@ -8,6 +8,7 @@ import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, type TableRow } from "@/components/lims-ui";
 import { PURCHASE_PRIORITY_LABEL, PURCHASE_STATUS_LABEL } from "@/lib/purchasing";
 import { SignatureList, type StampedSignature } from "@/components/signature";
+import { DocumentUploader } from "@/components/compliance/document-uploader";
 
 type PurchaseRow = TableRow & {
   id?: string; request_code?: string; title?: string; supplier?: string | null;
@@ -26,6 +27,10 @@ type PurchaseDetail = {
   status?: string; priority?: string; currency?: string; needed_by?: string | null;
   notes?: string | null; requested_by_name?: string | null; approved_by_name?: string | null;
   created_at?: string; items?: PurchaseItem[]; signatures?: StampedSignature[];
+  // Datos regulatorios de la compra (migración 0024).
+  invoice_number?: string | null; purchase_order_number?: string | null;
+  license_number?: string | null; permit_number?: string | null;
+  has_controlled_items?: boolean; received_at?: string | null; received_by_name?: string | null;
 };
 
 type LineDraft = { description: string; quantity: number; unit: string; estimatedUnitPrice: number | null; inventoryItemId: string | null };
@@ -35,6 +40,7 @@ type LowStockItem = { id: string; label: string; unit: string; suggestedQty: num
 type CreatePayload = {
   title: string; supplier?: string; priority?: string; currency?: string;
   neededBy?: string | null; notes?: string; status?: string; signaturePassword?: string;
+  purchaseOrderNumber?: string; licenseNumber?: string; permitNumber?: string;
   items: Array<{ inventoryItemId?: string | null; description: string; quantity: number; unit: string; estimatedUnitPrice?: number | null; notes?: string }>;
 };
 
@@ -282,6 +288,9 @@ function PurchaseModal({ onClose, onSave }: Readonly<{ onClose: () => void; onSa
       notes: String(data.get("notes") ?? "").trim() || undefined,
       status: sign ? "PENDING" : "DRAFT",
       signaturePassword: sign ? password : undefined,
+      purchaseOrderNumber: String(data.get("purchaseOrderNumber") ?? "").trim() || undefined,
+      licenseNumber: String(data.get("licenseNumber") ?? "").trim() || undefined,
+      permitNumber: String(data.get("permitNumber") ?? "").trim() || undefined,
       items: items.map((item) => ({ inventoryItemId: item.inventoryItemId, description: item.description, quantity: item.quantity, unit: item.unit, estimatedUnitPrice: item.estimatedUnitPrice ?? undefined })),
     });
     setSaving(false);
@@ -345,6 +354,17 @@ function PurchaseModal({ onClose, onSave }: Readonly<{ onClose: () => void; onSa
         {estimatedTotal > 0 ? <p className="ai-digitize-note" style={{ textAlign: "right", fontWeight: 600 }}>Total estimado: {formatMoney(estimatedTotal)}</p> : null}
 
         <label><span>Observaciones (opcional)</span><textarea name="notes" rows={2} placeholder="Detalles para quien realiza la compra…" /></label>
+
+        <span className="form-section-title">Datos regulatorios</span>
+        <div className="form-grid form-grid-two">
+          <label><span>Orden de compra</span><input name="purchaseOrderNumber" placeholder="OC interna del proveedor" /></label>
+          <label><span>Número de licencia</span><input name="licenseNumber" /></label>
+          <label><span>Número de permiso</span><input name="permitNumber" /></label>
+        </div>
+        <p className="modal-note">
+          Si la solicitud incluye reactivos controlados o de doble uso, la licencia y el permiso son obligatorios para enviarla a aprobación.
+          La factura y el documento escaneado se registran al recibir el material, en Reactivos controlados → Entradas.
+        </p>
 
         <span className="form-section-title">Firma electrónica</span>
         <div className="signature-inline">
@@ -417,8 +437,22 @@ function PurchaseDetailModal({ detail, canManage, onClose, onAction }: Readonly<
           <div><small>Necesaria para</small><strong>{formatDate(detail.needed_by)}</strong></div>
           <div><small>Solicitada por</small><strong>{detail.requested_by_name ?? "—"}</strong></div>
           <div><small>Aprobada por</small><strong>{detail.approved_by_name ?? "—"}</strong></div>
+          {detail.has_controlled_items ? <div><small>Contenido</small><strong>Incluye reactivos controlados</strong></div> : null}
+          {detail.purchase_order_number ? <div><small>Orden de compra</small><strong>{detail.purchase_order_number}</strong></div> : null}
+          {detail.invoice_number ? <div><small>Factura</small><strong>{detail.invoice_number}</strong></div> : null}
+          {detail.license_number ? <div><small>Licencia</small><strong>{detail.license_number}</strong></div> : null}
+          {detail.permit_number ? <div><small>Permiso</small><strong>{detail.permit_number}</strong></div> : null}
+          {detail.received_at ? <div><small>Recibida</small><strong>{formatDate(detail.received_at)}{detail.received_by_name ? ` · ${detail.received_by_name}` : ""}</strong></div> : null}
           {detail.notes ? <div className="field-span-two"><small>Observaciones</small><strong>{detail.notes}</strong></div> : null}
         </div>
+
+        <DocumentUploader
+          entityType="purchase_request"
+          entityId={detail.id}
+          label="Documentos de la compra"
+          hint="Arrastra la cotización, la orden de compra o la factura escaneada"
+          canUpload={canManage}
+        />
         <p className="form-section-title" style={{ marginTop: 12 }}>Artículos ({items.length})</p>
         <ul className="line-item-list">
           {items.map((item, index) => {
