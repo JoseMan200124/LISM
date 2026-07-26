@@ -114,7 +114,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   // Historial del proyecto: todo lo que ha pasado, en una sola línea de tiempo.
   const history = await sql`
-    SELECT action, entity_type, entity_id, reason, created_at, a.metadata, u.full_name AS actor_name
+    SELECT a.action, a.entity_type, a.entity_id, a.reason, a.created_at, a.metadata, u.full_name AS actor_name
     FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id
     WHERE a.laboratory_id = ${session.laboratoryId}
       AND (

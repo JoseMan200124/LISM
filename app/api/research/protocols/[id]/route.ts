@@ -181,10 +181,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         UPDATE protocol_versions SET status = 'APPROVED', effective_from = ${effectiveFrom}, updated_at = now()
         WHERE id = ${String(protocol.version_id)} AND laboratory_id = ${session.laboratoryId}
       `;
-      const nextReview = protocol.review_interval_months
-        ? sql`UPDATE protocols SET status = 'APPROVED', next_review_on = (${effectiveFrom}::date + (${Number(protocol.review_interval_months)} || ' months')::interval)::date, updated_at = now() WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}`
-        : sql`UPDATE protocols SET status = 'APPROVED', updated_at = now() WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}`;
-      await nextReview;
+      // El intervalo se arma como texto ('24 months'): Postgres no concatena un
+      // parámetro entero con texto, así que hacerlo en SQL fallaría.
+      const reviewInterval = protocol.review_interval_months ? `${Number(protocol.review_interval_months)} months` : null;
+      await (reviewInterval
+        ? sql`UPDATE protocols SET status = 'APPROVED', next_review_on = (${effectiveFrom}::date + ${reviewInterval}::interval)::date, updated_at = now() WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}`
+        : sql`UPDATE protocols SET status = 'APPROVED', updated_at = now() WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}`);
       await sql`
         INSERT INTO protocol_approvals (protocol_version_id, laboratory_id, decision, note, approved_by, signature_id)
         VALUES (${String(protocol.version_id)}, ${session.laboratoryId}, 'APPROVED', ${payload.note ?? null}, ${session.userId}, ${signature.signatureId})
