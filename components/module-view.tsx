@@ -51,6 +51,7 @@ import { QualityCenter } from "@/components/quality-center";
 import { EquipmentCenter, InventoryCenter } from "@/components/resources-center";
 import { ControlledReagentsCenter } from "@/components/controlled-reagents-center";
 import { PurchasingCenter } from "@/components/purchasing-center";
+import { IntegrationsCenter } from "@/components/integrations-center";
 import { MessagesCenter } from "@/components/messages-center";
 import { ProjectsCenter } from "@/components/research/projects-center";
 import { ProtocolsCenter } from "@/components/research/protocols-center";
@@ -197,6 +198,7 @@ export function ModuleView({ module, session }: { module: Exclude<ModuleKey, "da
   if (module === "training") return <QualityCenter initialTab="training" />;
   if (module === "alerts") return <AlertsCenter role={role as Parameters<typeof AlertsCenter>[0]["role"]} />;
   if (module === "incidents") return <IncidentsCenter role={role as Parameters<typeof IncidentsCenter>[0]["role"]} />;
+  if (module === "integrations") return <IntegrationsCenter session={session} />;
   if (module === "audit") return <AuditCenter session={session} />;
   if (module === "compliance") return <ComplianceCenter />;
   if (module === "configuration") return <ConfigurationCenter session={session} />;

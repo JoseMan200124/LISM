@@ -100,6 +100,10 @@ export const researchProfileModules: ReadonlySet<ModuleKey> = new Set<ModuleKey>
   "alerts",
   "incidents",
   "audit",
+  // La conexión con sistemas externos no depende del perfil: un laboratorio de
+  // investigación también compra reactivos contra el ERP de su institución.
+  // Sigue protegido por configuration.manage.
+  "integrations",
   "configuration",
   "administration",
   "billing",

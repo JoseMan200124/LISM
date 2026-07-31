@@ -1,5 +1,6 @@
 import { getSql, hasDatabase } from "@/lib/db";
 import type { UserSession } from "@/lib/session";
+import { emitWebhookEvent } from "@/lib/integration-webhooks";
 
 export type AuditInput = {
   action: string;
@@ -37,4 +38,27 @@ export async function writeAuditEvent(session: UserSession, input: AuditInput): 
       ${forwardedFor}, ${userAgent}
     )
   `;
+
+  // Aviso a los sistemas externos suscritos. Va después de que la bitácora
+  // quede escrita —nunca se anuncia algo que no ocurrió— y sin await: el
+  // laboratorio no espera a que responda el ERP de nadie, y un webhook mal
+  // configurado no puede tumbar la operación que lo originó.
+  void emitWebhookEvent({
+    organizationId: session.organizationId,
+    laboratoryId: session.laboratoryId,
+    eventType: input.action,
+    payload: {
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId ?? null,
+      previousValue: input.previousValue ?? null,
+      newValue: input.newValue ?? null,
+      reason: input.reason ?? null,
+      metadata,
+      laboratoryId: session.laboratoryId,
+      organizationId: session.organizationId,
+      actor: guest ? { kind: "guest", name: session.name } : { kind: "user", id: session.userId, name: session.name },
+      occurredAt: new Date().toISOString(),
+    },
+  }).catch(() => {});
 }
