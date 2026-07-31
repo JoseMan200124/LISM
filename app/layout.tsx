@@ -3,7 +3,7 @@ import "./globals.css";
 import { JsonLd } from "@/components/structured-data";
 import { VersionWatcher } from "@/components/version-watcher";
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://nexalab.com";
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://nexalaboratories.com";
 const siteName = "NexaLab";
 const siteDescription =
   "NexaLab organiza muestras, resultados, inventario y control de calidad en una experiencia clara para laboratorios clínicos, universitarios y de investigación.";
