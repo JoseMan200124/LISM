@@ -1,4 +1,4 @@
-import { INTEGRATION_OPERATIONS, type IntegrationOperation } from "@/lib/integration-registry";
+import { INTEGRATION_CATALOG, type IntegrationOperationMeta } from "@/lib/integration-catalog";
 import { INTEGRATION_SCOPES, scopeLabels, type IntegrationScope } from "@/lib/integration-scopes";
 
 // Contrato publicado de la API, generado desde el mismo registro que atiende
@@ -37,7 +37,7 @@ const DESCRIPTION = [
   "exacta de operaciones disponibles para ella.",
 ].join("\n");
 
-function tagsFrom(operations: IntegrationOperation[]): Array<{ name: string; description: string }> {
+function tagsFrom(operations: IntegrationOperationMeta[]): Array<{ name: string; description: string }> {
   const seen = new Map<string, string>();
   for (const operation of operations) {
     if (!seen.has(operation.tag)) seen.set(operation.tag, `Operaciones del módulo ${operation.tag.toLowerCase()}.`);
@@ -65,7 +65,7 @@ function scopeDescriptions(): Record<string, string> {
   );
 }
 
-function pathParameters(operation: IntegrationOperation, style: "v3" | "v2"): Array<Record<string, unknown>> {
+function pathParameters(operation: IntegrationOperationMeta, style: "v3" | "v2"): Array<Record<string, unknown>> {
   const parameters: Array<Record<string, unknown>> = [];
 
   if (operation.path.includes("{id}")) {
@@ -110,7 +110,7 @@ const SUCCESS_SHAPE = {
 export function buildOpenApiDocument(baseUrl: string): Record<string, unknown> {
   const paths: Record<string, Record<string, unknown>> = {};
 
-  for (const operation of INTEGRATION_OPERATIONS) {
+  for (const operation of INTEGRATION_CATALOG) {
     const item = (paths[operation.path] ??= {});
     item[operation.method.toLowerCase()] = {
       operationId: operation.operationId,
@@ -198,7 +198,7 @@ export function buildOpenApiDocument(baseUrl: string): Record<string, unknown> {
       contact: { name: "NexaLab", url: baseUrl },
     },
     servers: [{ url: `${baseUrl}/api/v1`, description: "Servidor de la institución" }],
-    tags: [...tagsFrom(INTEGRATION_OPERATIONS), { name: "Diagnóstico", description: "Verificación de credenciales y emisión de tokens." }],
+    tags: [...tagsFrom(INTEGRATION_CATALOG), { name: "Diagnóstico", description: "Verificación de credenciales y emisión de tokens." }],
     security: [{ ApiKeyAuth: [] }],
     components: {
       securitySchemes: {
@@ -232,7 +232,7 @@ export function buildOpenApiDocument(baseUrl: string): Record<string, unknown> {
 export function buildSwagger2Document(host: string, scheme: "https" | "http"): Record<string, unknown> {
   const paths: Record<string, Record<string, unknown>> = {};
 
-  for (const operation of INTEGRATION_OPERATIONS) {
+  for (const operation of INTEGRATION_CATALOG) {
     const item = (paths[operation.path] ??= {});
     const parameters = pathParameters(operation, "v2");
     if (operation.hasBody) {
@@ -296,7 +296,7 @@ export function buildSwagger2Document(host: string, scheme: "https" | "http"): R
       },
     },
     security: [{ ApiKeyAuth: [] }],
-    tags: [...tagsFrom(INTEGRATION_OPERATIONS), { name: "Diagnóstico", description: "Verificación de credenciales." }],
+    tags: [...tagsFrom(INTEGRATION_CATALOG), { name: "Diagnóstico", description: "Verificación de credenciales." }],
     paths,
   };
 }

@@ -10,6 +10,7 @@ import { matchesEventPattern } from "@/lib/integration-events";
 import { validateWebhookTarget, sanitizeCustomHeaders } from "@/lib/integration-admin";
 import { consumeRateLimit, resetRateLimits } from "@/lib/integration-telemetry";
 import { matchOperation, allowedMethodsFor, INTEGRATION_OPERATIONS } from "@/lib/integration-registry";
+import { INTEGRATION_CATALOG, matchOperationMeta } from "@/lib/integration-catalog";
 import { buildOpenApiDocument, buildSwagger2Document } from "@/lib/integration-openapi";
 import { generateApiCredentials, hashApiKey, API_KEY_LIVE_PREFIX, readPresentedCredential } from "@/lib/integration-auth";
 import { signWebhookPayload } from "@/lib/integration-webhooks";
@@ -75,6 +76,35 @@ describe("resolución de rutas del gateway", () => {
   it("no hay dos operaciones con el mismo método y ruta", () => {
     const keys = INTEGRATION_OPERATIONS.map((operation) => `${operation.method} ${operation.path}`);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("catálogo y handlers no se desincronizan", () => {
+  // El contrato (lib/integration-catalog.ts) y los handlers
+  // (lib/integration-registry.ts) viven en archivos distintos para que la
+  // documentación pública no arrastre el servidor. El precio de esa separación
+  // es que podrían divergir; esto lo impide.
+  it("toda operación del catálogo tiene handler", () => {
+    expect(INTEGRATION_OPERATIONS.length).toBe(INTEGRATION_CATALOG.length);
+    for (const meta of INTEGRATION_CATALOG) {
+      const operation = INTEGRATION_OPERATIONS.find((item) => item.operationId === meta.operationId);
+      expect(operation, meta.operationId).toBeDefined();
+      expect(typeof operation?.invoke, meta.operationId).toBe("function");
+    }
+  });
+
+  it("el registro no inventa operaciones que el contrato no publica", () => {
+    const publicados = new Set(INTEGRATION_CATALOG.map((meta) => meta.operationId));
+    for (const operation of INTEGRATION_OPERATIONS) {
+      expect(publicados.has(operation.operationId), operation.operationId).toBe(true);
+    }
+  });
+
+  it("el enrutado da el mismo resultado con y sin handlers", () => {
+    const conHandler = matchOperation("GET", ["inventory", "items", "abc"]);
+    const soloMeta = matchOperationMeta("GET", ["inventory", "items", "abc"]);
+    expect(conHandler?.operation.operationId).toBe(soloMeta?.operation.operationId);
+    expect(conHandler?.id).toBe(soloMeta?.id);
   });
 });
 

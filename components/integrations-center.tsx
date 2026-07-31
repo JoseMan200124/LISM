@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Ban, Boxes, Download, KeyRound, Plus, RefreshCw, Send, Webhook } from "lucide-react";
+import { Ban, BookOpen, Boxes, Download, KeyRound, Plus, RefreshCw, Send, Webhook } from "lucide-react";
 import { ActionModal, ConfirmModal, CopyButton, Toast, useToast } from "@/components/action-kit";
 import { formatDateTime } from "@/lib/dates";
 import { INTEGRATION_SCOPES, scopeLabels, type IntegrationScope } from "@/lib/integration-scopes";
@@ -482,6 +482,9 @@ export function IntegrationsCenter({ session }: Readonly<{ session?: UserSession
               <p>Descarga el contrato de la API y sigue la ruta que corresponda a tu plataforma.</p>
             </div>
             <div className="empty-state-actions">
+              <a className="primary-button" href="/docs/api" target="_blank" rel="noreferrer">
+                <BookOpen size={16} /> Documentación técnica
+              </a>
               <a className="secondary-button" href="/api/v1/openapi" target="_blank" rel="noreferrer">
                 <Download size={16} /> OpenAPI 3.1
               </a>

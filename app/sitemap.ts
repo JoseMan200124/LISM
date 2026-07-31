@@ -10,5 +10,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 1,
     },
+    {
+      // La documentación de la API es una puerta de entrada real: el equipo de
+      // sistemas del cliente suele buscarla antes que la página comercial.
+      url: `${siteUrl}/docs/api`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
   ];
 }
