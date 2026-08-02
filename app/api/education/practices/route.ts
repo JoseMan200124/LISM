@@ -9,7 +9,7 @@ import { getSession } from "@/lib/session";
 
 const PRACTICE_STATUSES = ["DRAFT", "PLANNED", "PREPARING", "READY", "EXECUTED", "CLOSED", "CANCELLED"] as const;
 
-const schema = z.object({
+export const schema = z.object({
   // El código de práctica es opcional: si el cliente no lo envía se genera de
   // forma segura y única por laboratorio en el servidor (ver nextPracticeCode).
   practiceCode: z.string().min(3).max(80).optional(),

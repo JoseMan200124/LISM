@@ -6,7 +6,7 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 
-const schema = z.object({
+export const schema = z.object({
   equipmentId: databaseIdSchema,
   certificateType: z.enum(["CALIBRATION", "QUALIFICATION", "MAINTENANCE", "REPAIR"]),
   certificateNumber: z.string().min(2).max(120),

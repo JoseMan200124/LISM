@@ -8,7 +8,7 @@ import { guardResearch, insertWithCode, nextResearchCode } from "@/lib/research-
 // Entradas del cuaderno: cada experimento con su objetivo, procedimiento,
 // resultados, conclusiones y observaciones.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   notebookId: databaseIdSchema,
   title: z.string().min(3).max(240),
   performedOn: z.string().date().optional(),

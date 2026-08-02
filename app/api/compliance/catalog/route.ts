@@ -13,7 +13,7 @@ import { computeNextCode } from "@/lib/research";
 // inventario puede apuntar aquí para heredar CAS, clasificación GHS y los
 // requisitos regulatorios que le apliquen.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   name: z.string().min(2).max(200),
   synonyms: z.string().max(400).optional(),
   casNumber: z.string().max(40).optional(),

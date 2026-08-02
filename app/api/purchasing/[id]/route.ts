@@ -12,7 +12,7 @@ import { loadSignaturePolicy, loadSignatures, signRecord } from "@/lib/signature
 const STATUSES = ["DRAFT", "PENDING", "APPROVED", "ORDERED", "RECEIVED", "CANCELLED"] as const;
 const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   status: z.enum(STATUSES).optional(),
   priority: z.enum(PRIORITIES).optional(),
   supplier: z.string().max(200).optional().nullable(),

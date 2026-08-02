@@ -7,7 +7,7 @@ import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { normalizePictograms, normalizeSafetyProcedures } from "@/lib/ghs";
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   name: z.string().min(2).max(180).optional(),
   vendor: z.string().max(180).optional().nullable(),
   itemType: z.enum(["REAGENT", "MATERIAL", "CONSUMABLE", "CULTURE_MEDIA", "OTHER"]).optional(),

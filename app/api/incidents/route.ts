@@ -9,7 +9,7 @@ import { dispatchPush } from "@/lib/push";
 import { notifyIncidentCreated } from "@/lib/push-events";
 import { INCIDENT_CATEGORIES, INCIDENT_RELATED_TYPES, INCIDENT_SEVERITIES, computeNextIncidentCode, isMissingRelationError } from "@/lib/incidents";
 
-const createSchema = z.object({
+export const createSchema = z.object({
   title: z.string().min(3).max(200),
   category: z.enum(INCIDENT_CATEGORIES),
   description: z.string().max(4000).optional(),

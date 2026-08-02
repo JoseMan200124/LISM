@@ -12,7 +12,7 @@ import { createOpaqueToken } from "@/lib/qr-security";
 // El proyecto es opcional a propósito: hay muestras que entran sueltas en el
 // día a día y no pertenecen a ninguna línea de trabajo.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   alias: z.string().max(200).optional(),
   sampleType: z.enum(SAMPLE_TYPES),
   projectId: databaseIdSchema.optional().nullable(),

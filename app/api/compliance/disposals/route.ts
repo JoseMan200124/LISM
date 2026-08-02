@@ -13,7 +13,7 @@ import { signRecord } from "@/lib/signature-service";
 // autorizó y quién lo presenció. Va firmada y descuenta la existencia con un
 // movimiento de descarte, de modo que el kardex cuadra con el acta.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   inventoryItemId: databaseIdSchema,
   quantity: z.coerce.number().positive(),
   method: z.enum(DISPOSAL_METHODS).default("AUTHORIZED_MANAGER"),

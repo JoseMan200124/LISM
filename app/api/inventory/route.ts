@@ -10,7 +10,7 @@ import { createDemoQrLabel, createOpaqueToken } from "@/lib/qr-security";
 import { missingRequiredFields, type CustomFieldDefinition } from "@/lib/custom-fields";
 import { normalizePictograms, normalizeSafetyProcedures } from "@/lib/ghs";
 
-const inventorySchema = z.object({
+export const inventorySchema = z.object({
   sku: z.string().min(2).max(80),
   name: z.string().min(2).max(180),
   itemType: z.enum(["REAGENT", "MATERIAL", "CONSUMABLE", "CULTURE_MEDIA", "OTHER"]),

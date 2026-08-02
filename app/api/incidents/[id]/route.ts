@@ -9,7 +9,7 @@ import { dispatchPush } from "@/lib/push";
 import { notifyIncidentAssigned } from "@/lib/push-events";
 import { INCIDENT_SEVERITIES, INCIDENT_STATUSES, isMissingRelationError } from "@/lib/incidents";
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   status: z.enum(INCIDENT_STATUSES).optional(),
   severity: z.enum(INCIDENT_SEVERITIES).optional(),
   assignedTo: databaseIdSchema.optional().nullable(),

@@ -10,7 +10,7 @@ import { loadSignaturePolicy, signRecord } from "@/lib/signature-service";
 const STATUSES = ["DRAFT", "PENDING", "APPROVED", "ORDERED", "RECEIVED", "CANCELLED"] as const;
 const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 
-const schema = z.object({
+export const schema = z.object({
   title: z.string().min(3).max(200),
   supplier: z.string().max(200).optional(),
   status: z.enum(STATUSES).optional(),

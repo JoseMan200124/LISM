@@ -9,7 +9,7 @@ import { guardResearch, insertWithCode, nextResearchCode } from "@/lib/research-
 // condiciones y control de calidad. No se vuelve a capturar la muestra: se
 // selecciona desde el registro y el proyecto se hereda de ella.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   sampleId: databaseIdSchema,
   materialType: z.string().max(120).optional(),
   responsibleUserId: databaseIdSchema.optional().nullable(),

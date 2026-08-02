@@ -17,7 +17,10 @@ export const dynamic = "force-dynamic";
 const createSchema = z.object({
   name: z.string().min(3).max(160),
   description: z.string().max(500).optional().default(""),
-  systemKind: z.enum(["GENERIC", "SAP", "POWER_APPS", "ERP", "IPAAS", "CUSTOM"]).optional().default("GENERIC"),
+  systemKind: z
+    .enum(["GENERIC", "SAP", "POWER_APPS", "ERP", "IPAAS", "CUSTOM", "AI_ASSISTANT"])
+    .optional()
+    .default("GENERIC"),
   scopes: z.array(z.enum(INTEGRATION_SCOPES)).min(1),
   rateLimitPerMinute: z.coerce.number().int().min(10).max(6000).optional().default(120),
   expiresAt: z.string().datetime().optional().nullable(),

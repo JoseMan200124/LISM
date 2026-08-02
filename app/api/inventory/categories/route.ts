@@ -15,13 +15,13 @@ type InventoryCategoryDto = {
   status: "ACTIVE" | "INACTIVE";
 };
 
-const createSchema = z.object({
+export const createSchema = z.object({
   name: z.string().min(2).max(120),
   prefix: z.string().min(2).max(8).toUpperCase().regex(/^[A-Z0-9]+$/, "El prefijo solo puede contener letras mayúsculas y números."),
   description: z.string().max(500).optional(),
 });
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   id: databaseIdSchema,
   name: z.string().min(2).max(120).optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),

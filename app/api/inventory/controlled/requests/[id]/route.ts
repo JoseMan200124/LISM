@@ -23,7 +23,7 @@ import { loadSignaturePolicy, signRecord } from "@/lib/signature-service";
 // Autorizar no descuenta existencia: solo habilita el consumo por la vigencia
 // acordada. El descuento sigue ocurriendo al registrar el movimiento.
 
-const schema = z.object({
+export const schema = z.object({
   action: z.enum(["APPROVE", "REJECT", "CANCEL"]),
   note: z.string().max(1000).optional().default(""),
   // El responsable puede autorizar menos de lo solicitado.

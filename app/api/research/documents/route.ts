@@ -9,7 +9,7 @@ import { guardResearch, insertWithCode, nextResearchCode } from "@/lib/research-
 // de lo que no tiene módulo propio (artículos, consentimientos, permisos,
 // licencias). Cada documento conserva sus versiones.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   title: z.string().min(3).max(240),
   category: z.enum(DOCUMENT_CATEGORIES).default("OTHER"),
   description: z.string().max(4000).optional(),

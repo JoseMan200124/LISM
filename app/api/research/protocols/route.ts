@@ -8,7 +8,7 @@ import { guardResearch, insertWithCode, nextResearchCode } from "@/lib/research-
 // Protocolos: SOP institucionales, protocolos de investigación, métodos y
 // procedimientos de seguridad. Cada uno nace con su versión 1 en borrador.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   title: z.string().min(3).max(240),
   kind: z.enum(PROTOCOL_KINDS).default("SOP"),
   area: z.string().max(120).optional(),

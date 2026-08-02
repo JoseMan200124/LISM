@@ -22,7 +22,7 @@ import { loadSignaturePolicy, signRecord } from "@/lib/signature-service";
 //        autorizaciones vigentes con las que el usuario ya puede consumir.
 // POST — crea la solicitud (queda PENDING y notifica al responsable).
 
-const createSchema = z.object({
+export const createSchema = z.object({
   inventoryItemId: databaseIdSchema,
   quantity: z.coerce.number().positive(),
   unit: z.string().max(40).optional(),

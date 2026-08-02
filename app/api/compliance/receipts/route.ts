@@ -17,7 +17,7 @@ import { computeNextCode } from "@/lib/research";
 // que ya existe. En ambos casos el saldo lo calcula el trigger de
 // inventory_movements: aquí no se toca `quantity` a mano.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   // Destino: un lote existente o uno nuevo a partir del catálogo.
   inventoryItemId: databaseIdSchema.optional(),
   catalogId: databaseIdSchema.optional(),

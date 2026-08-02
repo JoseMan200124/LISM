@@ -8,7 +8,7 @@ import { hasPermission } from "@/lib/authorization";
 
 const legacyStatusSchema = z.enum(["RECEIVED", "PREPARING", "ANALYZING", "PENDING_VALIDATION", "RELEASED", "REJECTED", "ARCHIVED"]);
 const stateKeySchema = z.string().min(2).max(80).regex(/^[A-Z0-9_]+$/);
-const schema = z.object({
+export const schema = z.object({
   toStateKey: stateKeySchema.optional(),
   /** Compatibilidad con integraciones creadas antes del motor configurable. */
   toStatus: legacyStatusSchema.optional(),

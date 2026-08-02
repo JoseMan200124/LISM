@@ -7,7 +7,7 @@ import { getSession } from "@/lib/session";
 import { databaseIdSchema } from "@/lib/validation";
 import { nextDueFromWeekDays, normalizeWeekDays } from "@/lib/equipment-frequency";
 
-const schema = z.object({
+export const schema = z.object({
   action: z.enum(["UPDATE", "PAUSE", "REACTIVATE", "ARCHIVE", "DUPLICATE"]).default("UPDATE"),
   name: z.string().min(2).max(180).optional(), planType: z.enum(["VERIFICATION", "CALIBRATION", "MAINTENANCE", "QUALIFICATION", "CLEANING"]).optional(),
   frequencyValue: z.coerce.number().int().positive().nullable().optional(), frequencyUnit: z.enum(["USE", "DAY", "WEEK", "MONTH", "YEAR"]).optional(),

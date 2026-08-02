@@ -8,7 +8,7 @@ import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { nextDueFromWeekDays, normalizeWeekDays } from "@/lib/equipment-frequency";
 
-const schema = z.object({
+export const schema = z.object({
   equipmentId: databaseIdSchema,
   planType: z.enum(["VERIFICATION", "CALIBRATION", "MAINTENANCE", "QUALIFICATION", "CLEANING"]),
   name: z.string().min(2).max(180),

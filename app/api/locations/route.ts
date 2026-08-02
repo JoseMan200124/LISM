@@ -5,7 +5,7 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 
-const schema = z.object({
+export const schema = z.object({
   code: z.string().min(2).max(60),
   name: z.string().min(2).max(160),
   locationType: z.string().min(2).max(60).default("STORAGE"),

@@ -11,7 +11,7 @@ import { computeNextCode } from "@/lib/research";
 // frasco y las diferencias se justifican y se aprueban. Es el ejercicio que
 // demuestra que el saldo del sistema corresponde con la repisa.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   title: z.string().min(3).max(200),
   scope: z.enum(COUNT_SCOPES).default("CONTROLLED"),
   categoryName: z.string().max(120).optional(),

@@ -9,7 +9,7 @@ import { guardResearch } from "@/lib/research-service";
 // y un campo `action` porque comparten la misma comprobación de pertenencia al
 // laboratorio y el mismo registro de auditoría.
 
-const patchSchema = z.discriminatedUnion("action", [
+export const patchSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("UPDATE"),
     title: z.string().min(3).max(240).optional(),

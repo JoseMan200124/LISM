@@ -4,6 +4,7 @@ import { withServiceSession } from "@/lib/session";
 import { authenticateIntegrationRequest, type IntegrationPrincipal } from "@/lib/integration-auth";
 import { allowedMethodsFor, matchOperation, type IntegrationOperation } from "@/lib/integration-registry";
 import { clientIpFrom, consumeRateLimit, writeRequestLog } from "@/lib/integration-telemetry";
+import { applyPagination } from "@/lib/integration-pagination";
 
 // Gateway REST de integraciones: la única puerta por la que un ERP, SAP, Power
 // Apps o cualquier otro sistema entra a NexaLab.
@@ -16,9 +17,6 @@ import { clientIpFrom, consumeRateLimit, writeRequestLog } from "@/lib/integrati
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const MAX_PAGE_SIZE = 500;
-const DEFAULT_PAGE_SIZE = 100;
 
 function errorResponse(
   status: number,
@@ -54,47 +52,6 @@ function nativeRequest(request: Request, method: string, rawBody: string | null)
   }
   headers.set("content-type", "application/json");
   return new Request(request.url, { method, headers, body: rawBody });
-}
-
-/**
- * Recorta la colección devuelta según `limit`/`offset`.
- *
- * El recorte ocurre aquí, no en SQL: los handlers nativos no reciben
- * paginación y forzarla habría significado reescribirlos, que es justo lo que
- * este diseño evita. Sirve para que un ERP no tenga que tragarse la colección
- * entera; NO reduce el trabajo de la base de datos. Cuando una colección
- * crezca lo bastante para que eso importe, la paginación debe bajar al handler
- * nativo y el contrato de esta API no cambiará.
- */
-async function applyPagination(response: Response, url: URL): Promise<Response> {
-  const limitParam = url.searchParams.get("limit");
-  const offsetParam = url.searchParams.get("offset");
-  if (!limitParam && !offsetParam) return response;
-  if (!response.ok) return response;
-
-  let body: unknown;
-  try {
-    body = await response.clone().json();
-  } catch {
-    return response;
-  }
-  if (!body || typeof body !== "object" || !Array.isArray((body as { data?: unknown }).data)) {
-    return response;
-  }
-
-  const rows = (body as { data: unknown[] }).data;
-  const offset = Math.max(0, Number(offsetParam ?? 0) || 0);
-  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(limitParam ?? DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE));
-  const page = rows.slice(offset, offset + limit);
-
-  return NextResponse.json(
-    {
-      ...(body as Record<string, unknown>),
-      data: page,
-      pagination: { total: rows.length, offset, limit, returned: page.length },
-    },
-    { status: response.status },
-  );
 }
 
 async function handle(request: Request, context: { params: Promise<{ path: string[] }> }): Promise<Response> {
@@ -194,7 +151,10 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           const raw = await withServiceSession(principal.session, () =>
             matched.operation.invoke({ request: native, id: matched.id }),
           );
-          response = await applyPagination(raw, url);
+          response = await applyPagination(raw, {
+            limit: url.searchParams.get("limit"),
+            offset: url.searchParams.get("offset"),
+          });
           if (!response.ok) errorCode = `upstream_${response.status}`;
         }
       }

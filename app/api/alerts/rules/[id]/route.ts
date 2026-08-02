@@ -7,7 +7,7 @@ import { databaseIdSchema } from "@/lib/validation";
 import { writeAuditEvent } from "@/lib/audit";
 import { EDUCATIONAL_ALERT_SOURCES } from "@/lib/alert-rules";
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   name: z.string().min(3).max(200).optional(),
   sourceType: z.enum(EDUCATIONAL_ALERT_SOURCES).optional(),
   triggerType: z.enum(["THRESHOLD", "DATE_WINDOW", "DATE_OVERDUE", "STATUS", "AGE", "MISSING_LOG"]).optional(),

@@ -18,7 +18,7 @@ import {
 } from "@/lib/controlled-reagents";
 import { canAuthorizeControlled, loadControlledContext } from "@/lib/controlled-usage-service";
 
-const schema = z.object({
+export const schema = z.object({
   inventoryItemId: databaseIdSchema,
   movementType: z.enum(["RECEIPT", "CONSUMPTION", "ADJUSTMENT", "TRANSFER", "DISPOSAL"]),
   quantity: z.coerce.number().positive(),

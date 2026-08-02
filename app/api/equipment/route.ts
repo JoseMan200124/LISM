@@ -9,7 +9,7 @@ import { hasPermission } from "@/lib/authorization";
 import { createDemoQrLabel, createOpaqueToken } from "@/lib/qr-security";
 import { missingRequiredFields, type CustomFieldDefinition } from "@/lib/custom-fields";
 
-const schema = z.object({
+export const schema = z.object({
   code: z.string().min(2).max(60),
   name: z.string().min(2).max(180),
   departmentId: databaseIdSchema.optional().nullable(),

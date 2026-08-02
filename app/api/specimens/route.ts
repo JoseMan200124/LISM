@@ -7,7 +7,7 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 
-const specimenSchema = z.object({
+export const specimenSchema = z.object({
   patientId: databaseIdSchema,
   specimenTypeId: databaseIdSchema,
   barcode: z.string().min(3).max(120),

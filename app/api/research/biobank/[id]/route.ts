@@ -8,7 +8,7 @@ import { guardResearch } from "@/lib/research-service";
 // Ficha del material conservado: ubicación, condiciones, historial de
 // movimientos y controles de calidad.
 
-const patchSchema = z.discriminatedUnion("action", [
+export const patchSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("UPDATE"),
     status: z.enum(BIOBANK_STATUSES).optional(),

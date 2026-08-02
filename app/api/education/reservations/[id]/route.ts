@@ -6,7 +6,7 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { databaseIdSchema } from "@/lib/validation";
 
-const schema = z.object({
+export const schema = z.object({
   quantity: z.coerce.number().positive().optional(),
   unit: z.string().min(1).max(40).optional(),
   neededAt: z.string().datetime({ offset: true }).nullable().optional(),

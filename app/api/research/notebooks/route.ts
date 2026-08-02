@@ -8,7 +8,7 @@ import { guardResearch, insertWithCode, nextResearchCode } from "@/lib/research-
 // Cuadernos electrónicos de laboratorio. Un proyecto puede tener uno o varios;
 // también existen cuadernos sin proyecto para el trabajo por muestra suelta.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   title: z.string().min(3).max(240),
   description: z.string().max(2000).optional(),
   projectId: databaseIdSchema.optional().nullable(),

@@ -8,7 +8,7 @@ import { guardResearch } from "@/lib/research-service";
 // Ficha de la muestra: datos, protocolos aplicados, biobanco e historial
 // completo de quién hizo qué.
 
-const patchSchema = z.discriminatedUnion("action", [
+export const patchSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("UPDATE"),
     alias: z.string().max(200).optional().nullable(),

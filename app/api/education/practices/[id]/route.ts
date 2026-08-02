@@ -9,7 +9,7 @@ import { createPracticeShareToken } from "@/lib/share-token";
 import { databaseIdSchema } from "@/lib/validation";
 
 const statuses = ["DRAFT", "PLANNED", "PREPARING", "READY", "EXECUTED", "CLOSED", "CANCELLED", "ARCHIVED"] as const;
-const patchSchema = z.object({
+export const patchSchema = z.object({
   action: z.enum(["UPDATE", "DUPLICATE", "CANCEL", "ARCHIVE", "CHANGE_STATUS"]).default("UPDATE"),
   title: z.string().min(3).max(200).optional(),
   courseName: z.string().max(180).nullable().optional(),

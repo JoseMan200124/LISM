@@ -9,7 +9,7 @@ import { hasPermission } from "@/lib/authorization";
 import { dispatchPush } from "@/lib/push";
 import { notifyAlertRaised } from "@/lib/push-events";
 
-const resultSchema = z.object({
+export const resultSchema = z.object({
   orderTestId: databaseIdSchema,
   numericValue: z.coerce.number().optional(),
   textValue: z.string().max(2000).optional(),

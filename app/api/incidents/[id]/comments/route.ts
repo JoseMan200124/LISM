@@ -6,7 +6,7 @@ import { hasPermission } from "@/lib/authorization";
 import { databaseIdSchema } from "@/lib/validation";
 import { writeAuditEvent } from "@/lib/audit";
 
-const schema = z.object({ body: z.string().min(2).max(4000), commentType: z.enum(["COMMENT", "FOLLOW_UP", "EVIDENCE", "STATUS_CHANGE"]).default("FOLLOW_UP"), attachmentId: databaseIdSchema.optional() });
+export const schema = z.object({ body: z.string().min(2).max(4000), commentType: z.enum(["COMMENT", "FOLLOW_UP", "EVIDENCE", "STATUS_CHANGE"]).default("FOLLOW_UP"), attachmentId: databaseIdSchema.optional() });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getSession();

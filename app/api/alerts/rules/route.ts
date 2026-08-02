@@ -16,7 +16,7 @@ const patchSchema = z.object({
   active: z.boolean(),
 });
 
-const createSchema = z.object({
+export const createSchema = z.object({
   name: z.string().min(3).max(200),
   sourceType: z.enum(EDUCATIONAL_ALERT_SOURCES),
   triggerType: z.enum(["THRESHOLD", "DATE_WINDOW", "DATE_OVERDUE", "STATUS", "AGE", "MISSING_LOG"]),

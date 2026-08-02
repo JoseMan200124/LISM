@@ -52,6 +52,7 @@ type Delivery = {
 };
 
 const SYSTEM_KINDS: Array<{ value: string; label: string }> = [
+  { value: "AI_ASSISTANT", label: "Asistente de IA (MCP)" },
   { value: "ERP", label: "ERP" },
   { value: "SAP", label: "SAP" },
   { value: "POWER_APPS", label: "Power Apps / Power Automate" },
@@ -64,6 +65,16 @@ const SYSTEM_KINDS: Array<{ value: string; label: string }> = [
 // primera vez, y empezar por lo mínimo razonable evita credenciales que lo
 // pueden todo "por si acaso".
 const SCOPE_PRESETS: Record<string, IntegrationScope[]> = {
+  // Un asistente de IA arranca en solo lectura a propósito. Puede analizar todo
+  // el laboratorio desde el primer minuto, y quien lo conecta decide después,
+  // marcándolo a mano, si además le deja escribir. Conceder escritura sobre
+  // reactivos controlados o resultados sin esa decisión consciente sería
+  // regalar la parte del sistema que tiene consecuencias regulatorias.
+  AI_ASSISTANT: [
+    "inventory:read", "equipment:read", "specimens:read", "results:read",
+    "purchasing:read", "compliance:read", "incidents:read", "alerts:read",
+    "education:read", "research:read", "quality:read", "catalog:read", "audit:read",
+  ],
   ERP: ["inventory:read", "inventory:write", "purchasing:read", "purchasing:write", "catalog:read"],
   SAP: ["inventory:read", "purchasing:read", "purchasing:write", "compliance:read", "catalog:read"],
   POWER_APPS: ["inventory:read", "equipment:read", "incidents:read", "incidents:write", "catalog:read"],
@@ -89,6 +100,10 @@ function toArray(value: string[] | string | null | undefined): string[] {
 // siempre viene resuelta desde la página del módulo.
 export function IntegrationsCenter({ session }: Readonly<{ session?: UserSession }>) {
   const [tab, setTab] = useState<"clients" | "webhooks" | "connect">("clients");
+  // La URL del servidor MCP depende de dónde esté desplegada la instancia, y
+  // solo el navegador la conoce. Se resuelve tras montar para que el servidor y
+  // el cliente rendericen lo mismo y React no descarte el árbol por hidratación.
+  const [mcpUrl, setMcpUrl] = useState("https://<tu-instancia>/api/mcp");
   const [clients, setClients] = useState<ApiClient[]>([]);
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -137,6 +152,7 @@ export function IntegrationsCenter({ session }: Readonly<{ session?: UserSession
   }, [showError]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setMcpUrl(`${window.location.origin}/api/mcp`); }, []);
 
   function applyPreset(kind: string) {
     setSystemKind(kind);
@@ -492,6 +508,24 @@ export function IntegrationsCenter({ session }: Readonly<{ session?: UserSession
                 <Download size={16} /> Conector de Power Apps
               </a>
             </div>
+          </div>
+
+          <div className="panel" style={{ marginBottom: "1.25rem" }}>
+            <h4>Asistentes de IA (Claude y cualquier cliente MCP)</h4>
+            <p className="form-help">
+              NexaLab expone un servidor <strong>MCP</strong> en <code>{mcpUrl}</code>. Un asistente
+              conectado ahí puede analizar cualquier sección del laboratorio y, si le concedes
+              alcances de escritura, registrar movimientos, eventos de equipo o incidencias. Emite
+              una credencial del tipo <em>Asistente de IA</em> y ejecuta:
+            </p>
+            <pre className="api-docs-code">
+              <code>{`claude mcp add --transport http nexalab ${mcpUrl} \\\n  --header "Authorization: Bearer nxk_live_…"`}</code>
+            </pre>
+            <p className="form-help">
+              El asistente solo ve las herramientas que permiten sus alcances, todo lo que haga queda
+              en la bitácora a nombre de la persona responsable de la credencial, y nunca puede hacer
+              más que esa persona. Empieza en solo lectura y amplía cuando lo tengas claro.
+            </p>
           </div>
 
           <div className="details-grid">

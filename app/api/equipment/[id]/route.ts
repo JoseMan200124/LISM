@@ -8,7 +8,7 @@ import { hasPermission } from "@/lib/authorization";
 
 const EQUIPMENT_STATUSES = ["OPERATIONAL", "MAINTENANCE_DUE", "OUT_OF_SERVICE", "RETIRED"] as const;
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   action: z.enum(["UPDATE", "ARCHIVE", "RETIRE", "OUT_OF_SERVICE"]).default("UPDATE"),
   name: z.string().min(2).max(180).optional(),
   manufacturer: z.string().max(120).optional().nullable(),

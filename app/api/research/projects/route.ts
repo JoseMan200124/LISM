@@ -8,7 +8,7 @@ import { guardResearch, insertWithCode, nextResearchCode } from "@/lib/research-
 // Proyectos de investigación: el contenedor de objetivos, cronograma, equipo,
 // protocolos, muestras, cuadernos y documentos de una línea de trabajo.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   title: z.string().min(3).max(240),
   summary: z.string().max(4000).optional(),
   objectives: z.string().max(8000).optional(),

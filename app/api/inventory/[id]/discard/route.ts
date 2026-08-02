@@ -10,7 +10,7 @@ import { missingControlledFields, controlledLogErrorMessage } from "@/lib/contro
 // Descarte dedicado (§3.6): acción separada de consumo/ajuste. Registra un
 // movimiento DISPOSAL con cantidad, motivo, fecha y observación; si se descarta
 // toda la existencia, marca el lote como archivado (agotado). No crea filas nuevas.
-const schema = z.object({
+export const schema = z.object({
   quantity: z.coerce.number().positive(),
   reason: z.string().min(2).max(120),
   note: z.string().max(1000).optional().default(""),

@@ -11,7 +11,7 @@ import { PERMIT_STATUSES, PERMIT_TYPES } from "@/lib/compliance-reagents";
 // alimenta las alertas y el centro de notificaciones: operar con una licencia
 // vencida es la falta que primero encuentra una inspección.
 
-const createSchema = z.object({
+export const createSchema = z.object({
   permitType: z.enum(PERMIT_TYPES).default("LICENSE"),
   authority: z.string().min(2).max(200),
   permitNumber: z.string().min(1).max(120),
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ data: rows[0] }, { status: 201 });
 }
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   id: databaseIdSchema,
   status: z.enum(PERMIT_STATUSES).optional(),
   expiresOn: z.string().date().optional().nullable(),

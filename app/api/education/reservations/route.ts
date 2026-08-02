@@ -9,7 +9,7 @@ import { educationalReservations } from "@/lib/compliance-data";
 import { dispatchPush } from "@/lib/push";
 import { notifyReservationCreated, notifyReservationResolved } from "@/lib/push-events";
 
-const createSchema = z.object({
+export const createSchema = z.object({
   practiceId: databaseIdSchema.optional().nullable(),
   practiceCode: z.string().max(80).optional(),
   resourceType: z.enum(["INVENTORY_ITEM", "EQUIPMENT", "OTHER"]),

@@ -10,7 +10,7 @@ import { REAGENT_CATEGORIES } from "@/lib/compliance-reagents";
 
 // Ficha del reactivo en el catálogo: sus frascos, sus permisos y sus documentos.
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   name: z.string().min(2).max(200).optional(),
   synonyms: z.string().max(400).optional().nullable(),
   casNumber: z.string().max(40).optional().nullable(),

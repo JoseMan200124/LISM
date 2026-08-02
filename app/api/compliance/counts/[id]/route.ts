@@ -12,7 +12,7 @@ import { signRecord } from "@/lib/signature-service";
 // ajustes. Aprobar exige firma y genera un movimiento de ajuste por cada
 // diferencia: el saldo no se corrige a mano en ningún punto.
 
-const patchSchema = z.discriminatedUnion("action", [
+export const patchSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("COUNT"),
     itemId: databaseIdSchema,

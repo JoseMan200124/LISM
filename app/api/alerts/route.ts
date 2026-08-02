@@ -7,7 +7,7 @@ import { getSql, hasDatabase } from "@/lib/db";
 import { incidentRows } from "@/lib/demo-data";
 import { getSession } from "@/lib/session";
 
-const patchSchema = z.object({
+export const patchSchema = z.object({
   id: databaseIdSchema,
   action: z.enum(["ACKNOWLEDGE", "ASSIGN_TO_ME", "ASSIGN", "RESOLVE", "REOPEN"]),
   note: z.string().max(1000).optional().default(""),

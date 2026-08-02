@@ -15,7 +15,7 @@ import { notifyProtocolVersion } from "@/lib/push-events";
 // versión nueva en borrador; al aprobarla, la anterior queda como reemplazada y
 // se avisa a quienes trabajan con ese protocolo.
 
-const patchSchema = z.discriminatedUnion("action", [
+export const patchSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("UPDATE"),
     title: z.string().min(3).max(240).optional(),

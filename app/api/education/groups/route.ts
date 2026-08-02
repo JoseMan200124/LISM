@@ -6,7 +6,7 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 
-const createSchema = z.object({
+export const createSchema = z.object({
   code: z.string().min(2).max(80),
   name: z.string().min(2).max(180),
   academicPeriod: z.string().max(80).optional(),
