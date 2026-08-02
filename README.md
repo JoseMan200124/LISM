@@ -109,6 +109,8 @@ Para crear un tenant educativo vacío y seguro, consulta [database/README.md](da
 ## Documentación agregada
 
 - [`docs/IMPLEMENTED_CONFIGURABLE_LIMS.md`](docs/IMPLEMENTED_CONFIGURABLE_LIMS.md)
+- [`docs/INTEGRATION_API.md`](docs/INTEGRATION_API.md) — API de integración con ERP, SAP y Power Apps
+- [`docs/MCP.md`](docs/MCP.md) — servidor MCP para conectar asistentes de IA
 - [`docs/COMPLIANCE_BOUNDARIES.md`](docs/COMPLIANCE_BOUNDARIES.md)
 - [`docs/ACCEPTANCE_TESTS_CONFIGURABLE_LIMS.md`](docs/ACCEPTANCE_TESTS_CONFIGURABLE_LIMS.md)
 - [`docs/MIGRATION_0004.md`](docs/MIGRATION_0004.md)

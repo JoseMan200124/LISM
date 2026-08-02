@@ -332,3 +332,13 @@ respuesta de error: un `400` enumera qué falta.
 - **Los tokens OAuth2 se firman con un secreto derivado** del de sesión
   (`HMAC(SESSION_SECRET, "nexalab.integration.v1")`). Que sea distinto impide
   que un token de integración se acepte como cookie de sesión web, o al revés.
+
+---
+
+## Asistentes de IA
+
+El mismo catálogo se expone además como servidor **MCP** en `/api/mcp`, para
+conectar Claude u otro cliente compatible. Comparte credencial, alcances,
+límite de llamadas, telemetría y handlers con este gateway; lo único que cambia
+es el idioma y que allí los cuerpos publican su forma exacta. Ver
+[`MCP.md`](./MCP.md).
