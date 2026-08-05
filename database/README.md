@@ -14,6 +14,7 @@
 | `0015_educational_revision_v1.sql` | Preferencias, tipos y controles de inventario, prácticas/participantes, seguimiento de incidencias, archivo de equipos y reglas/escalamientos educativos. |
 | `0019_purchasing.sql` | Módulo de compras: `purchase_requests` (cabecera de solicitud/orden) y `purchase_request_items` (líneas, con enlace opcional a un artículo de inventario). No modifica inventario ni movimientos. |
 | `0020_controlled_usage_authorization.sql` | Autorización digital de uso de reactivos controlados: `controlled_usage_requests` (solicitud, autorización con vigencia y cierre por consumo), `inventory_movements.usage_request_id` y `laboratory_settings.controlled_usage_policy`. Sustituye la hoja en papel que se llevaba a firmar; no cambia las reglas de existencias. |
+| `0027_translate_plan_copy.sql` | Traducción al español de `description` y `features` de los tres planes de `billing_plans`, que se mostraban en inglés en la web pública. No toca esquema, slug, precio ni límites. El mismo texto vive en el fallback de `lib/billing-plans-data.ts`. |
 | `0021_push_devices.sql` | Dispositivos móviles registrados para notificaciones push (`push_devices`). Solo la app móvil escribe en ella; la web no se ve afectada. Sin esta migración el push queda inerte y las notificaciones se siguen viendo en la campana. |
 
 ## Instalación nueva

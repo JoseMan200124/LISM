@@ -6,29 +6,35 @@ import { VersionWatcher } from "@/components/version-watcher";
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://nexalaboratories.com";
 const siteName = "NexaLab";
 const siteDescription =
-  "NexaLab organiza muestras, resultados, inventario y control de calidad en una experiencia clara para laboratorios clínicos, universitarios y de investigación.";
+  "NexaLab gestiona muestras, inventario, equipos, alertas y cumplimiento en una sola plataforma web, para laboratorios de investigación, educativos, clínicos, industriales y farmacéuticos. Primer mes gratis.";
+const siteTitle = "NexaLab | Sistema integral de gestión de laboratorio";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "NexaLab LIS | Operación clara y trazable",
-    template: "%s | NexaLab LIS",
+    default: siteTitle,
+    template: "%s | NexaLab",
   },
   description: siteDescription,
   keywords: [
-    "laboratory information system",
-    "LIS",
+    "sistema de gestión de laboratorio",
     "LIMS",
-    "gestión de laboratorio",
-    "software para laboratorio educativo",
+    "LIS",
+    "laboratory information system",
+    "software para laboratorio",
+    "inventario de reactivos",
+    "control de equipos de laboratorio",
     "trazabilidad de muestras",
-    "inventario de laboratorio",
+    "reactivos controlados",
     "control de calidad",
+    "software para laboratorio educativo",
     "sistema para laboratorio universitario",
+    "laboratorio clínico",
+    "laboratorio farmacéutico",
   ],
   applicationName: siteName,
   authors: [{ name: siteName, url: siteUrl }],
-  category: "education",
+  category: "technology",
   alternates: {
     canonical: "/",
   },
@@ -36,13 +42,13 @@ export const metadata: Metadata = {
     type: "website",
     url: siteUrl,
     siteName,
-    title: "NexaLab LIS | Operación clara y trazable",
+    title: siteTitle,
     description: siteDescription,
     locale: "es_ES",
   },
   twitter: {
     card: "summary_large_image",
-    title: "NexaLab LIS | Operación clara y trazable",
+    title: siteTitle,
     description: siteDescription,
   },
   robots: {

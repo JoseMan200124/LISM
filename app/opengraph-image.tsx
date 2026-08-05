@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "NexaLab — Sistema de Laboratorio Educativo";
+export const alt = "NexaLab — Sistema integral de gestión de laboratorio";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -25,7 +25,10 @@ export default async function OpengraphImage() {
           NexaLab
         </div>
         <div style={{ display: "flex", fontSize: 32, color: "#e6f2ef", letterSpacing: 0.5 }}>
-          Sistema de Laboratorio Educativo
+          Sistema integral de gestión de laboratorio
+        </div>
+        <div style={{ display: "flex", fontSize: 22, color: "#b9ddd6", letterSpacing: 0.5 }}>
+          Muestras · Inventario · Equipos · Calidad · Cumplimiento
         </div>
       </div>
     ),
