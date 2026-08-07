@@ -104,7 +104,7 @@ export function ReagentCatalogTab({ session }: Readonly<{ session?: UserSession 
       <div className="section-heading">
         <div>
           <h4>Catálogo de reactivos</h4>
-          <p>La sustancia y sus requisitos: CAS, clasificación, pictogramas, SDS y qué exige la autoridad.</p>
+          <p>La sustancia y sus requisitos: CAS, clasificación, pictogramas, SDS y qué exige la autoridad. Cada reactivo que registras en Inventario crea o actualiza aquí su ficha automáticamente.</p>
         </div>
         {canManage ? <button className="secondary-button" onClick={() => setCreateOpen(true)}><Plus size={15} /> Nuevo reactivo</button> : null}
       </div>
@@ -120,7 +120,7 @@ export function ReagentCatalogTab({ session }: Readonly<{ session?: UserSession 
         onRowClick={(row) => setDetail(items.find((entry) => entry.id === row.id) ?? null)}
         searchPlaceholder="Buscar por nombre, CAS o proveedor…"
         emptyTitle={loading ? "Cargando…" : "Catálogo vacío"}
-        emptyMessage="Registra los reactivos que maneja el laboratorio con su número CAS y su clasificación."
+        emptyMessage="Al registrar un reactivo en Inventario su ficha aparece aquí. También puedes crearla a mano para completar CAS, requisitos y licencias."
       />
 
       {createOpen ? (

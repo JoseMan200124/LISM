@@ -17,10 +17,12 @@ export async function GET() {
   if (!hasPermission(session, "inventory.view") && !hasPermission(session, "equipment.view")) return NextResponse.json({ message: "No tienes permiso para consultar ubicaciones." }, { status: 403 });
   if (!hasDatabase()) return NextResponse.json({ data: [], mode: "demo" });
   const sql = getSql();
+  // Las ubicaciones dadas de baja quedan fuera del listado y de los selectores;
+  // sus artículos y movimientos históricos siguen apuntando a ellas.
   const rows = await sql`
     SELECT id, code, name, location_type, status
     FROM storage_locations
-    WHERE laboratory_id = ${session.laboratoryId}
+    WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'
     ORDER BY name ASC
   `;
   return NextResponse.json({ data: rows, mode: "database" });

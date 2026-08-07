@@ -120,3 +120,24 @@ export const defaultInventoryCategories = [
   { code: "INS", name: "Insumos o consumibles", prefix: "INS" },
   { code: "OTR", name: "Otros", prefix: "OTR" },
 ] as const;
+
+/**
+ * Prefijo corto de una categoría creada al vuelo desde el alta de un artículo.
+ *
+ * Sin él la lista de categorías mostraba el código completo generado
+ * (`CAT-REACTIVOS-DE-MICROBIOLOGIA`) como si fuera el prefijo, y los chips de
+ * filtro quedaban ilegibles. Se toman las iniciales de las palabras y, si el
+ * nombre es de una sola palabra, sus primeras letras. Máximo 8 caracteres, que
+ * es el ancho de la columna.
+ */
+export function inventoryCategoryPrefix(name: string): string {
+  const words = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean);
+  if (words.length === 0) return "CAT";
+  const initials = words.length > 1 ? words.map((word) => word[0]).join("") : words[0].slice(0, 4);
+  return initials.slice(0, 8);
+}

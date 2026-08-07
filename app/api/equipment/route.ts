@@ -20,6 +20,13 @@ export const schema = z.object({
   model: z.string().max(120).optional().default(""),
   serialNumber: z.string().max(120).optional().default(""),
   status: z.enum(["OPERATIONAL", "MAINTENANCE_DUE", "OUT_OF_SERVICE", "RETIRED"]).default("OPERATIONAL"),
+  // Fechas metrológicas capturadas en la ficha. Cuando el equipo tiene un plan
+  // periódico activo, la próxima fecha del plan es la que manda al mostrarse.
+  lastCalibrationAt: z.string().date().optional().nullable(),
+  nextCalibrationAt: z.string().date().optional().nullable(),
+  lastQualificationAt: z.string().date().optional().nullable(),
+  nextQualificationAt: z.string().date().optional().nullable(),
+  lastMaintenanceAt: z.string().date().optional().nullable(),
   nextMaintenanceAt: z.string().date().optional().nullable(),
   notes: z.string().max(2000).optional().default(""),
   customValues: z.record(z.string(), z.unknown()).optional(),
@@ -46,11 +53,13 @@ export async function GET() {
   // plan quede "huérfano" del registro del equipo (bug CM-11).
   const rows = await sql`
     SELECT e.id, e.code, e.name, e.manufacturer, e.model, e.serial_number,
-      COALESCE(l.name, 'Sin ubicación') AS location, e.storage_location_id, e.status,
-      e.last_calibration_at, e.next_maintenance_at, e.notes,
+      COALESCE(l.name, 'Sin ubicación') AS location, e.storage_location_id, e.status, e.area,
+      e.last_calibration_at, e.last_qualification_at, e.last_maintenance_at, e.notes,
       e.responsible_user_id, COALESCE(u.full_name, 'Sin responsable') AS responsible, e.custom_values,
-      p.next_calibration_at, p.next_maintenance_at AS plan_next_maintenance_at,
-      p.next_qualification_at, p.next_verification_at,
+      COALESCE(p.next_calibration_at::date, e.next_calibration_at) AS next_calibration_at,
+      COALESCE(p.next_maintenance_at::date, e.next_maintenance_at) AS plan_next_maintenance_at,
+      COALESCE(p.next_qualification_at::date, e.next_qualification_at) AS next_qualification_at,
+      p.next_verification_at,
       COALESCE(p.plan_count, 0) AS plan_count
     FROM equipment e
     LEFT JOIN storage_locations l ON l.id = e.storage_location_id AND l.laboratory_id = e.laboratory_id
@@ -127,12 +136,18 @@ export async function POST(request: Request) {
   const rows = await sql`
     INSERT INTO equipment (
       laboratory_id, department_id, storage_location_id, responsible_user_id, code, name,
-      manufacturer, model, serial_number, status, next_maintenance_at, notes, custom_values
+      manufacturer, model, serial_number, status, last_calibration_at, next_calibration_at,
+      last_qualification_at, next_qualification_at, last_maintenance_at, next_maintenance_at,
+      notes, custom_values
     ) VALUES (
       ${session.laboratoryId}, ${payload.departmentId ?? null}, ${storageLocationId ?? null}, ${payload.responsibleUserId ?? null}, ${payload.code}, ${payload.name},
-      ${payload.manufacturer || null}, ${payload.model || null}, ${payload.serialNumber || null}, ${payload.status}, ${payload.nextMaintenanceAt ?? null}, ${payload.notes || null}, ${JSON.stringify(customValues)}::jsonb
+      ${payload.manufacturer || null}, ${payload.model || null}, ${payload.serialNumber || null}, ${payload.status},
+      ${payload.lastCalibrationAt ?? null}, ${payload.nextCalibrationAt ?? null},
+      ${payload.lastQualificationAt ?? null}, ${payload.nextQualificationAt ?? null},
+      ${payload.lastMaintenanceAt ?? null}, ${payload.nextMaintenanceAt ?? null},
+      ${payload.notes || null}, ${JSON.stringify(customValues)}::jsonb
     )
-    RETURNING id, code, name, manufacturer, model, serial_number, status, next_maintenance_at
+    RETURNING id, code, name, manufacturer, model, serial_number, status, next_maintenance_at, next_calibration_at
   `;
   const qrRows = await sql`
     INSERT INTO qr_identifiers (laboratory_id, entity_type, entity_id, opaque_token, label_code)

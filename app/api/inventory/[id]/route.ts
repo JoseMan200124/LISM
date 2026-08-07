@@ -6,6 +6,7 @@ import { getSession } from "@/lib/session";
 import { writeAuditEvent } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { normalizePictograms, normalizeSafetyProcedures } from "@/lib/ghs";
+import { syncReagentCatalogEntry } from "@/lib/reagent-catalog-sync";
 
 export const patchSchema = z.object({
   name: z.string().min(2).max(180).optional(),
@@ -140,6 +141,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}
     RETURNING id, sku, name, status
   `;
+  // Si al editar se marca el reactivo como controlado (o se corrige su ficha),
+  // el catálogo de reactivos se pone al día sin volver a capturar los datos.
+  const updated = await sql`SELECT * FROM inventory_items WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
+  const current = (updated[0] ?? {}) as Record<string, unknown>;
+  const catalogId = await syncReagentCatalogEntry(sql, session.laboratoryId, session.userId, {
+    name: String(current.name ?? ""),
+    itemType: String(current.item_type ?? "OTHER"),
+    isControlled: Boolean(current.is_controlled),
+    controlKind: current.control_kind ? String(current.control_kind) : null,
+    vendor: current.vendor ? String(current.vendor) : undefined,
+    internalFormula: current.internal_formula ? String(current.internal_formula) : undefined,
+    concentration: current.concentration ? String(current.concentration) : undefined,
+    presentation: current.presentation ? String(current.presentation) : undefined,
+    storageConditions: current.storage_conditions ? String(current.storage_conditions) : undefined,
+    safetySheetUrl: current.safety_sheet_url ? String(current.safety_sheet_url) : undefined,
+    hazardPictograms: normalizePictograms(current.hazard_pictograms),
+    hazardStatements: current.hazard_statements ? String(current.hazard_statements) : undefined,
+  });
+  if (catalogId && !current.catalog_id) {
+    await sql`UPDATE inventory_items SET catalog_id = ${catalogId} WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}`
+      .catch(() => undefined);
+  }
+
   await writeAuditEvent(session, { action: payload.status === "ARCHIVED" ? "INVENTORY_ITEM_ARCHIVED" : "INVENTORY_ITEM_UPDATED", entityType: "inventory_item", entityId: id, previousValue: previous[0], newValue: rows[0], reason: "Edición de artículo", request });
   return NextResponse.json({ data: rows[0] });
 }

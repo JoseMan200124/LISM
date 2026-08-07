@@ -27,7 +27,7 @@ import { sourceRecordHref } from "@/lib/deep-links";
 type Role = UserSession["role"];
 
 type PracticeSummary = { id: string; practice_code: string; title: string; course_name: string | null; teacher_name: string | null; starts_at: string; status: string };
-type AlertSummary = { id: string; title: string; details: string | null; severity: string; status: string; source_type: string | null; source_id: string | null; created_at: string };
+type AlertSummary = { id: string; title: string; details: string | null; severity: string; status: string; source_type: string | null; source_id: string | null; created_at: string; href?: string };
 type DashboardData = {
   upcomingPractices: number; pendingReservations: number; lowStockItems: number; nearExpiryItems: number;
   maintenanceDueEquipment: number; recentQrScans: number; operationalEquipment: number; totalEquipment: number;
@@ -47,9 +47,11 @@ function severityLabel(sev: string): "Alta" | "Media" | "Baja" {
   if (sev === "WARNING") return "Media";
   return "Baja";
 }
-// Ruta a la entidad origen de una alerta, para navegación cruzada (§4.5).
+// Ruta a la entidad origen de una alerta, para navegación cruzada (§4.5). Los
+// avisos que no nacen de la tabla `alerts` (vencimientos, autorizaciones,
+// licencias) traen su propio destino desde el servidor.
 function alertSourceHref(alert: AlertSummary): string {
-  return sourceRecordHref(alert.source_type, alert.source_id, alert.id) ?? "/app/alerts";
+  return alert.href ?? sourceRecordHref(alert.source_type, alert.source_id, alert.id) ?? "/app/alerts";
 }
 
 function useDashboardData() {

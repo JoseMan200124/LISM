@@ -17,6 +17,14 @@ export const patchSchema = z.object({
   responsibleUserId: databaseIdSchema.optional().nullable(),
   storageLocationId: databaseIdSchema.optional().nullable(),
   status: z.enum(EQUIPMENT_STATUSES).optional(),
+  // Fechas metrológicas de la ficha. Una cadena vacía borra la fecha; omitir el
+  // campo la conserva.
+  lastCalibrationAt: z.string().date().or(z.literal("")).optional().nullable(),
+  nextCalibrationAt: z.string().date().or(z.literal("")).optional().nullable(),
+  lastQualificationAt: z.string().date().or(z.literal("")).optional().nullable(),
+  nextQualificationAt: z.string().date().or(z.literal("")).optional().nullable(),
+  lastMaintenanceAt: z.string().date().or(z.literal("")).optional().nullable(),
+  nextMaintenanceAt: z.string().date().or(z.literal("")).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
   area: z.string().max(160).optional().nullable(),
   customValues: z.record(z.string(), z.unknown()).optional(),
@@ -37,14 +45,29 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!hasDatabase()) return NextResponse.json({ data: null, mode: "demo" });
 
   const sql = getSql();
+  // Las próximas fechas se muestran desde el plan periódico activo cuando existe
+  // y, si no, desde lo capturado en la ficha del equipo.
   const rows = await sql`
     SELECT e.id, e.code, e.name, e.manufacturer, e.model, e.serial_number,
       COALESCE(l.name, 'Sin ubicación') AS location, e.storage_location_id, e.status,
-      e.last_calibration_at, e.next_maintenance_at, e.notes, e.area, e.custom_values,
+      e.last_calibration_at, e.last_qualification_at, e.last_maintenance_at,
+      COALESCE(p.next_calibration_at::date, e.next_calibration_at) AS next_calibration_at,
+      COALESCE(p.next_qualification_at::date, e.next_qualification_at) AS next_qualification_at,
+      COALESCE(p.next_maintenance_at::date, e.next_maintenance_at) AS next_maintenance_at,
+      e.notes, e.area, e.custom_values,
       e.responsible_user_id, COALESCE(u.full_name, 'Sin responsable') AS responsible
     FROM equipment e
     LEFT JOIN storage_locations l ON l.id = e.storage_location_id AND l.laboratory_id = e.laboratory_id
     LEFT JOIN users u ON u.id = e.responsible_user_id
+    LEFT JOIN (
+      SELECT equipment_id,
+        MIN(next_due_at) FILTER (WHERE plan_type = 'CALIBRATION') AS next_calibration_at,
+        MIN(next_due_at) FILTER (WHERE plan_type = 'QUALIFICATION') AS next_qualification_at,
+        MIN(next_due_at) FILTER (WHERE plan_type = 'MAINTENANCE') AS next_maintenance_at
+      FROM equipment_plans
+      WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'
+      GROUP BY equipment_id
+    ) p ON p.equipment_id = e.id
     WHERE e.id = ${id} AND e.laboratory_id = ${session.laboratoryId}
     LIMIT 1
   `;
@@ -85,6 +108,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const previous = await sql`SELECT * FROM equipment WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
   if (previous.length === 0) return NextResponse.json({ message: "Equipo no encontrado." }, { status: 404 });
 
+  // Una fecha se distingue entre "no la mandes" (undefined -> conserva) y
+  // "bórrala" (cadena vacía -> NULL). COALESCE no sirve aquí porque no puede
+  // expresar el borrado; se usa CASE sobre si el campo venía en el cuerpo.
+  const dateField = (value: string | null | undefined) => ({
+    provided: value !== undefined,
+    value: value ? value : null,
+  });
+  const lastCalibration = dateField(payload.lastCalibrationAt);
+  const nextCalibration = dateField(payload.nextCalibrationAt);
+  const lastQualification = dateField(payload.lastQualificationAt);
+  const nextQualification = dateField(payload.nextQualificationAt);
+  const lastMaintenance = dateField(payload.lastMaintenanceAt);
+  const nextMaintenance = dateField(payload.nextMaintenanceAt);
+
   // COALESCE(${maybeUndefined}, columna): cada campo omitido conserva su valor
   // actual; los enviados se actualizan. undefined -> null en el driver, por eso
   // se pasa `?? null` explícito para que COALESCE tome la columna existente.
@@ -97,14 +134,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       responsible_user_id = COALESCE(${payload.responsibleUserId ?? null}, responsible_user_id),
       storage_location_id = COALESCE(${payload.storageLocationId ?? null}, storage_location_id),
       status = CASE WHEN ${payload.action} IN ('ARCHIVE','RETIRE') THEN 'RETIRED'::equipment_status WHEN ${payload.action} = 'OUT_OF_SERVICE' THEN 'OUT_OF_SERVICE'::equipment_status ELSE COALESCE(${payload.status ?? null}, status) END,
+      last_calibration_at = CASE WHEN ${lastCalibration.provided} THEN ${lastCalibration.value}::date ELSE last_calibration_at END,
+      next_calibration_at = CASE WHEN ${nextCalibration.provided} THEN ${nextCalibration.value}::date ELSE next_calibration_at END,
+      last_qualification_at = CASE WHEN ${lastQualification.provided} THEN ${lastQualification.value}::date ELSE last_qualification_at END,
+      next_qualification_at = CASE WHEN ${nextQualification.provided} THEN ${nextQualification.value}::date ELSE next_qualification_at END,
+      last_maintenance_at = CASE WHEN ${lastMaintenance.provided} THEN ${lastMaintenance.value}::date ELSE last_maintenance_at END,
+      next_maintenance_at = CASE WHEN ${nextMaintenance.provided} THEN ${nextMaintenance.value}::date ELSE next_maintenance_at END,
       notes = COALESCE(${payload.notes ?? null}, notes),
       area = COALESCE(${payload.area ?? null}, area),
       custom_values = COALESCE(${payload.customValues ? JSON.stringify(payload.customValues) : null}::jsonb, custom_values),
-      archived_at = CASE WHEN ${payload.action} = 'ARCHIVE' THEN now() ELSE archived_at END,
-      retired_at = CASE WHEN ${payload.action} = 'RETIRE' THEN now() ELSE retired_at END,
+      -- Devolver el equipo a servicio limpia las marcas de archivo y retiro:
+      -- de lo contrario seguiría apareciendo como fuera de servicio.
+      archived_at = CASE WHEN ${payload.action} = 'ARCHIVE' THEN now() WHEN ${payload.status ?? null} IN ('OPERATIONAL','MAINTENANCE_DUE') THEN NULL ELSE archived_at END,
+      retired_at = CASE WHEN ${payload.action} = 'RETIRE' THEN now() WHEN ${payload.status ?? null} IN ('OPERATIONAL','MAINTENANCE_DUE') THEN NULL ELSE retired_at END,
       updated_at = now()
     WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}
-    RETURNING id, code, name, manufacturer, model, serial_number, status, notes, area, responsible_user_id, custom_values
+    RETURNING id, code, name, manufacturer, model, serial_number, status, notes, area, responsible_user_id, custom_values,
+      last_calibration_at, next_calibration_at, last_qualification_at, next_qualification_at,
+      last_maintenance_at, next_maintenance_at
   `;
   const statusChanged = payload.action !== "UPDATE" || (payload.status && payload.status !== previous[0].status);
   await writeAuditEvent(session, {

@@ -23,6 +23,7 @@ type PracticeRow = TableRow & {
   course_name?: string;
   teacher_name?: string;
   starts_at?: string;
+  ends_at?: string | null;
   status?: string;
 };
 
@@ -122,11 +123,42 @@ function statusLabel(status: string | undefined | null): string {
   const map: Record<string, string> = {
     DRAFT: "Borrador", PLANNED: "Planificada", PREPARING: "En preparación",
     READY: "Lista", IN_PROGRESS: "En curso", COMPLETED: "Completada",
+    EXECUTED: "Ejecutada", CLOSED: "Cerrada", ARCHIVED: "Archivada",
     CANCELLED: "Cancelada", PENDING: "Pendiente", APPROVED: "Aprobada",
     REJECTED: "Rechazada", FULFILLED: "Entregada", RETURNED: "Devuelta",
     PARTIAL: "Parcial", NO_SHOW: "Inasistencia",
   };
   return map[String(status)] ?? String(status ?? "—");
+}
+
+// Estados con los que una práctica ya no está por venir, sin importar su fecha.
+const CLOSED_PRACTICE_STATUSES = ["EXECUTED", "CLOSED", "CANCELLED", "ARCHIVED", "COMPLETED"];
+
+/**
+ * Una práctica es "pasada" cuando su horario ya terminó o cuando se cerró,
+ * ejecutó, canceló o archivó. Antes todas convivían en el mismo cronograma y las
+ * de fecha vencida seguían presentándose como próximas.
+ */
+function isPastPractice(practice: PracticeRow): boolean {
+  if (CLOSED_PRACTICE_STATUSES.includes(String(practice.status))) return true;
+  const reference = practice.ends_at ?? practice.starts_at;
+  if (!reference) return false;
+  const moment = new Date(String(reference)).getTime();
+  return Number.isFinite(moment) && moment < Date.now();
+}
+
+// Valor "YYYY-MM-DD" y "HH:MM" en hora local para precargar los inputs de edición.
+function dateInputValue(value: string | undefined | null): string {
+  if (!value) return "";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function timeInputValue(value: string | undefined | null): string {
+  if (!value) return "";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function resourceTypeLabel(type: string | undefined | null): string {
@@ -155,6 +187,7 @@ function AdminEducationCenter() {
   const [tab, setTab] = useState("practices");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [practiceFilter, setPracticeFilter] = useState<string | null>(null);
+  const [practiceView, setPracticeView] = useState<"upcoming" | "past">("upcoming");
   const [addTarget, setAddTarget] = useState<AddTarget>(null);
   const [notifModal, setNotifModal] = useState<ModalOpen>(null);
   const [practiceDetail, setPracticeDetail] = useState<PracticeDetail | null>(null);
@@ -265,6 +298,25 @@ function AdminEducationCenter() {
     } catch { showError("No se pudo conectar con el servidor."); }
   }
 
+  // Edición y baja de una práctica ya creada. El servidor conserva el histórico:
+  // cancelar deja el motivo y archivar la saca del cronograma sin borrarla.
+  async function updatePractice(id: string, body: Record<string, unknown>, done: string): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/education/practices/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo actualizar la práctica.")); return false; }
+      showToast(done);
+      await load();
+      return true;
+    } catch {
+      showError("No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.");
+      return false;
+    }
+  }
+
   async function openEducationDetail(resource: "reservations" | "notifications", id: string, setter: (value: Record<string, unknown> | null) => void) {
     try { const response = await fetch(`/api/education/${resource}/${id}`); if (!response.ok) { showError(await apiErrorMessage(response, "No se pudo abrir el registro.")); return; } const payload = await response.json() as { data?: Record<string, unknown> }; setter(payload.data ?? null); } catch { showError("No se pudo conectar con el servidor."); }
   }
@@ -304,8 +356,14 @@ function AdminEducationCenter() {
     }
   }
 
-  const shownPractices = practiceFilter === "upcoming" ? practices.filter((p) => Boolean(p.starts_at) && new Date(String(p.starts_at)) >= new Date() && ["PLANNED", "PREPARING", "READY"].includes(String(p.status))) : practices;
-  const practiceRows: TableRow[] = shownPractices.map((p) => ({
+  // El cronograma se parte en dos: lo que está por venir y lo que ya ocurrió.
+  const upcomingPractices = practices.filter((p) => !isPastPractice(p));
+  const pastPractices = practices.filter(isPastPractice);
+  const basePractices = practiceView === "past" ? pastPractices : upcomingPractices;
+  const shownPractices = practiceFilter === "upcoming"
+    ? basePractices.filter((p) => ["PLANNED", "PREPARING", "READY"].includes(String(p.status)))
+    : basePractices;
+  const toPracticeRows = (list: PracticeRow[]): TableRow[] => list.map((p) => ({
     id: p.id ?? "",
     code: p.practice_code ?? p.code ?? "—",
     title: p.title ?? "—",
@@ -314,6 +372,7 @@ function AdminEducationCenter() {
     scheduled: formatDate(p.starts_at),
     status: statusLabel(p.status),
   }));
+  const practiceRows = toPracticeRows(shownPractices);
 
   const shownReservations = statusFilter ? reservations.filter((r) => String(r.status) === statusFilter) : reservations;
   const reservationRows: TableRow[] = shownReservations.map((r) => ({
@@ -377,16 +436,20 @@ function AdminEducationCenter() {
           {tab === "practices" ? (
             <section>
               <div className="section-heading">
-                <div><h2>Cronograma de prácticas</h2><p>Cada práctica puede reservar materiales, equipos y reactivos con antelación.</p></div>
+                <div><h2>Cronograma de prácticas</h2><p>Cada práctica puede reservar materiales, equipos y reactivos con antelación. Haz clic en una fila para verla, editarla o eliminarla.</p></div>
               </div>
-              {practiceFilter ? <div className="filter-active-chip">Filtro activo: <strong>Próximas prácticas</strong><button type="button" onClick={() => setPracticeFilter(null)} aria-label="Quitar filtro">✕</button></div> : null}
+              <div className="filter-chip-row" role="group" aria-label="Ver prácticas">
+                <button type="button" className={`filter-chip${practiceView === "upcoming" ? " filter-chip-active" : ""}`} onClick={() => setPracticeView("upcoming")}>Próximas{upcomingPractices.length ? ` (${upcomingPractices.length})` : ""}</button>
+                <button type="button" className={`filter-chip${practiceView === "past" ? " filter-chip-active" : ""}`} onClick={() => setPracticeView("past")}>Pasadas{pastPractices.length ? ` (${pastPractices.length})` : ""}</button>
+              </div>
+              {practiceFilter ? <div className="filter-active-chip">Filtro activo: <strong>Solo planificadas, en preparación o listas</strong><button type="button" onClick={() => setPracticeFilter(null)} aria-label="Quitar filtro">✕</button></div> : null}
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "title", label: "Práctica" }, { key: "course", label: "Curso" }, { key: "teacher", label: "Responsable" }, { key: "scheduled", label: "Fecha inicio" }, { key: "status", label: "Estado" }]}
                 rows={practiceRows}
                 onRowClick={(row) => { if (row.id) void openPracticeDetail(String(row.id)); }}
                 searchPlaceholder="Buscar práctica o curso…"
-                emptyTitle="No hay prácticas programadas."
-                emptyMessage="Crea una nueva práctica para comenzar a organizar fechas, recursos, equipos y estudiantes."
+                emptyTitle={practiceView === "past" ? "No hay prácticas pasadas." : "No hay prácticas programadas."}
+                emptyMessage={practiceView === "past" ? "Aquí aparecerán las prácticas cuya fecha ya pasó o que se cerraron, ejecutaron o cancelaron." : "Crea una nueva práctica para comenzar a organizar fechas, recursos, equipos y estudiantes."}
               />
               {practices.length === 0 ? <div className="empty-state-actions"><button type="button" className="primary-button" onClick={() => setAddTarget("practice")}><Plus size={15} /> Crear nueva práctica</button></div> : null}
             </section>
@@ -431,7 +494,7 @@ function AdminEducationCenter() {
       {addTarget === "reservation" ? (
         <ReservationModal practices={practices} onClose={() => setAddTarget(null)} onSave={createReservation} />
       ) : null}
-      <PracticeDetailModal detail={practiceDetail} onClose={() => setPracticeDetail(null)} />
+      <PracticeDetailModal detail={practiceDetail} canManage onUpdate={updatePractice} onClose={() => setPracticeDetail(null)} />
       <ReservationDetailModal detail={reservationDetail} onClose={() => setReservationDetail(null)} onChanged={async () => { setReservationDetail(null); await load(); }} />
       <NoticeDetailModal detail={noticeDetail} onClose={() => setNoticeDetail(null)} onChanged={async () => { setNoticeDetail(null); await load(); }} />
       <NotificationModal open={notifModal === "notification"} practices={practices} onClose={() => setNotifModal(null)} onSave={createNotification} />
@@ -444,6 +507,7 @@ function AdminEducationCenter() {
 
 function ProfessorEducationCenter() {
   const [tab, setTab] = useState("practices");
+  const [practiceView, setPracticeView] = useState<"upcoming" | "past">("upcoming");
   const [notifModal, setNotifModal] = useState<ModalOpen>(null);
   const [practiceModal, setPracticeModal] = useState(false);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
@@ -512,7 +576,9 @@ function ProfessorEducationCenter() {
     }
   }
 
-  const practiceRows: TableRow[] = practices.map((p) => ({
+  const upcomingPractices = practices.filter((p) => !isPastPractice(p));
+  const pastPractices = practices.filter(isPastPractice);
+  const practiceRows: TableRow[] = (practiceView === "past" ? pastPractices : upcomingPractices).map((p) => ({
     code: p.practice_code ?? p.code ?? "—",
     title: p.title ?? "—",
     course: p.course_name ?? "—",
@@ -571,10 +637,15 @@ function ProfessorEducationCenter() {
               <div className="section-heading">
                 <div><h2>Cronograma de prácticas</h2><p>Prácticas asignadas a tu cuenta este período.</p></div>
               </div>
+              <div className="filter-chip-row" role="group" aria-label="Ver prácticas">
+                <button type="button" className={`filter-chip${practiceView === "upcoming" ? " filter-chip-active" : ""}`} onClick={() => setPracticeView("upcoming")}>Próximas{upcomingPractices.length ? ` (${upcomingPractices.length})` : ""}</button>
+                <button type="button" className={`filter-chip${practiceView === "past" ? " filter-chip-active" : ""}`} onClick={() => setPracticeView("past")}>Pasadas{pastPractices.length ? ` (${pastPractices.length})` : ""}</button>
+              </div>
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "title", label: "Práctica" }, { key: "course", label: "Curso" }, { key: "starts", label: "Inicio" }, { key: "status", label: "Estado" }]}
                 rows={practiceRows}
                 searchPlaceholder="Buscar práctica…"
+                emptyTitle={practiceView === "past" ? "No hay prácticas pasadas." : "No hay prácticas próximas."}
               />
             </section>
           ) : null}
@@ -1102,8 +1173,16 @@ function ReservationModal({
   );
 }
 
-function PracticeDetailModal({ detail, onClose }: Readonly<{ detail: PracticeDetail | null; onClose: () => void }>) {
+function PracticeDetailModal({ detail, onClose, onUpdate, canManage = false }: Readonly<{
+  detail: PracticeDetail | null;
+  onClose: () => void;
+  onUpdate?: (id: string, body: Record<string, unknown>, done: string) => Promise<boolean>;
+  canManage?: boolean;
+}>) {
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState<"CANCEL" | "ARCHIVE" | null>(null);
   if (!detail) return null;
   const shareUrl = detail.shareToken && typeof window !== "undefined" ? `${window.location.origin}/p/${detail.shareToken}` : "";
   const shareTitle = `Práctica: ${detail.title ?? ""}`;
@@ -1121,17 +1200,65 @@ function PracticeDetailModal({ detail, onClose }: Readonly<{ detail: PracticeDet
   const mailto = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareText)}`;
   const whatsapp = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
+  async function submitEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!detail || !onUpdate) return;
+    const data = new FormData(event.currentTarget);
+    const startsAt = combineDateTime(String(data.get("date") ?? ""), String(data.get("time") ?? ""));
+    if (!startsAt) return;
+    const endTime = String(data.get("endTime") ?? "");
+    setSaving(true);
+    const ok = await onUpdate(detail.id, {
+      action: "UPDATE",
+      title: String(data.get("title") ?? "").trim(),
+      courseName: String(data.get("course") ?? "").trim() || null,
+      startsAt,
+      endsAt: endTime ? combineDateTime(String(data.get("date") ?? ""), endTime) : null,
+      instructions: String(data.get("instructions") ?? "").trim() || null,
+      status: String(data.get("status") ?? detail.status ?? "PLANNED"),
+    }, "Práctica actualizada.");
+    setSaving(false);
+    if (ok) { setEditing(false); onClose(); }
+  }
+
+  async function runAction(action: "CANCEL" | "ARCHIVE", reason: string) {
+    if (!detail || !onUpdate) return;
+    setSaving(true);
+    const ok = await onUpdate(detail.id, { action, reason }, action === "CANCEL" ? "Práctica cancelada." : "Práctica eliminada del cronograma.");
+    setSaving(false);
+    if (ok) { setConfirming(null); onClose(); }
+  }
+
   return (
-    <ActionModal open title={`${detail.practice_code ?? ""} · ${detail.title ?? "Práctica"}`} description="Detalle de la práctica y opciones para compartirla." onClose={onClose}>
+    <ActionModal open title={`${detail.practice_code ?? ""} · ${detail.title ?? "Práctica"}`} description="Detalle de la práctica, edición y opciones para compartirla." onClose={onClose}>
       <div className="modal-form">
-        <div className="details-grid">
-          <div><small>Curso</small><strong>{detail.course_name ?? "—"}</strong></div>
-          <div><small>Responsable</small><strong>{detail.teacher_name ?? "—"}</strong></div>
-          <div><small>Inicio</small><strong>{formatDate(detail.starts_at)}</strong></div>
-          <div><small>Fin</small><strong>{detail.ends_at ? formatDate(detail.ends_at) : "—"}</strong></div>
-          <div><small>Estado</small><strong>{statusLabel(detail.status)}</strong></div>
-          {detail.instructions ? <div className="field-span-two"><small>Instrucciones</small><strong>{detail.instructions}</strong></div> : null}
-        </div>
+        {editing ? (
+          <form className="form-grid form-grid-two" onSubmit={submitEdit} id="practice-edit-form">
+            <label className="field-span-two"><span>Título</span><input name="title" required minLength={3} maxLength={200} defaultValue={detail.title ?? ""} /></label>
+            <label><span>Curso</span><input name="course" maxLength={180} defaultValue={detail.course_name ?? ""} /></label>
+            <label><span>Estado</span><select name="status" defaultValue={detail.status ?? "PLANNED"}><option value="DRAFT">Borrador</option><option value="PLANNED">Planificada</option><option value="PREPARING">En preparación</option><option value="READY">Lista</option><option value="EXECUTED">Ejecutada</option><option value="CLOSED">Cerrada</option></select></label>
+            <label><span>Fecha</span><input name="date" type="date" required defaultValue={dateInputValue(detail.starts_at)} /></label>
+            <label><span>Hora de inicio</span><input name="time" type="time" required defaultValue={timeInputValue(detail.starts_at)} /></label>
+            <label><span>Hora de fin <small>(opcional)</small></span><input name="endTime" type="time" defaultValue={timeInputValue(detail.ends_at)} /></label>
+            <label className="field-span-two"><span>Instrucciones</span><textarea name="instructions" rows={3} maxLength={4000} defaultValue={detail.instructions ?? ""} /></label>
+          </form>
+        ) : (
+          <div className="details-grid">
+            <div><small>Curso</small><strong>{detail.course_name ?? "—"}</strong></div>
+            <div><small>Responsable</small><strong>{detail.teacher_name ?? "—"}</strong></div>
+            <div><small>Inicio</small><strong>{formatDate(detail.starts_at)}</strong></div>
+            <div><small>Fin</small><strong>{detail.ends_at ? formatDate(detail.ends_at) : "—"}</strong></div>
+            <div><small>Estado</small><strong>{statusLabel(detail.status)}</strong></div>
+            {detail.instructions ? <div className="field-span-two"><small>Instrucciones</small><strong>{detail.instructions}</strong></div> : null}
+          </div>
+        )}
+        {confirming ? (
+          <p className="controlled-alert" role="alert">
+            {confirming === "CANCEL"
+              ? "La práctica quedará como cancelada, con el motivo registrado. ¿Confirmas?"
+              : "La práctica saldrá del cronograma. Su historial y sus reservas se conservan. ¿Confirmas?"}
+          </p>
+        ) : null}
         {detail.shareToken ? (
           <>
             <p className="form-section-title" style={{ marginTop: 14 }}>Compartir con estudiantes</p>
@@ -1144,7 +1271,32 @@ function PracticeDetailModal({ detail, onClose }: Readonly<{ detail: PracticeDet
             </div>
           </>
         ) : null}
-        <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cerrar</button></footer>
+        <footer className="modal-actions">
+          {confirming ? (
+            <>
+              <button type="button" className="secondary-button" onClick={() => setConfirming(null)}>Volver</button>
+              <button type="button" className="primary-button" disabled={saving} onClick={() => void runAction(confirming, confirming === "CANCEL" ? "Cancelada desde el cronograma" : "Retirada del cronograma")}>
+                {saving ? "Aplicando…" : confirming === "CANCEL" ? "Cancelar práctica" : "Eliminar práctica"}
+              </button>
+            </>
+          ) : editing ? (
+            <>
+              <button type="button" className="secondary-button" onClick={() => setEditing(false)}>Descartar cambios</button>
+              <button type="submit" form="practice-edit-form" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Guardar cambios"}</button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="secondary-button" onClick={onClose}>Cerrar</button>
+              {canManage && onUpdate ? (
+                <>
+                  <button type="button" className="secondary-button" onClick={() => setConfirming("ARCHIVE")}><Trash2 size={15} /> Eliminar</button>
+                  {String(detail.status) !== "CANCELLED" ? <button type="button" className="secondary-button" onClick={() => setConfirming("CANCEL")}>Cancelar práctica</button> : null}
+                  <button type="button" className="primary-button" onClick={() => setEditing(true)}>Editar</button>
+                </>
+              ) : null}
+            </>
+          )}
+        </footer>
       </div>
     </ActionModal>
   );

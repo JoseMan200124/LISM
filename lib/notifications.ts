@@ -318,12 +318,19 @@ export async function resolveNotifications(
     return { data: [], mode: "database" };
   }
 
+  // `dismissed_at` llega con la migración 0028: sin ella se sigue leyendo solo
+  // el estado de lectura y no se descarta nada.
   const readRows = await sql`
-    SELECT notification_key FROM user_notification_reads WHERE user_id = ${session.userId}
-  `;
-  const readKeys = new Set((readRows as Array<Record<string, unknown>>).map((r) => String(r.notification_key)));
+    SELECT notification_key, dismissed_at FROM user_notification_reads WHERE user_id = ${session.userId}
+  `.catch(async () => sql`
+    SELECT notification_key, NULL AS dismissed_at FROM user_notification_reads WHERE user_id = ${session.userId}
+  `);
+  const rows = readRows as Array<Record<string, unknown>>;
+  const readKeys = new Set(rows.map((r) => String(r.notification_key)));
+  const dismissedKeys = new Set(rows.filter((r) => r.dismissed_at).map((r) => String(r.notification_key)));
 
   const withReadState = items
+    .filter((item) => !dismissedKeys.has(item.key))
     .map((item) => ({ ...item, isRead: readKeys.has(item.key) }))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 

@@ -26,6 +26,16 @@ function canManage(session: Awaited<ReturnType<typeof getSession>>, entityType: 
   return entityType === "INVENTORY_ITEM" ? hasPermission(session, "inventory.manage") : hasPermission(session, "equipment.manage");
 }
 
+// Las columnas DATE llegan como Date (driver pg) o como "YYYY-MM-DD" (Neon).
+// La etiqueta se imprime, así que se normaliza a solo-fecha para que el
+// formateo no desplace el día por la zona horaria.
+function isoDate(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const match = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : String(value);
+}
+
 function shapeRow(request: Request, row: Record<string, unknown>) {
   return {
     id: String(row.id),
@@ -39,9 +49,12 @@ function shapeRow(request: Request, row: Record<string, unknown>) {
     createdAt: String(row.created_at),
     scanUrl: publicScanUrl(request, String(row.opaque_token)),
     // Fechas metrológicas del equipo (si aplican) para imprimirlas en la etiqueta.
-    lastCalibrationAt: row.last_calibration_at ? String(row.last_calibration_at) : null,
-    nextCalibrationAt: row.next_calibration_at ? String(row.next_calibration_at) : null,
-    nextMaintenanceAt: row.next_maintenance_at ? String(row.next_maintenance_at) : null,
+    lastCalibrationAt: isoDate(row.last_calibration_at),
+    nextCalibrationAt: isoDate(row.next_calibration_at),
+    lastQualificationAt: isoDate(row.last_qualification_at),
+    nextQualificationAt: isoDate(row.next_qualification_at),
+    lastMaintenanceAt: isoDate(row.last_maintenance_at),
+    nextMaintenanceAt: isoDate(row.next_maintenance_at),
   };
 }
 
@@ -68,8 +81,10 @@ export async function GET(request: Request) {
       SELECT q.id, q.entity_type, q.entity_id, q.opaque_token, q.label_code, q.status, q.created_at,
         CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN i.name ELSE e.name END AS display_name,
         COALESCE(CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN il.name ELSE el.name END, 'Sin ubicación') AS location,
-        e.last_calibration_at, p.next_calibration_at,
-        COALESCE(p.next_maintenance_at, e.next_maintenance_at) AS next_maintenance_at
+        e.last_calibration_at, e.last_qualification_at, e.last_maintenance_at,
+        COALESCE(p.next_calibration_at::date, e.next_calibration_at) AS next_calibration_at,
+        COALESCE(p.next_qualification_at::date, e.next_qualification_at) AS next_qualification_at,
+        COALESCE(p.next_maintenance_at::date, e.next_maintenance_at) AS next_maintenance_at
       FROM qr_identifiers q
       LEFT JOIN inventory_items i ON q.entity_type = 'INVENTORY_ITEM' AND i.id = q.entity_id AND i.laboratory_id = q.laboratory_id
       LEFT JOIN equipment e ON q.entity_type = 'EQUIPMENT' AND e.id = q.entity_id AND e.laboratory_id = q.laboratory_id
@@ -78,6 +93,7 @@ export async function GET(request: Request) {
       LEFT JOIN (
         SELECT equipment_id,
           MIN(next_due_at) FILTER (WHERE plan_type = 'CALIBRATION') AS next_calibration_at,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'QUALIFICATION') AS next_qualification_at,
           MIN(next_due_at) FILTER (WHERE plan_type = 'MAINTENANCE') AS next_maintenance_at
         FROM equipment_plans
         WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'
@@ -89,8 +105,10 @@ export async function GET(request: Request) {
       SELECT q.id, q.entity_type, q.entity_id, q.opaque_token, q.label_code, q.status, q.created_at,
         CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN i.name ELSE e.name END AS display_name,
         COALESCE(CASE WHEN q.entity_type = 'INVENTORY_ITEM' THEN il.name ELSE el.name END, 'Sin ubicación') AS location,
-        e.last_calibration_at, p.next_calibration_at,
-        COALESCE(p.next_maintenance_at, e.next_maintenance_at) AS next_maintenance_at
+        e.last_calibration_at, e.last_qualification_at, e.last_maintenance_at,
+        COALESCE(p.next_calibration_at::date, e.next_calibration_at) AS next_calibration_at,
+        COALESCE(p.next_qualification_at::date, e.next_qualification_at) AS next_qualification_at,
+        COALESCE(p.next_maintenance_at::date, e.next_maintenance_at) AS next_maintenance_at
       FROM qr_identifiers q
       LEFT JOIN inventory_items i ON q.entity_type = 'INVENTORY_ITEM' AND i.id = q.entity_id AND i.laboratory_id = q.laboratory_id
       LEFT JOIN equipment e ON q.entity_type = 'EQUIPMENT' AND e.id = q.entity_id AND e.laboratory_id = q.laboratory_id
@@ -99,6 +117,7 @@ export async function GET(request: Request) {
       LEFT JOIN (
         SELECT equipment_id,
           MIN(next_due_at) FILTER (WHERE plan_type = 'CALIBRATION') AS next_calibration_at,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'QUALIFICATION') AS next_qualification_at,
           MIN(next_due_at) FILTER (WHERE plan_type = 'MAINTENANCE') AS next_maintenance_at
         FROM equipment_plans
         WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'

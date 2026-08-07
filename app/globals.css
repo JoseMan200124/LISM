@@ -967,8 +967,23 @@ html { scroll-behavior: smooth; }
 .inline-editor span, .compact-select span { color: #607276; font-size: 10px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
 .inline-editor input, .inline-editor select, .compact-select select { min-width: 0; height: 38px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 9px; color: #496065; background: #fff; outline: 0; }
 .inline-editor input:focus, .inline-editor select:focus, .compact-select select:focus { border-color: #84aaa4; box-shadow: 0 0 0 3px rgba(33,109,102,.07); }
+/* Dentro de un modal el ancho es la mitad: cuatro columnas dejaban las etiquetas
+   encimadas unas sobre otras (el botón de la última columna se comía el espacio).
+   Aquí el editor pasa a dos columnas y el aviso y el botón ocupan la fila entera. */
+.modal-form .inline-editor { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.modal-form .inline-editor > .controlled-alert,
+.modal-form .inline-editor > .checkbox-line,
+.modal-form .inline-editor > .modal-note,
+.modal-form .inline-editor > .form-error,
+.modal-form .inline-editor > button { grid-column: 1 / -1; }
+.modal-form .inline-editor > button { justify-self: end; min-width: 190px; }
+.modal-form .inline-editor .checkbox-line span { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 620; }
 .definition-list { display: grid; gap: 7px; }
-.definition-row { display: grid; grid-template-columns: 35px minmax(0,1fr) minmax(140px,.4fr) auto; align-items: center; gap: 11px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+/* La primera columna existe solo para el icono. Las filas sin icono (planes,
+   certificados, eventos, categorías) desplazaban su contenido a esa columna de
+   35 px y el título se encimaba con la fecha. */
+.definition-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(140px,.4fr) auto; align-items: center; gap: 11px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.definition-row:has(> .definition-icon) { grid-template-columns: 35px minmax(0,1fr) minmax(140px,.4fr) auto; }
 .definition-row .definition-icon { width: 32px; height: 32px; margin: 0; }
 .definition-row-actions { display: flex; gap: 4px; }
 .permission-groups { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
@@ -1050,8 +1065,9 @@ html { scroll-behavior: smooth; }
   .configuration-body { padding: 13px; }
   .profile-card-grid, .role-grid, .qr-demo-grid, .mini-card-grid { grid-template-columns: 1fr; }
   .section-heading { flex-direction: column; }
-  .definition-row, .rule-row { grid-template-columns: 35px minmax(0,1fr); }
-  .definition-row small, .definition-row em, .rule-row .status-pill, .rule-row .switch { grid-column: 2; }
+  .definition-row { grid-template-columns: minmax(0,1fr); }
+  .definition-row:has(> .definition-icon), .rule-row { grid-template-columns: 35px minmax(0,1fr); }
+  .definition-row:has(> .definition-icon) :is(small, em), .rule-row .status-pill, .rule-row .switch { grid-column: 2; }
   .compliance-card-grid { grid-template-columns: 1fr; gap: 8px; }
   .inline-editor { grid-template-columns: 1fr; }
 }
@@ -1183,6 +1199,8 @@ html { scroll-behavior: smooth; }
 .filter-chip:hover { border-color: #b8cdc8; color: var(--primary-dark); background: #f4f9f8; }
 .filter-chip-active { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-soft); font-weight: 750; }
 .filter-chip-label { color: #9ea9ab; font-size: 10px; margin-left: 1px; }
+/* Separa la acción de administrar de los chips que filtran la tabla. */
+.filter-chip-manage { margin-left: auto; border-style: dashed; color: var(--primary-dark); }
 @media (max-width: 480px) {
   .filter-chip-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
   .filter-chip-label { display: none; }
@@ -1389,6 +1407,32 @@ html { scroll-behavior: smooth; }
 .notif-item:last-child { border-bottom: 0; }
 .notif-item:hover      { background: #f9fbfa; }
 .notif-item-unread     { background: #f6fbf9; }
+/* Marco de la notificación: el botón de abrir ocupa toda la fila y el de
+   descartar se superpone en la esquina, sin anidar un botón dentro de otro. */
+.notif-item-frame { position: relative; }
+.notif-item-frame:last-child .notif-item { border-bottom: 0; }
+.notif-item-frame .notif-item { width: 100%; }
+/* Deja libre la esquina donde se dibuja la X, para no encimarla con la hora. */
+.notif-item-frame .notif-row-top { padding-right: 24px; }
+.notif-dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+  place-items: center;
+  transition: opacity .14s ease, color .14s ease, background .14s ease;
+}
+.notif-item-frame:hover .notif-dismiss, .notif-dismiss:focus-visible { opacity: 1; }
+.notif-dismiss:hover { color: var(--nexa-danger); background: var(--nexa-danger-soft); }
+@media (hover: none) { .notif-dismiss { opacity: 1; } }
 .notif-avatar {
   display: grid;
   width: 36px;
@@ -2837,6 +2881,10 @@ html { scroll-behavior: smooth; }
 .safety-pictogram-card small { display: block; margin-top: 5px; font-size: 10.5px; color: var(--muted); }
 .safety-sds-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .safety-selected-preview { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; color: var(--muted); }
+/* Ayuda sin caja: con borde y fondo se confundía con un campo de texto vacío. */
+.safety-procedures-toggle { display: grid; gap: 7px; }
+.safety-procedures-toggle .secondary-button { justify-self: start; }
+.safety-procedures-hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .table-muted { color: var(--muted); }
 
 /* ── Firma electrónica ───────────────────────────────────────────────────── */
@@ -3109,3 +3157,41 @@ html { scroll-behavior: smooth; }
   .api-docs-nav a { border-left: none; border: 1px solid var(--line); white-space: nowrap; }
   .api-docs-hero { padding: 36px 0 28px; }
 }
+
+/* ─── MODO OSCURO: SUPERFICIES QUE SEGUÍAN SALIENDO CLARAS ─────────────────── */
+/* Cada regla de abajo corresponde a un bloque que fijaba un blanco o un tinte
+   claro literal y no tenía contraparte en el tema oscuro: se veían como recuadros
+   blancos dentro de listas, fichas, modales y la consulta pública de etiqueta. */
+:root[data-theme="dark"] :is(
+  .modal-note,
+  .approval-strip,
+  .demo-callout,
+  .qr-code-result,
+  .public-qr-status,
+  .count-line-difference,
+  .help-guide article
+) { color: var(--muted); background: var(--surface-soft); border-color: var(--line); }
+:root[data-theme="dark"] .approval-strip-title { color: var(--nexa-warning); }
+:root[data-theme="dark"] .filter-active-chip { color: var(--primary-dark); background: var(--primary-soft); border-color: var(--primary-soft); }
+:root[data-theme="dark"] :is(.tutorial-tooltip, .tutorial-prompt, .compact-popover) { background: var(--surface-elevated); border-color: var(--line); }
+:root[data-theme="dark"] .tutorial-prompt p { color: var(--muted-strong); }
+:root[data-theme="dark"] .modal-form :is(input, select, textarea) { color: var(--text); background: var(--surface-input); border-color: var(--line-strong); }
+:root[data-theme="dark"] .inline-editor :is(input, select) { color: var(--text); background: var(--surface-input); }
+:root[data-theme="dark"] .inline-editor span, :root[data-theme="dark"] .compact-select span { color: var(--muted); }
+:root[data-theme="dark"] .public-qr-status > span { color: var(--primary-dark); background: var(--primary-soft); }
+:root[data-theme="dark"] .public-qr-actions span { color: var(--muted-strong); background: var(--surface-soft); border-color: var(--line); }
+:root[data-theme="dark"] .public-qr-form input { color: var(--text); background: var(--surface-input); border-color: var(--line-strong); }
+:root[data-theme="dark"] .safety-emergency { color: var(--nexa-danger); background: var(--red-soft); border-color: var(--red-soft); }
+:root[data-theme="dark"] .safety-emergency :is(h3, li) { color: var(--nexa-danger); }
+:root[data-theme="dark"] :is(.workflow-stage-top span, .priority-rutina, .bc-pill-gray) { color: var(--muted-strong); background: var(--surface-tint); }
+:root[data-theme="dark"] .workflow-stage-top i { background: var(--line); }
+:root[data-theme="dark"] :is(.status-pill-neutral, .status-pill-dark) { color: var(--muted-strong); background: var(--surface-tint); }
+:root[data-theme="dark"] .status-pill-partial { color: var(--nexa-warning); background: var(--amber-soft); }
+:root[data-theme="dark"] .status-pill-blue { color: var(--nexa-info); background: var(--slate-soft); }
+:root[data-theme="dark"] .status-pill-purple { color: #c3aee0; background: #2b2438; }
+:root[data-theme="dark"] :is(.app-toast, .app-toast-info) { color: var(--text); background: var(--surface-elevated); }
+:root[data-theme="dark"] .app-toast-error { color: var(--nexa-danger); background: var(--red-soft); }
+:root[data-theme="dark"] .app-toast-warning { color: var(--nexa-warning); background: var(--amber-soft); }
+:root[data-theme="dark"] .error-state .empty-icon { color: var(--nexa-danger); background: var(--red-soft); }
+:root[data-theme="dark"] :is(.empty-state h3, .error-state h3) { color: var(--text); }
+:root[data-theme="dark"] .profile-card em { color: var(--primary-dark); background: var(--primary-soft); }

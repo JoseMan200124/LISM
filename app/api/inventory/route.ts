@@ -9,6 +9,8 @@ import { hasPermission } from "@/lib/authorization";
 import { createDemoQrLabel, createOpaqueToken } from "@/lib/qr-security";
 import { missingRequiredFields, type CustomFieldDefinition } from "@/lib/custom-fields";
 import { normalizePictograms, normalizeSafetyProcedures } from "@/lib/ghs";
+import { inventoryCategoryPrefix } from "@/lib/lab-profile";
+import { syncReagentCatalogEntry } from "@/lib/reagent-catalog-sync";
 
 export const inventorySchema = z.object({
   sku: z.string().min(2).max(80),
@@ -175,11 +177,13 @@ export async function POST(request: Request) {
 
   let categoryId = payload.categoryId;
   if (!categoryId && payload.categoryName) {
+    // El prefijo se calcula aquí: sin él la lista de categorías mostraba el
+    // código completo (CAT-MI-CATEGORIA) como prefijo del chip de filtro.
     const categories = await sql`
-      INSERT INTO inventory_categories (laboratory_id, code, name)
-      VALUES (${session.laboratoryId}, ${catalogCode("CAT", payload.categoryName, 50)}, ${payload.categoryName})
+      INSERT INTO inventory_categories (laboratory_id, code, name, prefix)
+      VALUES (${session.laboratoryId}, ${catalogCode("CAT", payload.categoryName, 50)}, ${payload.categoryName}, ${inventoryCategoryPrefix(payload.categoryName)})
       ON CONFLICT (laboratory_id, code)
-      DO UPDATE SET name = EXCLUDED.name, status = 'ACTIVE'
+      DO UPDATE SET name = EXCLUDED.name, prefix = COALESCE(inventory_categories.prefix, EXCLUDED.prefix), status = 'ACTIVE'
       RETURNING id
     `;
     categoryId = String(categories[0].id);
@@ -196,6 +200,24 @@ export async function POST(request: Request) {
     `;
     storageLocationId = String(locations[0].id);
   }
+
+  // El catálogo de reactivos se alimenta desde aquí: registrar el frasco crea o
+  // reutiliza la ficha de la sustancia y la enlaza, en vez de obligar a escribir
+  // la misma información otra vez en "Reactivos controlados → Catálogo".
+  const catalogId = await syncReagentCatalogEntry(sql, session.laboratoryId, session.userId, {
+    name: payload.name,
+    itemType: payload.itemType,
+    isControlled: payload.isControlled,
+    controlKind,
+    vendor: payload.vendor,
+    internalFormula: payload.internalFormula,
+    concentration: payload.concentration,
+    presentation: payload.presentation,
+    storageConditions: payload.storageConditions,
+    safetySheetUrl: payload.safetySheetUrl || undefined,
+    hazardPictograms: payload.hazardPictograms,
+    hazardStatements: payload.hazardStatements,
+  });
 
   const rows = await sql`
     INSERT INTO inventory_items (
@@ -216,6 +238,13 @@ export async function POST(request: Request) {
     RETURNING id, sku, name, quantity, reorder_point, unit, status, is_controlled, control_kind
   `;
 
+  // El enlace va aparte del INSERT: si la migración 0024 no está aplicada la
+  // columna no existe y el alta del frasco no debe fallar por ello.
+  if (catalogId) {
+    await sql`UPDATE inventory_items SET catalog_id = ${catalogId} WHERE id = ${String(rows[0].id)} AND laboratory_id = ${session.laboratoryId}`
+      .catch(() => undefined);
+  }
+
   const qrRows = await sql`
     INSERT INTO qr_identifiers (laboratory_id, entity_type, entity_id, opaque_token, label_code)
     VALUES (${session.laboratoryId}, 'INVENTORY_ITEM', ${String(rows[0].id)}, ${createOpaqueToken()}, ${payload.sku})
@@ -228,11 +257,11 @@ export async function POST(request: Request) {
     action: "INVENTORY_ITEM_CREATED",
     entityType: "inventory_item",
     entityId: String(rows[0].id),
-    newValue: { ...rows[0], qrIdentifierId: qrRows[0].id },
+    newValue: { ...rows[0], qrIdentifierId: qrRows[0].id, catalogId },
     reason: "Alta de lote de inventario con etiqueta QR segura",
-    metadata: { sku: payload.sku, qrIdentifierId: qrRows[0].id },
+    metadata: { sku: payload.sku, qrIdentifierId: qrRows[0].id, catalogId },
     request,
   });
 
-  return NextResponse.json({ data: { ...rows[0], qrIdentifierId: qrRows[0].id, qrToken: qrRows[0].opaque_token } }, { status: 201 });
+  return NextResponse.json({ data: { ...rows[0], catalogId, qrIdentifierId: qrRows[0].id, qrToken: qrRows[0].opaque_token } }, { status: 201 });
 }

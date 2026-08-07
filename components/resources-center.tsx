@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, BellRing, Boxes, CheckCircle2, FileCheck2, Lock, PackageCheck, Plus, ScanBarcode, ShieldCheck, Sparkles, Trash2, Wrench } from "lucide-react";
+import { Archive, BellRing, Boxes, CheckCircle2, FileCheck2, Lock, PackageCheck, Plus, ScanBarcode, Settings2, ShieldCheck, Sparkles, Trash2, Wrench } from "lucide-react";
 import { ActionModal, ConfirmModal, FileDropZone, Toast, useToast } from "@/components/action-kit";
 import {
   CONTROL_KIND_LABEL,
@@ -23,9 +23,10 @@ import { normalizePictograms, normalizeSafetyProcedures, type GhsCode } from "@/
 import { SafetyButton, SafetyFields, collectSafetyProcedures, type SafetyItem } from "@/components/reagent-safety";
 import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
 
-type ModalKey = "item" | "item-edit" | "movement" | "location" | "equipment" | "plan" | "certificate" | "event" | "equipment-edit" | null;
+type ModalKey = "item" | "item-edit" | "movement" | "location" | "location-edit" | "categories" | "equipment" | "plan" | "certificate" | "event" | "equipment-edit" | null;
 
-type CategoryOption = { code: string; name: string; prefix: string };
+type CategoryOption = { id?: string; code: string; name: string; prefix: string; itemCount?: number };
+type LocationOption = { id: string; code: string; name: string; locationType: string };
 
 // Fila cruda de inventario (para conversión de unidades y vista previa de saldo).
 type InventoryRaw = {
@@ -71,6 +72,9 @@ async function responseMessage(response: Response): Promise<string> {
 
 const INVENTORY_STATUS_LABEL: Record<string, string> = { REORDER: "Reponer", WATCH: "Vigilar", AVAILABLE: "Disponible" };
 const EQUIPMENT_STATUS_LABEL: Record<string, string> = { OPERATIONAL: "Operativo", MAINTENANCE_DUE: "Mantenimiento próximo", OUT_OF_SERVICE: "Fuera de servicio", RETIRED: "Inactivo" };
+// Estados con los que un equipo sigue en uso; el resto va a la pestaña aparte.
+const IN_SERVICE_STATUSES = ["OPERATIONAL", "MAINTENANCE_DUE"];
+type EquipmentStateAction = "ARCHIVE" | "RETIRE" | "OUT_OF_SERVICE" | "REACTIVATE";
 const MOVEMENT_TYPE_LABEL: Record<string, string> = { RECEIPT: "Entrada", CONSUMPTION: "Consumo", ADJUSTMENT: "Ajuste", DISPOSAL: "Descarte", TRANSFER: "Transferencia", RETURN: "Devolución" };
 const PLAN_TYPE_LABEL: Record<string, string> = { VERIFICATION: "Verificación", CALIBRATION: "Calibración", MAINTENANCE: "Mantenimiento", QUALIFICATION: "Calificación", CLEANING: "Limpieza" };
 const CERT_TYPE_LABEL: Record<string, string> = { CALIBRATION: "Calibración", QUALIFICATION: "Calificación", MAINTENANCE: "Mantenimiento", REPAIR: "Reparación" };
@@ -96,6 +100,8 @@ type EquipmentRaw = {
   responsible_user_id?: string | null; responsible?: string;
   next_calibration_at?: string | null; plan_next_maintenance_at?: string | null;
   next_maintenance_at?: string | null; next_qualification_at?: string | null;
+  last_calibration_at?: string | null; last_qualification_at?: string | null; last_maintenance_at?: string | null;
+  archived_at?: string | null; retired_at?: string | null;
   area?: string | null; custom_values?: Record<string, unknown>;
 };
 
@@ -121,6 +127,9 @@ export function InventoryCenter() {
   const [rawItems, setRawItems] = useState<InventoryRaw[]>([]);
   const [movements, setMovements] = useState<TableRow[]>([]);
   const [locations, setLocations] = useState<TableRow[]>([]);
+  const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
+  const [editingLocation, setEditingLocation] = useState<LocationOption | null>(null);
+  const [locationDeleteId, setLocationDeleteId] = useState<string | null>(null);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const [lowStockOnly, setLowStockOnly] = useState(false);
@@ -195,7 +204,7 @@ export function InventoryCenter() {
       const iData = await iRes.json() as { data?: Array<Record<string, unknown>> };
       const mData = mRes.ok ? await mRes.json() as { data?: Array<Record<string, unknown>> } : { data: [] };
       const lData = lRes.ok ? await lRes.json() as { data?: Array<Record<string, unknown>> } : { data: [] };
-      const cData = cRes.ok ? await cRes.json() as { data?: Array<{ code: string; name: string; prefix?: string }> } : { data: [] };
+      const cData = cRes.ok ? await cRes.json() as { data?: Array<{ id?: string; code: string; name: string; prefix?: string; item_count?: number }> } : { data: [] };
 
       setRawItems((iData.data ?? []).map((r) => ({
         id: String(r.id ?? ""),
@@ -240,7 +249,13 @@ export function InventoryCenter() {
         type: String(r.location_type ?? "—") || "—",
         status: String(r.status) === "ACTIVE" ? "Activa" : String(r.status ?? "—"),
       })));
-      const cats = (cData.data ?? []).filter((c) => c.code).map((c) => ({ code: c.code, name: c.name, prefix: c.prefix ?? c.code }));
+      setLocationOptions((lData.data ?? []).filter((r) => r.id).map((r) => ({
+        id: String(r.id),
+        code: String(r.code ?? ""),
+        name: String(r.name ?? ""),
+        locationType: String(r.location_type ?? "STORAGE"),
+      })));
+      const cats = (cData.data ?? []).filter((c) => c.code).map((c) => ({ id: c.id, code: c.code, name: c.name, prefix: c.prefix ?? c.code, itemCount: c.item_count }));
       setCategories(cats.length ? cats : [...defaultInventoryCategories]);
       setState("ready");
     } catch {
@@ -321,6 +336,52 @@ export function InventoryCenter() {
       return false;
     }
   }
+  async function editLocation(id: string, payload: Record<string, unknown>): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/locations/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      if (!response.ok) { showError(await responseMessage(response)); return false; }
+      showToast("Ubicación actualizada.");
+      await load();
+      return true;
+    } catch {
+      showError("No se pudo conectar con el servidor. Los cambios no se guardaron.");
+      return false;
+    }
+  }
+  async function deleteLocation(id: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/locations/${id}`, { method: "DELETE" });
+      if (!response.ok) { showError(await responseMessage(response)); return; }
+      showToast("Ubicación eliminada del listado activo.");
+      setEditingLocation(null);
+      await load();
+    } catch { showError("No se pudo conectar con el servidor."); }
+  }
+  async function addCategory(payload: Record<string, unknown>): Promise<boolean> {
+    try {
+      const response = await fetch("/api/inventory/categories", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      if (!response.ok) { showError(await responseMessage(response)); return false; }
+      showToast("Categoría creada.");
+      await load();
+      return true;
+    } catch {
+      showError("No se pudo conectar con el servidor. La categoría no se guardó.");
+      return false;
+    }
+  }
+  async function deleteCategory(id: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/inventory/categories?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!response.ok) { showError(await responseMessage(response)); return; }
+      showToast("Categoría eliminada.");
+      if (activeCategory !== "ALL") setActiveCategory("ALL");
+      await load();
+    } catch { showError("No se pudo conectar con el servidor."); }
+  }
 
   if (state === "loading") {
     return (
@@ -373,6 +434,7 @@ export function InventoryCenter() {
                     {cat.prefix}<span className="filter-chip-label">{cat.name}</span>
                   </button>
                 ))}
+                <button type="button" className="filter-chip filter-chip-manage" onClick={() => setModal("categories")}><Settings2 size={13} /> Gestionar categorías</button>
               </div>
               <SimpleTable
                 columns={[{ key: "sku", label: "Código" }, { key: "name", label: "Artículo" }, { key: "hazards", label: "Peligros" }, { key: "category", label: "Categoría" }, { key: "lot", label: "Lote" }, { key: "location", label: "Ubicación" }, { key: "quantity", label: "Existencia" }, { key: "minimum", label: "Mínimo" }, { key: "expires", label: "Vence" }, { key: "status", label: "Estado" }]}
@@ -385,15 +447,37 @@ export function InventoryCenter() {
             </section>
           ) : null}
           {tab === "movements" ? <ResourceSection title="Bitácora de movimientos" copy="Cada uso, entrada, ajuste o descarte queda trazado con responsable y motivo." action="Nuevo movimiento" onAction={() => setModal("movement")} disabled={items.length === 0}><SimpleTable columns={[{ key: "code", label: "Movimiento" }, { key: "item", label: "Artículo" }, { key: "lot", label: "Lote" }, { key: "type", label: "Tipo" }, { key: "quantity", label: "Cantidad" }, { key: "performedBy", label: "Responsable" }, { key: "when", label: "Momento" }]} rows={movements} emptyTitle="Sin movimientos" emptyMessage="Los movimientos aparecerán aquí cuando registres entradas o consumos." /></ResourceSection> : null}
-          {tab === "locations" ? <ResourceSection title="Ubicaciones jerárquicas" copy="Organiza sedes, laboratorios, armarios, refrigeradores, estantes y cajas para encontrar cada recurso." action="Nueva ubicación" onAction={() => setModal("location")}><SimpleTable columns={[{ key: "code", label: "Código" }, { key: "hierarchy", label: "Ruta" }, { key: "type", label: "Tipo" }, { key: "status", label: "Estado" }]} rows={locations} emptyTitle="Sin ubicaciones" emptyMessage="Crea una ubicación para asignarla a tus artículos y equipos." /></ResourceSection> : null}
+          {tab === "locations" ? <ResourceSection title="Ubicaciones jerárquicas" copy="Sedes, laboratorios, armarios, refrigeradores, estantes y cajas. Cada ubicación se puede elegir al registrar un artículo o un equipo. Haz clic en una fila para editarla o eliminarla." action="Nueva ubicación" onAction={() => setModal("location")}><SimpleTable columns={[{ key: "code", label: "Código" }, { key: "hierarchy", label: "Ruta" }, { key: "type", label: "Tipo" }, { key: "status", label: "Estado" }]} rows={locations} onRowClick={(row) => { const found = locationOptions.find((option) => option.id === String(row.id)); if (found) { setEditingLocation(found); setModal("location-edit"); } }} emptyTitle="Sin ubicaciones" emptyMessage="Crea una ubicación para asignarla a tus artículos y equipos." /></ResourceSection> : null}
           {tab === "qr" ? <QrLabelManager entityType="INVENTORY_ITEM" /> : null}
         </div>
       </article>
       <InventoryDetailModal open={detailLoading || Boolean(detail)} loading={detailLoading} item={detail} defs={inventoryDefs} onClose={() => setDetail(null)} onDiscard={discardItem} onArchive={(id) => setArchiveConfirmId(id)} onEdit={(item) => { setEditingItem(item); setDetail(null); setModal("item-edit"); }} />
-      <InventoryItemModal open={modal === "item"} categories={categories} onClose={() => setModal(null)} onSave={addItem} />
+      <InventoryItemModal open={modal === "item"} categories={categories} locations={locationOptions} onClose={() => setModal(null)} onSave={addItem} />
       <InventoryEditModal open={modal === "item-edit"} item={editingItem} onClose={() => { setModal(null); setEditingItem(null); }} onSave={editItem} />
       <InventoryMovementModal open={modal === "movement"} items={rawItems} locations={locations} onClose={() => setModal(null)} onSave={addMovement} />
       <LocationModal open={modal === "location"} onClose={() => setModal(null)} onSave={addLocation} />
+      <LocationEditModal
+        open={modal === "location-edit"}
+        location={editingLocation}
+        onClose={() => { setModal(null); setEditingLocation(null); }}
+        onSave={editLocation}
+        onDelete={(id) => setLocationDeleteId(id)}
+      />
+      <CategoriesModal
+        open={modal === "categories"}
+        categories={categories}
+        onClose={() => setModal(null)}
+        onCreate={addCategory}
+        onDelete={deleteCategory}
+      />
+      <ConfirmModal
+        open={Boolean(locationDeleteId)}
+        title="Eliminar ubicación"
+        description="Dejará de aparecer en el listado y en los selectores. Los artículos y movimientos históricos conservan su referencia."
+        confirmLabel="Eliminar"
+        onConfirm={() => { const id = locationDeleteId; setLocationDeleteId(null); setModal(null); if (id) void deleteLocation(id); }}
+        onClose={() => setLocationDeleteId(null)}
+      />
       <QrScanTester open={scannerOpen} onClose={() => setScannerOpen(false)} />
       <ConfirmModal
         open={Boolean(archiveConfirmId)}
@@ -460,7 +544,7 @@ export function EquipmentCenter() {
     if (!query) return;
     const requestedTab = query.get("tab");
     if (requestedTab === "equipment") setTab("master");
-    else if (requestedTab && ["master", "plans", "certificates", "qr"].includes(requestedTab)) setTab(requestedTab);
+    else if (requestedTab && ["master", "out-of-service", "plans", "certificates", "qr"].includes(requestedTab)) setTab(requestedTab);
     if (query.get("status") === "OPERATIONAL" || query.get("filter") === "operational") setOperationalOnly(true);
     const equipmentId = query.get("equipmentId");
     if (equipmentId) void openEquipmentDetail(equipmentId);
@@ -513,8 +597,12 @@ export function EquipmentCenter() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const shownEquipment = operationalOnly ? equipment.filter((e) => e.status === "OPERATIONAL") : equipment;
-  const equipmentRows: TableRow[] = shownEquipment.map((e) => ({
+  // Los equipos fuera de servicio, retirados o archivados estorban entre los que
+  // sí se pueden usar: viven en su propia pestaña.
+  const inServiceEquipment = equipment.filter((e) => IN_SERVICE_STATUSES.includes(e.status));
+  const outOfServiceEquipment = equipment.filter((e) => !IN_SERVICE_STATUSES.includes(e.status));
+  const shownEquipment = operationalOnly ? inServiceEquipment.filter((e) => e.status === "OPERATIONAL") : inServiceEquipment;
+  const toEquipmentRows = (list: EquipmentRaw[]): TableRow[] => list.map((e) => ({
     id: e.id,
     code: e.code,
     name: e.name,
@@ -525,6 +613,8 @@ export function EquipmentCenter() {
     qualification: fmtDate(e.next_qualification_at),
     responsible: e.responsible ?? "—",
   }));
+  const equipmentRows = toEquipmentRows(shownEquipment);
+  const outOfServiceRows = toEquipmentRows(outOfServiceEquipment);
 
   async function addEquipment(payload: Record<string, unknown>): Promise<boolean> {
     try {
@@ -551,8 +641,17 @@ export function EquipmentCenter() {
       return false;
     }
   }
-  async function changeEquipmentState(id: string, action: "ARCHIVE" | "RETIRE" | "OUT_OF_SERVICE"): Promise<void> {
-    try { const response = await fetch(`/api/equipment/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, reason: action === "ARCHIVE" ? "Archivo administrativo" : action === "RETIRE" ? "Retiro del equipo" : "Equipo marcado fuera de servicio" }) }); if (!response.ok) { showError(await responseMessage(response)); return; } setEquipmentDetail(null); showToast(action === "ARCHIVE" ? "Equipo archivado." : action === "RETIRE" ? "Equipo retirado." : "Equipo fuera de servicio."); await load(); } catch { showError("No se pudo actualizar el estado del equipo."); }
+  async function changeEquipmentState(id: string, action: EquipmentStateAction): Promise<void> {
+    // Devolver a servicio es un UPDATE de estado, no una acción de baja: así el
+    // backend limpia las marcas de archivo y retiro.
+    const body = action === "REACTIVATE"
+      ? { action: "UPDATE" as const, status: "OPERATIONAL" as const, reason: "Equipo devuelto a servicio" }
+      : { action, reason: action === "ARCHIVE" ? "Archivo administrativo" : action === "RETIRE" ? "Retiro del equipo" : "Equipo marcado fuera de servicio" };
+    const done: Record<EquipmentStateAction, string> = {
+      ARCHIVE: "Equipo archivado.", RETIRE: "Equipo retirado.",
+      OUT_OF_SERVICE: "Equipo fuera de servicio.", REACTIVATE: "Equipo devuelto a servicio.",
+    };
+    try { const response = await fetch(`/api/equipment/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!response.ok) { showError(await responseMessage(response)); return; } setEquipmentDetail(null); showToast(done[action]); await load(); } catch { showError("No se pudo actualizar el estado del equipo."); }
   }
   async function addPlan(payload: Record<string, unknown>): Promise<boolean> {
     try {
@@ -632,7 +731,7 @@ export function EquipmentCenter() {
       ]} />
       <InlineNotice title="Bloqueo preventivo configurable">Un equipo puede quedar inhabilitado para nuevos análisis cuando su calibración, verificación o mantenimiento crítico esté vencido.</InlineNotice>
       <article className="panel configuration-panel">
-        <Tabs items={[{ key: "master", label: "Equipos" }, { key: "plans", label: "Planes" }, { key: "certificates", label: "Certificados", tutorialId: "equipment-tab-certificates" }, { key: "qr", label: "QR" }]} active={tab} onChange={setTab} />
+        <Tabs items={[{ key: "master", label: "Equipos" }, { key: "out-of-service", label: `Fuera de servicio${outOfServiceEquipment.length ? ` (${outOfServiceEquipment.length})` : ""}` }, { key: "plans", label: "Planes" }, { key: "certificates", label: "Certificados", tutorialId: "equipment-tab-certificates" }, { key: "qr", label: "QR" }]} active={tab} onChange={setTab} />
         <div className="configuration-body">
           {tab === "master" ? (
             <ResourceSection title="Equipos" copy="Haz clic en un equipo para ver detalle y editar. Las próximas fechas provienen de sus planes." action="Registrar evento" onAction={() => setModal("event")} disabled={equipment.length === 0}>
@@ -647,6 +746,20 @@ export function EquipmentCenter() {
                 emptyMessage="Registra un equipo para gestionar sus planes, certificados y QR."
               />
             </ResourceSection>
+          ) : null}
+          {tab === "out-of-service" ? (
+            <section>
+              <div className="section-heading">
+                <div><h2>Equipos fuera de servicio</h2><p>Equipos marcados fuera de servicio, retirados o archivados. Ábrelos para consultar su historial o devolverlos a servicio.</p></div>
+              </div>
+              <SimpleTable
+                columns={[{ key: "code", label: "Código" }, { key: "name", label: "Equipo" }, { key: "area", label: "Ubicación" }, { key: "status", label: "Estado" }, { key: "calibration", label: "Próx. calibración" }, { key: "maintenance", label: "Próx. mantenimiento" }, { key: "responsible", label: "Responsable" }]}
+                rows={outOfServiceRows}
+                onRowClick={(row) => { if (row.id) void openEquipmentDetail(String(row.id)); }}
+                emptyTitle="Sin equipos fuera de servicio"
+                emptyMessage="Todos los equipos registrados están operativos o con mantenimiento próximo."
+              />
+            </section>
           ) : null}
           {tab === "plans" ? <ResourceSection title="Planes periódicos" copy="Define frecuencia por calendario o por uso, anticipación de alertas y si el incumplimiento bloquea el uso." action="Nuevo plan" onAction={() => setModal("plan")} disabled={equipment.length === 0}><SimpleTable columns={[{ key: "code", label: "Equipo" }, { key: "equipment", label: "Nombre" }, { key: "plan", label: "Plan" }, { key: "frequency", label: "Frecuencia" }, { key: "next", label: "Próximo" }, { key: "blocking", label: "Bloquea uso" }, { key: "status", label: "Estado" }]} rows={plans} onRowClick={(row) => { if (row.id) void openPlanDetail(String(row.id)); }} emptyTitle="Sin planes" emptyMessage="Crea un plan de calibración, mantenimiento o verificación para un equipo." /></ResourceSection> : null}
           {tab === "certificates" ? <ResourceSection title="Certificados y evidencia" copy="Adjunta PDF, fotografías, proveedor, alcance, incertidumbre y fecha de vigencia." action="Adjuntar certificado" actionTutorialId="equipment-certificates" onAction={() => setModal("certificate")} disabled={equipment.length === 0}><SimpleTable columns={[{ key: "code", label: "Número" }, { key: "equipment", label: "Equipo" }, { key: "type", label: "Tipo" }, { key: "provider", label: "Proveedor" }, { key: "issued", label: "Emitido" }, { key: "expires", label: "Vence" }, { key: "status", label: "Estado" }]} rows={certificates} onRowClick={(row) => { if (row.id) void openCertificateDetail(String(row.id)); }} emptyTitle="Sin certificados" emptyMessage="Adjunta el primer certificado o evidencia de un equipo." /></ResourceSection> : null}
@@ -819,12 +932,13 @@ function InventoryDetailModal({ open, loading, item, defs, onClose, onDiscard, o
   );
 }
 
-function EquipmentDetailModal({ open, loading, equipment, onClose, onEdit, onState }: Readonly<{ open: boolean; loading: boolean; equipment: Record<string, unknown> | null; onClose: () => void; onEdit: (equipment: Record<string, unknown>) => void; onState: (id: string, action: "ARCHIVE" | "RETIRE" | "OUT_OF_SERVICE") => void | Promise<void> }>) {
+function EquipmentDetailModal({ open, loading, equipment, onClose, onEdit, onState }: Readonly<{ open: boolean; loading: boolean; equipment: Record<string, unknown> | null; onClose: () => void; onEdit: (equipment: Record<string, unknown>) => void; onState: (id: string, action: EquipmentStateAction) => void | Promise<void> }>) {
   if (!open) return null;
   const plans = (equipment?.plans ?? []) as Array<Record<string, unknown>>;
   const certificates = (equipment?.certificates ?? []) as Array<Record<string, unknown>>;
   const events = (equipment?.events ?? []) as Array<Record<string, unknown>>;
   const customValues = (equipment?.custom_values ?? {}) as Record<string, unknown>;
+  const inService = IN_SERVICE_STATUSES.includes(String(equipment?.status ?? ""));
   return (
     <ActionModal open title={equipment ? `${equipment.code} · ${equipment.name}` : "Equipo"} description="Ficha del equipo, sus planes, certificados, eventos e historial." onClose={onClose} wide>
       <div className="modal-form">
@@ -833,14 +947,27 @@ function EquipmentDetailModal({ open, loading, equipment, onClose, onEdit, onSta
             <div><small>Código</small><strong>{String(equipment.code ?? "—")}</strong></div><div><small>Estado</small><strong>{EQUIPMENT_STATUS_LABEL[String(equipment.status)] ?? String(equipment.status ?? "—")}</strong></div>
             <div><small>Marca</small><strong>{String(equipment.manufacturer ?? "—")}</strong></div><div><small>Modelo</small><strong>{String(equipment.model ?? "—")}</strong></div>
             <div><small>Serie</small><strong>{String(equipment.serial_number ?? "—")}</strong></div><div><small>Área / ubicación</small><strong>{String(equipment.area ?? equipment.location ?? "—")}</strong></div>
-            <div><small>Responsable</small><strong>{String(equipment.responsible ?? "—")}</strong></div><div><small>Última calibración</small><strong>{fmtDate(equipment.last_calibration_at)}</strong></div>
-            <div><small>Próximo mantenimiento</small><strong>{fmtDate(equipment.next_maintenance_at)}</strong></div><div><small>Observaciones</small><strong>{String(equipment.notes ?? "—")}</strong></div>
+            <div><small>Responsable</small><strong>{String(equipment.responsible ?? "—")}</strong></div><div><small>Observaciones</small><strong>{String(equipment.notes ?? "—")}</strong></div>
+            <div><small>Última calibración</small><strong>{fmtDate(equipment.last_calibration_at)}</strong></div><div><small>Próxima calibración</small><strong>{fmtDate(equipment.next_calibration_at)}</strong></div>
+            <div><small>Última calificación</small><strong>{fmtDate(equipment.last_qualification_at)}</strong></div><div><small>Próxima calificación</small><strong>{fmtDate(equipment.next_qualification_at)}</strong></div>
+            <div><small>Último mantenimiento</small><strong>{fmtDate(equipment.last_maintenance_at)}</strong></div><div><small>Próximo mantenimiento</small><strong>{fmtDate(equipment.next_maintenance_at)}</strong></div>
           </div>
           {Object.keys(customValues).length > 0 ? <><p className="form-section-title">Campos personalizados</p><div className="details-grid">{Object.entries(customValues).map(([key, value]) => <div key={key}><small>{key.replaceAll("_", " ")}</small><strong>{String(value ?? "—")}</strong></div>)}</div></> : null}
           <p className="form-section-title">Planes</p>{plans.length ? <div className="definition-list">{plans.map((plan) => <article className="definition-row" key={String(plan.id)}><div><strong>{PLAN_TYPE_LABEL[String(plan.plan_type)] ?? String(plan.name)}</strong><p>{frequencyLabel(plan.frequency_value, plan.frequency_unit)}</p></div><small>{String(plan.frequency_unit) === "USE" ? "Al utilizar" : fmtDate(plan.next_due_at)}</small><em>{String(plan.status)}</em></article>)}</div> : <p className="modal-note">Sin planes registrados.</p>}
           <p className="form-section-title">Certificados</p>{certificates.length ? <div className="definition-list">{certificates.map((certificate) => <article className="definition-row" key={String(certificate.id)}><div><strong>{String(certificate.certificate_number ?? "Sin número")}</strong><p>{CERT_TYPE_LABEL[String(certificate.certificate_type)] ?? String(certificate.certificate_type)}</p></div><small>{fmtDate(certificate.expires_at)}</small><em>Registrado</em></article>)}</div> : <p className="modal-note">Sin certificados registrados.</p>}
           <p className="form-section-title">Eventos e historial</p>{events.length ? <div className="definition-list">{events.map((event) => <article className="definition-row" key={String(event.id)}><div><strong>{String(event.event_type)}</strong><p>{String(event.details ?? "")}</p></div><small>{fmtDateTime(event.completed_at ?? event.scheduled_for)}</small><em>Evento</em></article>)}</div> : <p className="modal-note">Sin eventos registrados.</p>}
-          <footer className="modal-actions"><button type="button" className="secondary-button" onClick={() => void onState(String(equipment.id), "OUT_OF_SERVICE")}>Fuera de servicio</button><button type="button" className="secondary-button" onClick={() => void onState(String(equipment.id), "ARCHIVE")}>Archivar</button><button type="button" className="secondary-button" onClick={() => void onState(String(equipment.id), "RETIRE")}>Retirar</button><button type="button" className="primary-button" onClick={() => onEdit(equipment)}>Editar equipo</button></footer>
+          <footer className="modal-actions">
+            {inService ? (
+              <>
+                <button type="button" className="secondary-button" onClick={() => void onState(String(equipment.id), "OUT_OF_SERVICE")}>Fuera de servicio</button>
+                <button type="button" className="secondary-button" onClick={() => void onState(String(equipment.id), "ARCHIVE")}>Archivar</button>
+                <button type="button" className="secondary-button" onClick={() => void onState(String(equipment.id), "RETIRE")}>Retirar</button>
+              </>
+            ) : (
+              <button type="button" className="secondary-button" onClick={() => void onState(String(equipment.id), "REACTIVATE")}>Devolver a servicio</button>
+            )}
+            <button type="button" className="primary-button" onClick={() => onEdit(equipment)}>Editar equipo</button>
+          </footer>
         </>}
       </div>
     </ActionModal>
@@ -914,7 +1041,7 @@ function InventoryEditModal({ open, item, onClose, onSave }: Readonly<{ open: bo
   return <ActionModal open title={`Editar ${String(item.sku)}`} description="Actualiza los datos y controles. La existencia solo cambia mediante movimientos." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={String(item.name ?? "")} /></label><label><span>Tipo</span><select name="itemType" defaultValue={String(item.item_type ?? "OTHER")}><option value="REAGENT">Reactivo</option><option value="MATERIAL">Material</option><option value="CONSUMABLE">Insumo o consumible</option><option value="CULTURE_MEDIA">Medio de cultivo</option><option value="OTHER">Otro</option></select></label><label><span>Proveedor</span><input name="vendor" defaultValue={String(item.vendor ?? "")} /></label><label><span>Concentración</span><input name="concentration" defaultValue={String(item.concentration ?? "")} /></label><label><span>Presentación</span><input name="presentation" defaultValue={String(item.presentation ?? "")} /></label><label><span>Stock mínimo</span><input name="minimum" type="number" min="0" step="0.001" defaultValue={String(item.reorder_point ?? 0)} /></label><label><span>Vencimiento</span><input name="expires" type="date" defaultValue={toDateInputValue(item.expires_at)} /></label><label className="field-span-two"><span>Condiciones de almacenamiento</span><textarea name="storageConditions" rows={2} defaultValue={String(item.storage_conditions ?? "")} /></label><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked={item.track_stock !== false} /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked={item.alert_low_stock !== false} /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={item.alert_expiry !== false} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input name="requiresUsageLog" type="checkbox" defaultChecked={Boolean(item.requires_usage_log)} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" defaultChecked={Boolean(item.allow_direct_discard)} /><span>Permitir descarte directo</span></label><span className="form-section-title field-span-two"><Lock size={14} /> Control de doble uso o precursores</span><div className="field-span-two controlled-question"><span className="controlled-question-label">¿Es reactivo de doble uso o precursor? *</span><div className="radio-row"><label className="radio-option"><input type="radio" name="isControlled" value="no" required checked={controlled === "no"} onChange={() => setControlled("no")} /><span>No</span></label><label className="radio-option"><input type="radio" name="isControlled" value="yes" required checked={controlled === "yes"} onChange={() => setControlled("yes")} /><span>Sí — reactivo controlado</span></label></div></div>{controlled === "yes" ? <><label className="field-span-two"><span>Tipo de control *</span><select name="controlKind" required defaultValue={String(item.control_kind ?? "")}><option value="" disabled>Selecciona…</option>{CONTROL_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><p className="modal-note field-span-two controlled-note">Marcado como <strong>controlado</strong>: cada consumo o descarte exigirá registro de trazabilidad completa antes de descontar del inventario.</p></> : null}<SafetyFields pictograms={pictograms} onPictogramsChange={setPictograms} defaultStatements={String(item.hazard_statements ?? "")} defaultProcedures={normalizeSafetyProcedures(item.safety_procedures)} /><span className="form-section-title field-span-two">Ficha de datos de seguridad (SDS)</span><div className="field-span-two"><FileDropZone name="safetySheetFile" hint={item.safety_sheet_url ? "Arrastra un archivo para reemplazar la ficha actual" : "Arrastra el PDF o imagen de la ficha, o haz clic para seleccionarla"} /></div>{item.safety_sheet_url ? <p className="modal-note field-span-two">Ficha actual: <a href={String(item.safety_sheet_url)} target="_blank" rel="noreferrer">abrir</a></p> : null}<label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} defaultValue={String(item.notes ?? "")} /></label><CustomFieldInputs defs={defs} values={customValues} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
-function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ open: boolean; categories: CategoryOption[]; onClose: () => void; onSave: (payload: Record<string, unknown>, safetyFile?: File | null) => Promise<boolean> }>) {
+function InventoryItemModal({ open, categories, locations, onClose, onSave }: Readonly<{ open: boolean; categories: CategoryOption[]; locations: LocationOption[]; onClose: () => void; onSave: (payload: Record<string, unknown>, safetyFile?: File | null) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const [itemType, setItemType] = useState("REAGENT");
   // "" = sin elegir (obligatorio elegir Sí/No), "yes" = controlado, "no" = normal.
@@ -987,7 +1114,10 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
       name: String(data.get("name") ?? "").trim(),
       itemType,
       categoryName: String(data.get("category") ?? "").trim() || undefined,
-      storageLocationName: String(data.get("location") ?? "").trim() || undefined,
+      // Si se eligió una ubicación existente se manda su id; si se escribió una
+      // nueva, el servidor la crea a partir del nombre.
+      storageLocationId: String(data.get("locationId") ?? "") || undefined,
+      storageLocationName: String(data.get("locationId") ?? "") ? undefined : String(data.get("location") ?? "").trim() || undefined,
       lotNumber: String(data.get("lot") ?? "").trim(),
       quantity: Number(data.get("quantity") ?? 0),
       reorderPoint: Number(data.get("minimum") ?? 0),
@@ -1044,7 +1174,7 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
     {material ? <><label><span>Marca{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} defaultValue={prefill.brand} /></label><label><span>Modelo o descripción{isRequired("model") ? " *" : ""}</span><input name="model" required={isRequired("model")} /></label><label><span>Material de fabricación{isRequired("material") ? " *" : ""}</span><input name="material" required={isRequired("material")} /></label><label className="checkbox-line"><input name="isReusable" type="checkbox" /><span>Reutilizable</span></label></> : null}
     {consumable ? <><label><span>Presentación{isRequired("presentation") ? " *" : ""}</span><input name="presentation" required={isRequired("presentation")} defaultValue={prefill.presentation} /></label><label><span>Unidad de empaque{isRequired("model") ? " *" : ""}</span><input name="model" required={isRequired("model")} /></label></> : null}
     {culture ? <><label><span>Tipo de medio{isRequired("cultureMediaType") ? " *" : ""}</span><input name="cultureMediaType" required={isRequired("cultureMediaType")} /></label><label><span>Preparación</span><select name="preparationType"><option value="COMMERCIAL">Comercial</option><option value="PREPARED">Preparado</option></select></label><label><span>Fabricante{isRequired("brand") ? " *" : ""}</span><input name="brand" required={isRequired("brand")} defaultValue={prefill.brand} /></label></> : null}
-    <span className="form-section-title field-span-two">Ubicación y existencias</span><label><span>Ubicación{isRequired("location") ? " *" : ""}</span><input name="location" required={isRequired("location")} /></label><label><span>Fecha de ingreso{isRequired("receivedAt") ? " *" : ""}</span><input name="receivedAt" type="date" required={isRequired("receivedAt")} /></label>{!material ? <label><span>Fecha de vencimiento{isRequired("expires") ? " *" : " (opcional)"}</span><input name="expires" type="date" required={isRequired("expires")} /></label> : null}<label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required list="item-units" defaultValue={prefill.unit || "unidades"} /><datalist id="item-units">{COMMON_UNITS.map((option) => <option key={option} value={option} />)}</datalist></label>
+    <span className="form-section-title field-span-two">Ubicación y existencias</span><LocationField locations={locations} required={isRequired("location")} /><label><span>Fecha de ingreso{isRequired("receivedAt") ? " *" : ""}</span><input name="receivedAt" type="date" required={isRequired("receivedAt")} /></label>{!material ? <label><span>Fecha de vencimiento{isRequired("expires") ? " *" : " (opcional)"}</span><input name="expires" type="date" required={isRequired("expires")} /></label> : null}<label><span>Existencia inicial</span><input name="quantity" required type="number" min="0" step="0.001" /></label><label><span>Stock mínimo</span><input name="minimum" required type="number" min="0" step="0.001" /></label><label><span>Unidad</span><input name="unit" required list="item-units" defaultValue={prefill.unit || "unidades"} /><datalist id="item-units">{COMMON_UNITS.map((option) => <option key={option} value={option} />)}</datalist></label>
     <span className="form-section-title field-span-two">Controles</span><label className="checkbox-line"><input name="trackStock" type="checkbox" defaultChecked /><span>Controlar existencias</span></label><label className="checkbox-line"><input name="alertLowStock" type="checkbox" defaultChecked /><span>Alertar por stock mínimo</span></label><label className="checkbox-line"><input name="alertExpiry" type="checkbox" defaultChecked={!material} /><span>Alertar por vencimiento</span></label><label className="checkbox-line"><input key={itemType} name="requiresUsageLog" type="checkbox" defaultChecked={reagent || culture} /><span>Exigir registro de consumo</span></label><label className="checkbox-line"><input name="allowDirectDiscard" type="checkbox" /><span>Permitir descarte directo</span></label>
     <span className="form-section-title field-span-two"><Lock size={14} /> Control de doble uso o precursores</span>
     <div className="field-span-two controlled-question">
@@ -1064,6 +1194,32 @@ function InventoryItemModal({ open, categories, onClose, onSave }: Readonly<{ op
     <label className="field-span-two"><span>… o enlace externo a la ficha (URL)</span><input name="safetySheetUrl" type="url" placeholder="https://…" /></label>
     {(reagent || culture) ? <label className="field-span-two"><span>Condiciones de almacenamiento{isRequired("storageConditions") ? " *" : ""}</span><textarea name="storageConditions" rows={2} required={isRequired("storageConditions")} defaultValue={prefill.storageConditions} /></label> : null}<label className="field-span-two"><span>Observaciones{isRequired("notes") ? " *" : ""}</span><textarea name="notes" rows={2} required={isRequired("notes")} defaultValue={prefill.notes} /></label><CustomFieldInputs defs={customDefs} />
   </div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+}
+
+/**
+ * Ubicación del artículo: se elige una de las creadas en la pestaña
+ * "Ubicaciones" o se escribe una nueva. Antes era un campo de texto libre sin
+ * relación con esa pestaña, así que las ubicaciones creadas no servían de nada.
+ */
+function LocationField({ locations, required }: Readonly<{ locations: LocationOption[]; required?: boolean }>) {
+  const [choice, setChoice] = useState("");
+  const creating = choice === "__new__";
+  if (locations.length === 0) {
+    return <label><span>Ubicación{required ? " *" : ""}</span><input name="location" required={required} placeholder="Laboratorio de microbiología" /></label>;
+  }
+  return (
+    <>
+      <label>
+        <span>Ubicación{required ? " *" : ""}</span>
+        <select name={creating ? "locationChoice" : "locationId"} required={required} value={choice} onChange={(event) => setChoice(event.target.value)}>
+          <option value="">Sin ubicación</option>
+          {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+          <option value="__new__">+ Crear una ubicación nueva…</option>
+        </select>
+      </label>
+      {creating ? <label><span>Nombre de la ubicación nueva</span><input name="location" required placeholder="Sede central → Laboratorio → Armario C2" /></label> : null}
+    </>
+  );
 }
 
 // Opciones del movimiento con dirección explícita (retro: el "+/−" era confuso).
@@ -1258,6 +1414,90 @@ function LocationModal({ open, onClose, onSave }: Readonly<{ open: boolean; onCl
   return <ActionModal open={open} title="Nueva ubicación" onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid"><label><span>Código</span><input name="code" required placeholder="ARM-C2" /></label><label><span>Ruta jerárquica</span><input name="hierarchy" required placeholder="Sede central → Laboratorio → Armario C2" /></label><label><span>Tipo</span><input name="type" required placeholder="Armario" /></label></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
 }
 
+function LocationEditModal({ open, location, onClose, onSave, onDelete }: Readonly<{
+  open: boolean; location: LocationOption | null; onClose: () => void;
+  onSave: (id: string, payload: Record<string, unknown>) => Promise<boolean>;
+  onDelete: (id: string) => void;
+}>) {
+  const [saving, setSaving] = useState(false);
+  if (!open || !location) return null;
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!location) return;
+    const data = new FormData(event.currentTarget);
+    setSaving(true);
+    const ok = await onSave(location.id, {
+      name: String(data.get("hierarchy") ?? "").trim(),
+      locationType: String(data.get("type") ?? "").trim(),
+    });
+    setSaving(false);
+    if (ok) onClose();
+  }
+  return <ActionModal open={open} title={`Editar ${location.code}`} description="El código no cambia: es la referencia con la que ya se registraron artículos y movimientos." onClose={onClose}>
+    <form className="modal-form" onSubmit={submit}>
+      <div className="form-grid">
+        <label><span>Ruta jerárquica</span><input name="hierarchy" required defaultValue={location.name} placeholder="Sede central → Laboratorio → Armario C2" /></label>
+        <label><span>Tipo</span><input name="type" required defaultValue={location.locationType} placeholder="Armario" /></label>
+      </div>
+      <footer className="modal-actions">
+        <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
+        <button type="button" className="secondary-button" onClick={() => onDelete(location!.id)}><Trash2 size={15} /> Eliminar</button>
+        <button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Guardar cambios"}</button>
+      </footer>
+    </form>
+  </ActionModal>;
+}
+
+// Alta y baja de categorías propias del laboratorio. Una categoría con
+// artículos activos no se puede eliminar: el servidor responde 409 y el mensaje
+// se muestra tal cual.
+function CategoriesModal({ open, categories, onClose, onCreate, onDelete }: Readonly<{
+  open: boolean; categories: CategoryOption[]; onClose: () => void;
+  onCreate: (payload: Record<string, unknown>) => Promise<boolean>;
+  onDelete: (id: string) => void | Promise<void>;
+}>) {
+  const [saving, setSaving] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+  if (!open) return null;
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setSaving(true);
+    const ok = await onCreate({
+      name: String(data.get("name") ?? "").trim(),
+      prefix: String(data.get("prefix") ?? "").trim().toUpperCase(),
+    });
+    setSaving(false);
+    if (ok) setFormKey((current) => current + 1);
+  }
+  return <ActionModal open={open} title="Categorías de inventario" description="Crea las categorías con las que clasificas tus artículos y elimina las que ya no uses." onClose={onClose}>
+    <div className="modal-form">
+      <form className="inline-editor" onSubmit={submit} key={formKey}>
+        <label><span>Nombre</span><input name="name" required minLength={2} maxLength={120} placeholder="Reactivos de microbiología" /></label>
+        <label><span>Prefijo</span><input name="prefix" required minLength={2} maxLength={8} pattern="[A-Za-z0-9]{2,8}" placeholder="RM" /></label>
+        <button className="primary-button" type="submit" disabled={saving}>{saving ? "Creando…" : "Añadir categoría"}</button>
+      </form>
+      {categories.length === 0 ? <p className="modal-note">Todavía no hay categorías propias.</p> : (
+        <div className="definition-list">
+          {categories.map((category) => (
+            <article className="definition-row" key={category.code}>
+              <div>
+                <strong>{category.prefix}</strong>
+                <p>{category.name}</p>
+              </div>
+              <small>{category.itemCount ? `${category.itemCount} artículo(s)` : "Sin artículos"}</small>
+              {category.id ? (
+                <button type="button" className="secondary-button" onClick={() => void onDelete(category.id!)} aria-label={`Eliminar categoría ${category.name}`}><Trash2 size={14} /> Eliminar</button>
+              ) : <em>Predeterminada</em>}
+            </article>
+          ))}
+        </div>
+      )}
+      <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cerrar</button></footer>
+    </div>
+  </ActionModal>;
+}
+
 function EquipmentModal({ open, onClose, onSave }: Readonly<{ open: boolean; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<boolean> }>) {
   const [saving, setSaving] = useState(false);
   const customDefs = useCustomFieldDefs("equipment");
@@ -1273,6 +1513,11 @@ function EquipmentModal({ open, onClose, onSave }: Readonly<{ open: boolean; onC
       serialNumber: String(data.get("serial") ?? "").trim(),
       locationName: String(data.get("location") ?? "").trim() || undefined,
       status: String(data.get("status") ?? "OPERATIONAL"),
+      lastCalibrationAt: String(data.get("lastCalibration") ?? "") || null,
+      nextCalibrationAt: String(data.get("nextCalibration") ?? "") || null,
+      lastQualificationAt: String(data.get("lastQualification") ?? "") || null,
+      nextQualificationAt: String(data.get("nextQualification") ?? "") || null,
+      lastMaintenanceAt: String(data.get("lastMaintenance") ?? "") || null,
       nextMaintenanceAt: String(data.get("maintenance") ?? "") || null,
       notes: String(data.get("notes") ?? "").trim(),
       customValues: collectCustomValues(customDefs, data),
@@ -1280,7 +1525,25 @@ function EquipmentModal({ open, onClose, onSave }: Readonly<{ open: boolean; onC
     setSaving(false);
     if (ok) onClose();
   }
-  return <ActionModal open={open} title="Registrar equipo" description="El equipo quedará disponible para planes, certificados y etiqueta QR." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><span className="form-section-title field-span-two">Identificación</span><label><span>Código</span><input name="code" required placeholder="EQ-MIC-010" /></label><label><span>Nombre</span><input name="name" required /></label><label><span>Marca</span><input name="brand" /></label><label><span>Modelo</span><input name="model" /></label><label><span>Serie</span><input name="serial" /></label><label><span>Estado</span><select name="status" defaultValue="OPERATIONAL"><option value="OPERATIONAL">Operativo</option><option value="MAINTENANCE_DUE">Mantenimiento próximo</option><option value="OUT_OF_SERVICE">Fuera de servicio</option><option value="RETIRED">Inactivo</option></select></label><span className="form-section-title field-span-two">Ubicación y mantenimiento</span><label><span>Ubicación</span><input name="location" placeholder="Laboratorio de microbiología" /></label><label><span>Próximo mantenimiento (opcional)</span><input name="maintenance" type="date" /></label><label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} placeholder="Detalles del equipo, responsable, condiciones…" /></label><CustomFieldInputs defs={customDefs} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+  return <ActionModal open={open} title="Registrar equipo" description="El equipo quedará disponible para planes, certificados y etiqueta QR." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><span className="form-section-title field-span-two">Identificación</span><label><span>Código</span><input name="code" required placeholder="EQ-MIC-010" /></label><label><span>Nombre</span><input name="name" required /></label><label><span>Marca</span><input name="brand" /></label><label><span>Modelo</span><input name="model" /></label><label><span>Serie</span><input name="serial" /></label><label><span>Estado</span><select name="status" defaultValue="OPERATIONAL"><option value="OPERATIONAL">Operativo</option><option value="MAINTENANCE_DUE">Mantenimiento próximo</option><option value="OUT_OF_SERVICE">Fuera de servicio</option><option value="RETIRED">Inactivo</option></select></label><span className="form-section-title field-span-two">Ubicación</span><label className="field-span-two"><span>Ubicación</span><input name="location" placeholder="Laboratorio de microbiología" /></label><EquipmentDateFields /><label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={2} placeholder="Detalles del equipo, responsable, condiciones…" /></label><CustomFieldInputs defs={customDefs} /></div><ModalFooter onClose={onClose} saving={saving} /></form></ActionModal>;
+}
+
+// Calibración, calificación y mantenimiento: la última hecha y la siguiente
+// programada. Si el equipo tiene un plan periódico activo, la fecha del plan es
+// la que se muestra en el listado, la ficha y la etiqueta.
+function EquipmentDateFields({ equipment }: Readonly<{ equipment?: EquipmentRaw | null }>) {
+  return (
+    <>
+      <span className="form-section-title field-span-two">Calibración, calificación y mantenimiento</span>
+      <label><span>Última calibración</span><input name="lastCalibration" type="date" defaultValue={toDateInputValue(equipment?.last_calibration_at)} /></label>
+      <label><span>Próxima calibración</span><input name="nextCalibration" type="date" defaultValue={toDateInputValue(equipment?.next_calibration_at)} /></label>
+      <label><span>Última calificación</span><input name="lastQualification" type="date" defaultValue={toDateInputValue(equipment?.last_qualification_at)} /></label>
+      <label><span>Próxima calificación</span><input name="nextQualification" type="date" defaultValue={toDateInputValue(equipment?.next_qualification_at)} /></label>
+      <label><span>Último mantenimiento</span><input name="lastMaintenance" type="date" defaultValue={toDateInputValue(equipment?.last_maintenance_at)} /></label>
+      <label><span>Próximo mantenimiento</span><input name="maintenance" type="date" defaultValue={toDateInputValue(equipment?.next_maintenance_at)} /></label>
+      <p className="modal-note field-span-two">Si el equipo tiene un plan periódico activo, la próxima fecha del plan tiene prioridad sobre lo que escribas aquí.</p>
+    </>
+  );
 }
 
 function EquipmentEditModal({ open, equipment, onClose, onSave }: Readonly<{ open: boolean; equipment: EquipmentRaw | null; onClose: () => void; onSave: (id: string, payload: Record<string, unknown>) => Promise<boolean> }>) {
@@ -1299,13 +1562,20 @@ function EquipmentEditModal({ open, equipment, onClose, onSave }: Readonly<{ ope
       serialNumber: String(data.get("serial") ?? "").trim(),
       status: String(data.get("status") ?? equipment.status),
       area: String(data.get("area") ?? "").trim(),
+      // Se envían siempre (aunque vayan vacías) para poder borrar una fecha.
+      lastCalibrationAt: String(data.get("lastCalibration") ?? ""),
+      nextCalibrationAt: String(data.get("nextCalibration") ?? ""),
+      lastQualificationAt: String(data.get("lastQualification") ?? ""),
+      nextQualificationAt: String(data.get("nextQualification") ?? ""),
+      lastMaintenanceAt: String(data.get("lastMaintenance") ?? ""),
+      nextMaintenanceAt: String(data.get("maintenance") ?? ""),
       notes: String(data.get("notes") ?? "").trim(),
       customValues: collectCustomValues(customDefs, data),
     });
     setSaving(false);
     if (ok) onClose();
   }
-  return <ActionModal open={open} title={`Editar ${equipment.code}`} description="Actualiza los datos del equipo. Las próximas fechas se gestionan desde Planes." onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={equipment.name} /></label><label><span>Marca</span><input name="brand" defaultValue={equipment.manufacturer ?? ""} /></label><label><span>Modelo</span><input name="model" defaultValue={equipment.model ?? ""} /></label><label><span>Serie</span><input name="serial" defaultValue={equipment.serial_number ?? ""} /></label><label><span>Área</span><input name="area" defaultValue={equipment.area ?? ""} /></label><label><span>Estado</span><select name="status" defaultValue={equipment.status}><option value="OPERATIONAL">Operativo</option><option value="MAINTENANCE_DUE">Mantenimiento próximo</option><option value="OUT_OF_SERVICE">Fuera de servicio</option><option value="RETIRED">Retirado</option></select></label><label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={3} defaultValue={equipment.notes ?? ""} /></label><CustomFieldInputs defs={customDefs} values={equipment.custom_values} /></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Guardar cambios"}</button></footer></form></ActionModal>;
+  return <ActionModal open={open} title={`Editar ${equipment.code}`} description="Actualiza los datos del equipo y sus fechas de calibración, calificación y mantenimiento." onClose={onClose} wide><form className="modal-form" onSubmit={submit}><div className="form-grid form-grid-two"><label className="field-span-two"><span>Nombre</span><input name="name" required defaultValue={equipment.name} /></label><label><span>Marca</span><input name="brand" defaultValue={equipment.manufacturer ?? ""} /></label><label><span>Modelo</span><input name="model" defaultValue={equipment.model ?? ""} /></label><label><span>Serie</span><input name="serial" defaultValue={equipment.serial_number ?? ""} /></label><label><span>Área</span><input name="area" defaultValue={equipment.area ?? ""} /></label><label><span>Estado</span><select name="status" defaultValue={equipment.status}><option value="OPERATIONAL">Operativo</option><option value="MAINTENANCE_DUE">Mantenimiento próximo</option><option value="OUT_OF_SERVICE">Fuera de servicio</option><option value="RETIRED">Retirado</option></select></label><EquipmentDateFields equipment={equipment} /><label className="field-span-two"><span>Observaciones</span><textarea name="notes" rows={3} defaultValue={equipment.notes ?? ""} /></label><CustomFieldInputs defs={customDefs} values={equipment.custom_values} /></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Guardando…" : "Guardar cambios"}</button></footer></form></ActionModal>;
 }
 
 // Selector de días de la semana para planes con frecuencia diaria o semanal.

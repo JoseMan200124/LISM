@@ -19,8 +19,22 @@ type LabelRow = {
   scanUrl: string;
   lastCalibrationAt?: string | null;
   nextCalibrationAt?: string | null;
+  lastQualificationAt?: string | null;
+  nextQualificationAt?: string | null;
+  lastMaintenanceAt?: string | null;
   nextMaintenanceAt?: string | null;
 };
+
+// Filas de fechas que se imprimen en la etiqueta de un equipo. Se muestran solo
+// las que tienen valor: una etiqueta con "—" repetidos no ayuda a nadie.
+const EQUIPMENT_LABEL_DATES: ReadonlyArray<{ key: keyof LabelRow; label: string }> = [
+  { key: "lastCalibrationAt", label: "Calibrado" },
+  { key: "nextCalibrationAt", label: "Próx. calibración" },
+  { key: "lastQualificationAt", label: "Calificado" },
+  { key: "nextQualificationAt", label: "Próx. calificación" },
+  { key: "lastMaintenanceAt", label: "Mantenimiento" },
+  { key: "nextMaintenanceAt", label: "Próx. mantenimiento" },
+];
 
 type OneTimeCode = { code: string; expiresAt: string; ttlMinutes: number };
 
@@ -99,11 +113,11 @@ export function QrLabelManager({ entityType }: Readonly<{ entityType: QrEntityTy
                   <h3>{selected.labelCode}</h3>
                   <p>{selected.displayName}</p>
                   <span>{selected.location}</span>
-                  {selected.entityType === "EQUIPMENT" && (selected.lastCalibrationAt || selected.nextCalibrationAt || selected.nextMaintenanceAt) ? (
+                  {selected.entityType === "EQUIPMENT" && EQUIPMENT_LABEL_DATES.some((entry) => selected[entry.key]) ? (
                     <div className="qr-print-dates">
-                      {selected.lastCalibrationAt ? <em>Calibrado: {formatDate(selected.lastCalibrationAt)}</em> : null}
-                      {selected.nextCalibrationAt ? <em>Próx. calibración: {formatDate(selected.nextCalibrationAt)}</em> : null}
-                      {selected.nextMaintenanceAt ? <em>Próx. mantenimiento: {formatDate(selected.nextMaintenanceAt)}</em> : null}
+                      {EQUIPMENT_LABEL_DATES.map((entry) => (
+                        selected[entry.key] ? <em key={entry.key}>{entry.label}: {formatDate(selected[entry.key])}</em> : null
+                      ))}
                     </div>
                   ) : null}
                 </div>

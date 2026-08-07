@@ -43,11 +43,14 @@ export async function GET() {
   if (!hasDatabase()) return NextResponse.json({ data: demoCategories, mode: "demo" });
 
   const sql = getSql();
+  // `item_count` permite avisar en la UI antes de intentar eliminar: una
+  // categoría con artículos no se puede quitar sin dejarlos huérfanos.
   const rows = await sql`
-    SELECT id, code, name, COALESCE(prefix, code) AS prefix, status
-    FROM inventory_categories
-    WHERE laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'
-    ORDER BY name ASC
+    SELECT c.id, c.code, c.name, COALESCE(c.prefix, c.code) AS prefix, c.status,
+      (SELECT count(*)::int FROM inventory_items i WHERE i.category_id = c.id AND i.status = 'ACTIVE') AS item_count
+    FROM inventory_categories c
+    WHERE c.laboratory_id = ${session.laboratoryId} AND c.status = 'ACTIVE'
+    ORDER BY c.name ASC
   `;
   return NextResponse.json({ data: rows, mode: "database" });
 }
@@ -117,6 +120,50 @@ export async function PATCH(request: Request) {
     entityId: payload.id,
     previousValue: previous[0],
     newValue: rows[0],
+    request,
+  });
+  return NextResponse.json({ data: rows[0] });
+}
+
+// Eliminar una categoría la desactiva (status = 'INACTIVE'): los artículos
+// históricos y su trazabilidad conservan la categoría con la que se
+// registraron. Una categoría con artículos activos no se puede quitar.
+export async function DELETE(request: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ message: "No autorizado." }, { status: 401 });
+  if (!hasPermission(session, "configuration.manage")) return NextResponse.json({ message: "No tienes permiso para eliminar categorías." }, { status: 403 });
+
+  const id = new URL(request.url).searchParams.get("id") ?? "";
+  if (!databaseIdSchema.safeParse(id).success) return NextResponse.json({ message: "Identificador inválido." }, { status: 400 });
+
+  if (!hasDatabase()) return NextResponse.json({ data: { id, status: "INACTIVE" }, mode: "demo" });
+
+  const sql = getSql();
+  const previous = await sql`SELECT * FROM inventory_categories WHERE id = ${id} AND laboratory_id = ${session.laboratoryId} LIMIT 1`;
+  if (previous.length === 0) return NextResponse.json({ message: "Categoría no encontrada." }, { status: 404 });
+
+  const inUse = await sql`SELECT count(*)::int AS total FROM inventory_items WHERE category_id = ${id} AND laboratory_id = ${session.laboratoryId} AND status = 'ACTIVE'`;
+  const total = Number(inUse[0]?.total ?? 0);
+  if (total > 0) {
+    return NextResponse.json({
+      success: false,
+      error: "CATEGORY_IN_USE",
+      message: `La categoría tiene ${total} artículo(s) activo(s). Muévelos a otra categoría antes de eliminarla.`,
+    }, { status: 409 });
+  }
+
+  const rows = await sql`
+    UPDATE inventory_categories SET status = 'INACTIVE'
+    WHERE id = ${id} AND laboratory_id = ${session.laboratoryId}
+    RETURNING id, code, name, COALESCE(prefix, code) AS prefix, status
+  `;
+  await writeAuditEvent(session, {
+    action: "INVENTORY_CATEGORY_DELETED",
+    entityType: "inventory_category",
+    entityId: id,
+    previousValue: previous[0],
+    newValue: rows[0],
+    reason: "Categoría de inventario eliminada del listado activo",
     request,
   });
   return NextResponse.json({ data: rows[0] });

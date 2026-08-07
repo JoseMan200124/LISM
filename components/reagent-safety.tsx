@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, ShieldAlert, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { ActionModal } from "@/components/action-kit";
 import { GhsPictogramMark, GhsPictogramPicker, GhsPictogramRow } from "@/components/ghs-pictogram";
 import {
@@ -193,11 +193,20 @@ export function SafetyFields({
         <span>Indicaciones de peligro y prudencia <small>(frases H y P)</small></span>
         <textarea name="hazardStatements" rows={2} defaultValue={defaultStatements} placeholder="H225 Líquido y vapores muy inflamables · P210 Mantener alejado del calor" />
       </label>
-      <div className="field-span-two">
-        <button type="button" className="text-button" onClick={() => setShowProcedures((current) => !current)}>
+      {/* Antes esto era un enlace seguido de una nota con borde: parecía un campo
+          de texto vacío y el usuario hacía clic dentro de la nota esperando poder
+          escribir. Ahora es un botón explícito que despliega los campos. */}
+      <div className="field-span-two safety-procedures-toggle">
+        <button
+          type="button"
+          className="secondary-button"
+          aria-expanded={showProcedures}
+          onClick={() => setShowProcedures((current) => !current)}
+        >
+          {showProcedures ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
           {showProcedures ? "Ocultar procedimientos propios" : "Escribir procedimientos propios del laboratorio"}
         </button>
-        <p className="modal-note">
+        <p className="safety-procedures-hint">
           Si no escribes nada, la ficha muestra la guía general de cada pictograma. Lo que escribas aquí tiene prioridad.
         </p>
       </div>
@@ -206,7 +215,7 @@ export function SafetyFields({
           {SAFETY_PROCEDURE_KEYS.map((key) => (
             <label className="field-span-two" key={key}>
               <span>{SAFETY_PROCEDURE_LABELS[key]}</span>
-              <textarea name={`safety_${key}`} rows={2} defaultValue={defaultProcedures[key] ?? ""} />
+              <textarea name={`safety_${key}`} rows={2} defaultValue={defaultProcedures[key] ?? ""} placeholder="Escribe aquí el procedimiento propio del laboratorio…" />
             </label>
           ))}
         </>

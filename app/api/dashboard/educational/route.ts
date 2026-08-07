@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSql, hasDatabase } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { hasPermission } from "@/lib/authorization";
+import { resolveNotifications } from "@/lib/notifications";
 
 type PracticeSummary = {
   id: string;
@@ -21,6 +22,10 @@ type AlertSummary = {
   source_type: string | null;
   source_id: string | null;
   created_at: string;
+  // Destino al que lleva el bloque "Requiere atención". Las alertas de la tabla
+  // `alerts` lo derivan de su origen; el resto (vencimientos, autorizaciones,
+  // licencias, avisos) trae el suyo propio.
+  href?: string;
 };
 
 type EducationalDashboardData = {
@@ -53,6 +58,29 @@ const demoData: EducationalDashboardData = {
   attentionAlerts: [],
 };
 
+// Notificaciones que exigen acción, en el formato que ya consume el panel. Se
+// dejan fuera las informativas (avisos y mensajes): esas se leen en la campana,
+// no ocupan el bloque de atención del resumen.
+const ATTENTION_TYPES = new Set(["alert", "expiry", "controlled", "permit"]);
+
+async function resolveAttentionItems(session: NonNullable<Awaited<ReturnType<typeof getSession>>>): Promise<AlertSummary[]> {
+  const { data } = await resolveNotifications(session);
+  return data
+    .filter((item) => ATTENTION_TYPES.has(item.type))
+    .slice(0, 6)
+    .map((item) => ({
+      id: item.key,
+      title: item.title,
+      details: item.body,
+      severity: item.severity,
+      status: "OPEN",
+      source_type: null,
+      source_id: null,
+      created_at: item.createdAt,
+      href: item.targetUrl,
+    }));
+}
+
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "No autorizado." }, { status: 401 });
@@ -80,10 +108,10 @@ export async function GET() {
         FROM educational_practices ep LEFT JOIN users u ON u.id = ep.teacher_user_id
         WHERE ep.laboratory_id = ${labId} AND ep.status IN ('PLANNED','PREPARING','READY') AND ep.starts_at >= now()
         ORDER BY ep.starts_at ASC LIMIT 6`,
-    isStudent ? Promise.resolve([]) : isProfessor ? sql`SELECT DISTINCT a.id, a.title, a.details, a.severity, a.status, a.source_type, a.source_id, a.created_at FROM alerts a LEFT JOIN educational_practices ep ON a.source_type = 'EDUCATIONAL_PRACTICE' AND ep.id = a.source_id AND ep.laboratory_id = a.laboratory_id LEFT JOIN resource_reservations rr ON a.source_type = 'RESOURCE_RESERVATION' AND rr.id = a.source_id AND rr.laboratory_id = a.laboratory_id LEFT JOIN educational_practices rp ON rp.id = rr.practice_id AND rp.laboratory_id = rr.laboratory_id WHERE a.laboratory_id = ${labId} AND a.status NOT IN ('RESOLVED','CLOSED','ARCHIVED') AND (ep.teacher_user_id = ${session.userId} OR rp.teacher_user_id = ${session.userId}) ORDER BY a.created_at DESC LIMIT 6`
-      : sql`SELECT id, title, details, severity, status, source_type, source_id, created_at
-        FROM alerts WHERE laboratory_id = ${labId} AND status NOT IN ('RESOLVED','CLOSED')
-        ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'WARNING' THEN 2 ELSE 3 END, created_at DESC LIMIT 6`,
+    // "Requiere atención" comparte fuente con la campana: un reactivo vencido o
+    // una autorización pendiente no viven en la tabla `alerts` y antes salían en
+    // la campana pero no aquí, con el panel diciendo "nada pendiente".
+    resolveAttentionItems(session),
     // Incidencias abiertas (manuales): indicador para el administrador. Si la
     // migración 0014 no está aplicada, la consulta falla y se reporta 0.
     isStudent ? Promise.resolve([{ open: 0, critical: 0 }]) : sql`
@@ -105,7 +133,7 @@ export async function GET() {
     openIncidents: Number(incidents[0]?.open ?? 0),
     criticalIncidents: Number(incidents[0]?.critical ?? 0),
     upcomingPracticesList: practiceList as PracticeSummary[],
-    attentionAlerts: alertList as AlertSummary[],
+    attentionAlerts: alertList,
   };
 
   return NextResponse.json({ data, mode: "database" });

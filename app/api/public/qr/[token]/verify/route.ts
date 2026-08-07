@@ -1,19 +1,50 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSql, hasDatabase } from "@/lib/db";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import { consumeDemoAccessCode, findDemoQrLabelByToken, hashAccessCode, secureHashesEqual, type PublicQrProfile } from "@/lib/qr-security";
 
 const schema = z.object({ code: z.string().regex(/^\d{6}$/, "Ingresa los seis dígitos del código temporal.") });
+
+// La etiqueta la lee alguien de pie frente al frasco o al equipo: las fechas
+// tienen que verse como fechas, no como el `toString()` de un objeto Date.
+// Las columnas DATE llegan ya normalizadas a "YYYY-MM-DD" desde el SELECT; los
+// timestamps se convierten a ISO antes de formatear.
+function dateText(value: unknown, fallback: string): string {
+  if (!value) return fallback;
+  return formatDate(value);
+}
+function momentText(value: unknown): string {
+  if (!value) return "—";
+  return formatDateTime(value instanceof Date ? value.toISOString() : value);
+}
+
+const EQUIPMENT_STATUS_LABEL: Record<string, string> = {
+  OPERATIONAL: "Operativo",
+  MAINTENANCE_DUE: "Mantenimiento próximo",
+  OUT_OF_SERVICE: "Fuera de servicio",
+  RETIRED: "Inactivo",
+};
+const MOVEMENT_TYPE_LABEL: Record<string, string> = {
+  RECEIPT: "Entrada", CONSUMPTION: "Consumo", ADJUSTMENT: "Ajuste",
+  DISPOSAL: "Descarte", TRANSFER: "Transferencia", RETURN: "Devolución",
+};
+const EQUIPMENT_EVENT_LABEL: Record<string, string> = {
+  VERIFICATION: "Verificación", CALIBRATION: "Calibración", MAINTENANCE: "Mantenimiento",
+  QUALIFICATION: "Calificación", REPAIR: "Reparación", CLEANING: "Limpieza",
+};
 
 async function loadDatabaseProfile(sql: ReturnType<typeof getSql>, laboratoryId: string, entityType: string, entityId: string, labelCode: string): Promise<PublicQrProfile | null> {
   if (entityType === "INVENTORY_ITEM") {
     const rows = await sql`
       SELECT i.sku, i.name, c.name AS category, i.vendor, i.lot_number, i.quantity, i.reorder_point, i.unit,
-        i.expires_at, COALESCE(l.name, 'Sin ubicación') AS location, i.internal_formula,
+        to_char(i.expires_at, 'YYYY-MM-DD') AS expires_at, COALESCE(l.name, 'Sin ubicación') AS location, i.internal_formula,
+        COALESCE(u.full_name, 'Laboratorio') AS responsible,
         CASE WHEN i.quantity <= i.reorder_point THEN 'Reponer' WHEN i.expires_at IS NOT NULL AND i.expires_at <= current_date + interval '30 day' THEN 'Vigilar' ELSE 'Disponible' END AS display_status
       FROM inventory_items i
       JOIN inventory_categories c ON c.id = i.category_id
       LEFT JOIN storage_locations l ON l.id = i.storage_location_id
+      LEFT JOIN users u ON u.id = i.created_by
       WHERE i.id = ${entityId} AND i.laboratory_id = ${laboratoryId} LIMIT 1`;
     const item = rows[0] as Record<string, unknown> | undefined;
     if (!item) return null;
@@ -28,26 +59,50 @@ async function loadDatabaseProfile(sql: ReturnType<typeof getSql>, laboratoryId:
       name: String(item.name),
       status: String(item.display_status),
       location: String(item.location),
-      responsible: String(item.vendor ?? "Laboratorio"),
+      // El responsable es quien registró el lote en el laboratorio. El proveedor
+      // es otra cosa y va en el resumen, con su propia etiqueta.
+      responsible: String(item.responsible),
       summary: [
         { label: "Categoría", value: String(item.category) },
-        { label: "Fórmula", value: String(item.internal_formula ?? "No registrada") },
-        { label: "Lote", value: String(item.lot_number ?? "Sin lote") },
+        { label: "Proveedor", value: String(item.vendor ?? "") || "No registrado" },
+        { label: "Fórmula", value: String(item.internal_formula ?? "") || "No registrada" },
+        { label: "Lote", value: String(item.lot_number ?? "") || "Sin lote" },
         { label: "Existencia", value: `${item.quantity} ${item.unit}` },
         { label: "Stock mínimo", value: `${item.reorder_point} ${item.unit}` },
-        { label: "Vencimiento", value: item.expires_at ? String(item.expires_at) : "Sin vencimiento" },
+        { label: "Vencimiento", value: dateText(item.expires_at, "Sin vencimiento") },
       ],
-      history: movements.map((movement) => ({ title: String(movement.movement_type), detail: `${movement.quantity_delta} · ${movement.reason_code ?? "Movimiento"} · ${movement.performed_by}`, when: String(movement.performed_at) })),
+      history: movements.map((movement) => ({
+        title: MOVEMENT_TYPE_LABEL[String(movement.movement_type)] ?? String(movement.movement_type),
+        detail: `${movement.quantity_delta} · ${movement.reason_code ?? "Movimiento"} · ${movement.performed_by}`,
+        when: momentText(movement.performed_at),
+      })),
       allowedActions: ["Consultar ficha", "Registrar consumo desde NexaLab", "Transferir desde NexaLab", "Reportar incidencia"],
     };
   }
   if (entityType === "EQUIPMENT") {
+    // Las próximas fechas salen del plan periódico activo cuando existe; si el
+    // equipo aún no tiene plan, se usa la fecha capturada en su ficha.
     const rows = await sql`
-      SELECT e.code, e.name, e.manufacturer, e.model, e.serial_number, e.status, e.last_calibration_at, e.next_maintenance_at,
+      SELECT e.code, e.name, e.manufacturer, e.model, e.serial_number, e.status,
+        to_char(e.last_calibration_at, 'YYYY-MM-DD') AS last_calibration_at,
+        to_char(e.last_qualification_at, 'YYYY-MM-DD') AS last_qualification_at,
+        to_char(e.last_maintenance_at, 'YYYY-MM-DD') AS last_maintenance_at,
+        to_char(COALESCE(p.next_calibration_at::date, e.next_calibration_at), 'YYYY-MM-DD') AS next_calibration_at,
+        to_char(COALESCE(p.next_qualification_at::date, e.next_qualification_at), 'YYYY-MM-DD') AS next_qualification_at,
+        to_char(COALESCE(p.next_maintenance_at::date, e.next_maintenance_at), 'YYYY-MM-DD') AS next_maintenance_at,
         COALESCE(l.name, 'Sin ubicación') AS location, COALESCE(u.full_name, 'Laboratorio') AS responsible
       FROM equipment e
       LEFT JOIN storage_locations l ON l.id = e.storage_location_id
       LEFT JOIN users u ON u.id = e.responsible_user_id
+      LEFT JOIN (
+        SELECT equipment_id,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'CALIBRATION') AS next_calibration_at,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'MAINTENANCE') AS next_maintenance_at,
+          MIN(next_due_at) FILTER (WHERE plan_type = 'QUALIFICATION') AS next_qualification_at
+        FROM equipment_plans
+        WHERE laboratory_id = ${laboratoryId} AND status = 'ACTIVE'
+        GROUP BY equipment_id
+      ) p ON p.equipment_id = e.id
       WHERE e.id = ${entityId} AND e.laboratory_id = ${laboratoryId} LIMIT 1`;
     const equipment = rows[0] as Record<string, unknown> | undefined;
     if (!equipment) return null;
@@ -59,17 +114,25 @@ async function loadDatabaseProfile(sql: ReturnType<typeof getSql>, laboratoryId:
       entityType: "EQUIPMENT",
       labelCode,
       name: String(equipment.name),
-      status: String(equipment.status),
+      status: EQUIPMENT_STATUS_LABEL[String(equipment.status)] ?? String(equipment.status),
       location: String(equipment.location),
       responsible: String(equipment.responsible),
       summary: [
-        { label: "Marca", value: String(equipment.manufacturer ?? "No registrada") },
-        { label: "Modelo", value: String(equipment.model ?? "No registrado") },
-        { label: "Serie", value: String(equipment.serial_number ?? "No registrada") },
-        { label: "Última calibración", value: String(equipment.last_calibration_at ?? "Sin registro") },
-        { label: "Próximo mantenimiento", value: String(equipment.next_maintenance_at ?? "Sin programación") },
+        { label: "Marca", value: String(equipment.manufacturer ?? "") || "No registrada" },
+        { label: "Modelo", value: String(equipment.model ?? "") || "No registrado" },
+        { label: "Serie", value: String(equipment.serial_number ?? "") || "No registrada" },
+        { label: "Última calibración", value: dateText(equipment.last_calibration_at, "Sin registro") },
+        { label: "Próxima calibración", value: dateText(equipment.next_calibration_at, "Sin programación") },
+        { label: "Última calificación", value: dateText(equipment.last_qualification_at, "Sin registro") },
+        { label: "Próxima calificación", value: dateText(equipment.next_qualification_at, "Sin programación") },
+        { label: "Último mantenimiento", value: dateText(equipment.last_maintenance_at, "Sin registro") },
+        { label: "Próximo mantenimiento", value: dateText(equipment.next_maintenance_at, "Sin programación") },
       ],
-      history: events.map((event) => ({ title: String(event.event_type), detail: String(event.details ?? "Evento de equipo"), when: String(event.happened_at) })),
+      history: events.map((event) => ({
+        title: EQUIPMENT_EVENT_LABEL[String(event.event_type)] ?? String(event.event_type),
+        detail: String(event.details ?? "Evento de equipo"),
+        when: momentText(event.happened_at),
+      })),
       allowedActions: ["Consultar ficha", "Registrar verificación desde NexaLab", "Reportar mantenimiento", "Abrir incidencia"],
     };
   }

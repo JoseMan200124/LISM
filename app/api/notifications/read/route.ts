@@ -7,6 +7,10 @@ import { getSession } from "@/lib/session";
 const schema = z.object({
   key: z.string().max(160).optional(),
   all: z.boolean().optional(),
+  // Descartar quita la notificación de la campana de este usuario. No borra el
+  // hecho que la originó: la alerta, el vencimiento o la solicitud siguen en su
+  // módulo y en la auditoría.
+  dismiss: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -15,8 +19,9 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ message: "Solicitud inválida.", issues: parsed.error.issues }, { status: 400 });
-  const { key, all } = parsed.data;
+  const { key, all, dismiss } = parsed.data;
   if (!key && !all) return NextResponse.json({ message: "Indica 'key' o 'all'." }, { status: 400 });
+  if (dismiss && !key) return NextResponse.json({ message: "Indica la notificación que quieres descartar." }, { status: 400 });
 
   if (!hasDatabase()) return NextResponse.json({ data: { ok: true }, mode: "demo" });
 
@@ -31,6 +36,14 @@ export async function POST(request: Request) {
   }
 
   const sql = getSql();
+  if (dismiss && key) {
+    await sql`
+      INSERT INTO user_notification_reads (user_id, notification_key, dismissed_at)
+      VALUES (${session.userId}, ${key}, now())
+      ON CONFLICT (user_id, notification_key) DO UPDATE SET dismissed_at = now()
+    `;
+    return NextResponse.json({ data: { ok: true, dismissed: 1 }, mode: "database" });
+  }
   for (const notificationKey of keysToMark) {
     await sql`
       INSERT INTO user_notification_reads (user_id, notification_key)

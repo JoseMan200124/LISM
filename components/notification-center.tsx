@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bell, CalendarClock, CheckCheck, CircleAlert, FileWarning, GraduationCap, Info, Lock, MessageSquare } from "lucide-react";
+import { AlertTriangle, Bell, CalendarClock, CheckCheck, CircleAlert, FileWarning, GraduationCap, Info, Lock, MessageSquare, X } from "lucide-react";
 import type { NotificationItem, NotificationSeverity } from "@/lib/notifications";
 import { notifyNotificationCountChanged } from "@/components/sidebar-alert-count";
 
@@ -139,6 +139,23 @@ export function NotificationCenter() {
     }
   }
 
+  // Quita la notificación de esta campana. El hecho que la originó (la alerta,
+  // el vencimiento, la solicitud) sigue vivo en su módulo.
+  async function dismissNotification(item: NotificationItem) {
+    setItems((prev) => prev.filter((n) => n.key !== item.key));
+    if (!item.isRead) setUnreadCount((count) => Math.max(0, count - 1));
+    notifyNotificationCountChanged();
+    try {
+      await fetch("/api/notifications/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: item.key, dismiss: true }),
+      });
+    } catch {
+      // Si falla, la siguiente carga vuelve a mostrarla: no se pierde nada.
+    }
+  }
+
   async function openNotification(item: NotificationItem) {
     setOpen(false);
     if (!item.isRead) {
@@ -193,22 +210,34 @@ export function NotificationCenter() {
                 <div key={group.label} className="notification-group">
                   <span className="notification-group-label">{group.label}</span>
                   {group.items.map((item) => (
-                    <button
-                      key={item.key}
-                      className={`notif-item notification-item-button ${!item.isRead ? "notif-item-unread" : ""}`}
-                      onClick={() => void openNotification(item)}
-                    >
-                      <div className={`notif-avatar ${severityToneClass(item)}`}>{severityIcon(item)}</div>
-                      <div>
-                        <div className="notif-row-top">
-                          <span className="notif-time">{formatRelativeTime(item.createdAt)}</span>
-                          {!item.isRead ? <span className="notif-unread-dot" aria-label="No leído" /> : null}
+                    // El botón de descartar no puede ir dentro del botón que
+                    // abre la notificación: van como hermanos en el mismo marco.
+                    <div key={item.key} className="notif-item-frame">
+                      <button
+                        className={`notif-item notification-item-button ${!item.isRead ? "notif-item-unread" : ""}`}
+                        onClick={() => void openNotification(item)}
+                      >
+                        <div className={`notif-avatar ${severityToneClass(item)}`}>{severityIcon(item)}</div>
+                        <div>
+                          <div className="notif-row-top">
+                            <span className="notif-time">{formatRelativeTime(item.createdAt)}</span>
+                            {!item.isRead ? <span className="notif-unread-dot" aria-label="No leído" /> : null}
+                          </div>
+                          <p className="notif-title">{item.title}</p>
+                          {item.body ? <p className="notif-body">{item.body}</p> : null}
+                          <span className={`notification-badge ${badgeClass(item)}`}>{badgeLabel(item)}</span>
                         </div>
-                        <p className="notif-title">{item.title}</p>
-                        {item.body ? <p className="notif-body">{item.body}</p> : null}
-                        <span className={`notification-badge ${badgeClass(item)}`}>{badgeLabel(item)}</span>
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        type="button"
+                        className="notif-dismiss"
+                        aria-label={`Descartar notificación: ${item.title}`}
+                        title="Quitar de mis notificaciones"
+                        onClick={() => void dismissNotification(item)}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               ))
