@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ClipboardList, ExternalLink, Plus, ShieldAlert } from "lucide-react";
+import { ExternalLink, Plus } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
-import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
+import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonTable, Tabs, type TableRow } from "@/components/lims-ui";
 import { hasPermission } from "@/lib/authorization";
 import { formatDate } from "@/lib/dates";
 import type { UserSession } from "@/lib/session";
@@ -74,6 +74,7 @@ export function IncidentsCenter({ role }: Readonly<{ role?: UserSession["role"] 
   }, [openDetail]);
 
   const open = incidents.filter((i) => !["RESOLVED", "CLOSED", "ARCHIVED"].includes(i.status));
+  const criticalOpen = open.filter((i) => ["CRITICAL", "HIGH"].includes(i.severity)).length;
   const shown = tab === "open" ? open : incidents;
 
   async function createIncident(payload: Record<string, unknown>): Promise<boolean> {
@@ -115,7 +116,7 @@ export function IncidentsCenter({ role }: Readonly<{ role?: UserSession["role"] 
   }));
 
   if (state === "loading") {
-    return <div className="page-stack"><PageIntro eyebrow="SEGURIDAD Y CALIDAD" title="Incidencias y hallazgos" description="Registra accidentes, daños, derrames, hallazgos y desviaciones del laboratorio." /><SkeletonKpiGrid cols={3} /><SkeletonTable rows={5} cols={7} /><Toast message={message} type={toastType} onClose={clearToast} /></div>;
+    return <div className="page-stack"><PageIntro eyebrow="SEGURIDAD Y CALIDAD" title="Incidencias y hallazgos" description="Registra accidentes, daños, derrames, hallazgos y desviaciones del laboratorio." /><SkeletonTable rows={5} cols={7} /><Toast message={message} type={toastType} onClose={clearToast} /></div>;
   }
   if (state === "error") {
     return <div className="page-stack"><PageIntro eyebrow="SEGURIDAD Y CALIDAD" title="Incidencias y hallazgos" description="Registra accidentes, daños, derrames, hallazgos y desviaciones del laboratorio." /><ErrorState description="No se pudieron cargar las incidencias. Intenta de nuevo." onRetry={() => void load()} /><Toast message={message} type={toastType} onClose={clearToast} /></div>;
@@ -127,11 +128,11 @@ export function IncidentsCenter({ role }: Readonly<{ role?: UserSession["role"] 
         {canManage ? <button className="primary-button" onClick={() => setCreateOpen(true)} disabled={pending}><Plus size={15} /> Nueva incidencia</button> : null}
       </PageIntro>
       {pending ? <InlineNotice title="Módulo por activar">Este módulo estará disponible en cuanto se aplique la actualización de base de datos (migración 0014). La navegación y los permisos ya están listos.</InlineNotice> : null}
-      <StatGrid items={[
-        { label: "Abiertas", value: String(open.length), hint: open.length ? "Requieren seguimiento" : "Sin pendientes", icon: ShieldAlert },
-        { label: "Total registradas", value: String(incidents.length), hint: "Historial del laboratorio", icon: ClipboardList },
-        { label: "Críticas / altas", value: String(open.filter((i) => ["CRITICAL", "HIGH"].includes(i.severity)).length), hint: "Prioridad", icon: ShieldAlert },
-      ]} />
+      <InlineNotice title={open.length ? `${open.length} incidencia${open.length === 1 ? "" : "s"} abierta${open.length === 1 ? "" : "s"}` : "Sin incidencias abiertas"}>
+        {open.length
+          ? `${criticalOpen} de prioridad alta o crítica · ${incidents.length} registradas en total.`
+          : `${incidents.length} incidencias registradas en el historial del laboratorio.`}
+      </InlineNotice>
       <InlineNotice title="¿Alerta o incidencia?">Las alertas (stock, vencimientos, calibración) las genera el sistema automáticamente en el módulo Alertas. Aquí registras manualmente lo que ocurre en el laboratorio: accidentes, daños, derrames, hallazgos u observaciones.</InlineNotice>
       <article className="panel configuration-panel">
         <Tabs items={[{ key: "open", label: "Abiertas" }, { key: "all", label: "Todas" }]} active={tab} onChange={setTab} />

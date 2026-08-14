@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, BellRing, Boxes, CheckCircle2, FileCheck2, Lock, PackageCheck, Plus, ScanBarcode, Settings2, ShieldCheck, Sparkles, Trash2, Wrench } from "lucide-react";
+import { Archive, BellRing, CheckCircle2, Lock, PackageCheck, Plus, ScanBarcode, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { ActionModal, ConfirmModal, FileDropZone, Toast, useToast } from "@/components/action-kit";
 import {
   CONTROL_KIND_LABEL,
@@ -387,7 +387,7 @@ export function InventoryCenter() {
     return (
       <div className="page-stack">
         <PageIntro eyebrow="RECURSOS Y TRAZABILIDAD" title="Inventario por lote" description="Controla reactivos, materiales, consumibles, ubicaciones, movimientos y etiquetas QR." />
-        <SkeletonKpiGrid cols={3} />
+        <SkeletonKpiGrid cols={2} />
         <SkeletonTable rows={5} cols={9} />
         <Toast message={message} type={toastType} onClose={clearToast} />
       </div>
@@ -410,7 +410,6 @@ export function InventoryCenter() {
         <button className="primary-button" data-tutorial="inventory-new-item" onClick={() => setModal("item")}><Plus size={15} /> Nuevo artículo</button>
       </PageIntro>
       <StatGrid items={[
-        { label: "Lotes activos", value: String(items.length), hint: `${locations.length} ubicaciones`, icon: Boxes },
         { label: "Por reponer", value: String(reorderCount), hint: reorderCount ? "Requiere atención" : "Sin alertas", icon: PackageCheck },
         { label: "Próximos a vencer", value: String(watchCount), hint: watchCount ? "Revisar vencimientos" : "Sin próximos", icon: ShieldCheck },
       ]} />
@@ -702,7 +701,6 @@ export function EquipmentCenter() {
     return (
       <div className="page-stack">
         <PageIntro eyebrow="EQUIPOS Y TRAZABILIDAD METROLÓGICA" title="Equipos" description="Consulta el estado, ubicación, responsable, calibraciones y mantenimientos de cada equipo." />
-        <SkeletonKpiGrid cols={3} />
         <SkeletonTable rows={5} cols={8} />
         <Toast message={message} type={toastType} onClose={clearToast} />
       </div>
@@ -724,11 +722,6 @@ export function EquipmentCenter() {
         <button className="secondary-button" onClick={() => setScannerOpen(true)}><ScanBarcode size={15} /> Escanear equipo</button>
         <button className="primary-button" data-tutorial="equipment-new" onClick={() => setModal("equipment")}><Plus size={15} /> Nuevo equipo</button>
       </PageIntro>
-      <StatGrid items={[
-        { label: "Equipos registrados", value: String(equipment.length), hint: `${equipment.filter((e) => e.status === "OPERATIONAL").length} operativos`, icon: Wrench },
-        { label: "Planes activos", value: String(plans.filter((p) => p.status === "Vigente").length), hint: "Verificación, calibración, mantenimiento", icon: ShieldCheck },
-        { label: "Certificados", value: `${certificates.length}`, hint: `${certificates.filter((c) => c.status === "Vigente").length} vigentes`, icon: FileCheck2 },
-      ]} />
       <InlineNotice title="Bloqueo preventivo configurable">Un equipo puede quedar inhabilitado para nuevos análisis cuando su calibración, verificación o mantenimiento crítico esté vencido.</InlineNotice>
       <article className="panel configuration-panel">
         <Tabs items={[{ key: "master", label: "Equipos" }, { key: "out-of-service", label: `Fuera de servicio${outOfServiceEquipment.length ? ` (${outOfServiceEquipment.length})` : ""}` }, { key: "plans", label: "Planes" }, { key: "certificates", label: "Certificados", tutorialId: "equipment-tab-certificates" }, { key: "qr", label: "QR" }]} active={tab} onChange={setTab} />

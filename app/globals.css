@@ -477,6 +477,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 /* MODULES */
 .module-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+.module-stat-grid-1 { grid-template-columns: repeat(1, minmax(0,1fr)); }
+.module-stat-grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.module-stat-grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+.module-stat-grid-5 { grid-template-columns: repeat(5, minmax(0,1fr)); }
+.module-stat-grid-6 { grid-template-columns: repeat(6, minmax(0,1fr)); }
 .module-stat { display: flex; min-height: 108px; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: #fff; box-shadow: var(--shadow-sm); transition: box-shadow .18s ease, transform .18s ease; }
 .module-stat:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
 .module-stat > span { display: grid; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 10px; color: var(--primary); background: var(--primary-soft); place-items: center; }
@@ -1354,9 +1359,11 @@ html { scroll-behavior: smooth; }
 }
 .skel-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .skel-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.skel-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 @media (max-width: 980px) {
   .skel-grid-4 { grid-template-columns: repeat(2, 1fr); }
   .skel-grid-3 { grid-template-columns: 1fr; }
+  .skel-grid-2 { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
   .skel-grid-4 { grid-template-columns: 1fr; }
