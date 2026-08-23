@@ -45,8 +45,8 @@ VALUES
     crypt('Demo1234!', gen_salt('bf', 12)),
     'ACTIVE'
   ),
-  ('00000000-0000-0000-0000-000000000110', 'María Fernanda López', 'mf.lopez@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
-  ('00000000-0000-0000-0000-000000000111', 'Juan Pablo Gómez', 'jp.gomez@nexalab.local', '$2b$10$YHK3D2qT6mnhA6sC5n2L7.oBxl7jYIcS6X2Y8N4f3P1l9M7A8sGqe', 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000110', 'María Fernanda López', 'mf.lopez@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
+  ('00000000-0000-0000-0000-000000000111', 'Juan Pablo Gómez', 'jp.gomez@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
   ('00000000-0000-0000-0000-000000000112', 'Sofía Ramírez', 'sofia.ramirez@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
   ('00000000-0000-0000-0000-000000000113', 'Carlos Morales', 'carlos.morales@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),
   ('00000000-0000-0000-0000-000000000114', 'Valentina Cruz', 'valentina.cruz@nexalab.local', crypt('Demo1234!', gen_salt('bf', 12)), 'ACTIVE'),

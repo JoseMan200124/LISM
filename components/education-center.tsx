@@ -399,7 +399,6 @@ function AdminEducationCenter() {
     return (
       <div className="page-stack">
         <PageIntro eyebrow="PROGRAMA EDUCATIVO" title="Prácticas y reservas" description="Administra prácticas, reservas de recursos y avisos para el laboratorio educativo." />
-        <SkeletonKpiGrid cols={3} />
         <SkeletonTable rows={5} cols={6} />
         <Toast message={message} type={toastType} onClose={clearToast} />
       </div>
@@ -421,11 +420,7 @@ function AdminEducationCenter() {
       <PageIntro eyebrow="PROGRAMA EDUCATIVO" title="Prácticas y reservas" description="Administra prácticas, reservas de recursos y avisos para el laboratorio educativo.">
         <button className="primary-button" data-tutorial="education-new-practice" onClick={() => setAddTarget("practice")}><Plus size={15} /> Nueva práctica</button>
       </PageIntro>
-      <StatGrid items={[
-        { label: "Prácticas programadas", value: String(practices.filter((p) => ["PLANNED", "PREPARING", "READY"].includes(String(p.status))).length), hint: "Próximas", icon: CalendarDays },
-        { label: "Reservas pendientes", value: String(reservations.filter((r) => r.status === "PENDING").length), hint: "Por aprobar", icon: PackageCheck },
-        { label: "Avisos publicados", value: String(notifications.length), hint: "Visibles a usuarios", icon: Bell },
-      ]} />
+      <PendingReservations reservations={reservations} onDecide={updateReservationStatus} />
       <article className="panel configuration-panel">
         <Tabs items={[
           { key: "practices", label: "Cronograma" },
@@ -463,7 +458,6 @@ function AdminEducationCenter() {
               {statusFilter ? (
                 <div className="filter-active-chip">Filtrando por estado: <strong>{statusLabel(statusFilter)}</strong><button type="button" onClick={() => setStatusFilter(null)} aria-label="Quitar filtro">✕</button></div>
               ) : null}
-              <PendingReservations reservations={reservations} onDecide={updateReservationStatus} />
               <SimpleTable
                 columns={[{ key: "code", label: "Código" }, { key: "resource", label: "Recurso" }, { key: "type", label: "Tipo" }, { key: "quantity", label: "Cantidad" }, { key: "practice", label: "Práctica" }, { key: "status", label: "Estado" }]}
                 rows={reservationRows}

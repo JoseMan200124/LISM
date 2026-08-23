@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BellRing, Clock3, ExternalLink, Plus } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ExternalLink, Plus } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
-import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
+import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonTable, Tabs, type TableRow } from "@/components/lims-ui";
 import type { UserSession } from "@/lib/session";
 import { notifyNotificationCountChanged } from "@/components/sidebar-alert-count";
 import { sourceRecordHref } from "@/lib/deep-links";
@@ -100,7 +100,6 @@ export function AlertsCenter({ role }: Readonly<{ role?: UserSession["role"] }>)
     }
   }, [canManage]);
 
-  const openAlerts = useMemo(() => alerts.filter((a) => !["RESOLVED", "CLOSED"].includes(a.status)), [alerts]);
 
   async function actOnAlert(id: string, action: "ACKNOWLEDGE" | "ASSIGN_TO_ME" | "RESOLVE" | "REOPEN", note = "", resolution?: Record<string, unknown>) {
     setBusy(true);
@@ -173,7 +172,7 @@ export function AlertsCenter({ role }: Readonly<{ role?: UserSession["role"] }>)
     return (
       <div className="page-stack">
         <PageIntro eyebrow="CONTROL OPERATIVO" title="Alertas y reglas" description="Atiende primero lo crítico. Cada alerta enlaza con el registro que la originó." />
-        <SkeletonKpiGrid cols={3} /><SkeletonTable rows={5} cols={5} />
+        <SkeletonTable rows={5} cols={5} />
         <Toast message={message} type={toastType} onClose={clearToast} />
       </div>
     );
@@ -191,11 +190,6 @@ export function AlertsCenter({ role }: Readonly<{ role?: UserSession["role"] }>)
   return (
     <div className="page-stack">
       <PageIntro eyebrow="CONTROL OPERATIVO" title="Alertas y reglas" description="Atiende primero lo crítico. Cada alerta enlaza con el registro que la originó." />
-      <StatGrid items={[
-        { label: "Alertas activas", value: String(openAlerts.length), hint: openAlerts.length ? "Requieren atención" : "Todo al día", icon: AlertTriangle },
-        { label: "Reglas configuradas", value: String(rules.length), hint: `${rules.filter((r) => r.active).length} activas`, icon: BellRing },
-        { label: "Con escalamiento", value: String(escalationRules.length), hint: "Rutas definidas", icon: Clock3 },
-      ]} />
       <InlineNotice title="Alertas automáticas">Estas alertas las genera el sistema por inventario, vencimientos, equipos, mantenimiento, calibración y prácticas. Los incidentes o hallazgos registrados a mano se gestionarán en su propio módulo.</InlineNotice>
       <article className="panel configuration-panel">
         <div data-tutorial="alerts-tabs"><Tabs items={canManage ? [{ key: "alerts", label: "Alertas" }, { key: "rules", label: "Reglas" }, { key: "escalations", label: "Escalamientos" }] : [{ key: "alerts", label: "Alertas relacionadas" }]} active={tab} onChange={setTab} /></div>

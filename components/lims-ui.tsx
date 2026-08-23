@@ -33,7 +33,7 @@ export function StatGrid({
   items: Array<{ label: string; value: string; hint: string; icon: LucideIcon }>;
 }>) {
   return (
-    <section className="module-stat-grid">
+    <section className={`module-stat-grid module-stat-grid-${items.length}`}>
       {items.map((item) => {
         const Icon = item.icon;
         return (
@@ -303,7 +303,7 @@ export function SimpleTable({
   );
 }
 
-export function SkeletonKpiGrid({ cols = 4 }: Readonly<{ cols?: 3 | 4 }>) {
+export function SkeletonKpiGrid({ cols = 4 }: Readonly<{ cols?: 2 | 3 | 4 }>) {
   return (
     <div className={`skel-grid-${cols}`}>
       {Array.from({ length: cols }).map((_, i) => (

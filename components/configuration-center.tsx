@@ -4,17 +4,12 @@ import { useEffect, useState } from "react";
 import {
   Boxes,
   CheckCircle2,
-  Layers3,
-  ShieldCheck,
-  SlidersHorizontal,
-  UsersRound,
 } from "lucide-react";
 import {
   laboratoryProfiles,
-  roleTemplates,
   type LaboratoryProfileKey,
 } from "@/lib/compliance-data";
-import { InlineNotice, PageIntro, StatGrid, Tabs } from "@/components/lims-ui";
+import { InlineNotice, PageIntro, Tabs } from "@/components/lims-ui";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
 import { CustomFieldsManager } from "@/components/custom-fields-manager";
 import { MyProfileTab, InstitutionTab, NotificationsPrefsTab } from "@/components/configuration-account-tabs";
@@ -34,7 +29,6 @@ import {
 const labTabs = [
   { key: "profile", label: "Perfil del laboratorio" },
   { key: "fields", label: "Campos personalizados" },
-  { key: "roles", label: "Roles y permisos" },
 ];
 
 // Perfiles que el laboratorio puede activar por sí mismo. Los demás siguen
@@ -70,17 +64,9 @@ export function ConfigurationCenter({ session }: Readonly<{ session?: UserSessio
   const profile: LaboratoryProfileKey = session?.profileCode === "EDUCATIONAL_SMALL_LAB" ? "EDUCATIONAL" : "EDUCATIONAL";
   const { message: toastMessage, showToast, clearToast } = useToast();
 
-  const selectedProfile = laboratoryProfiles.find((item) => item.key === profile) ?? laboratoryProfiles[0];
-
   return (
     <div className="page-stack">
       <PageIntro eyebrow="CONFIGURACIÓN" title="Configuración" description="Personaliza el laboratorio, los campos, reglas, permisos y preferencias." />
-
-      <StatGrid items={[
-        { label: "Perfil activo", value: selectedProfile.name, hint: "Plantilla configurable", icon: Layers3 },
-        { label: "Campos personalizados", value: "Por módulo", hint: "Inventario · Equipos · Prácticas", icon: SlidersHorizontal },
-        { label: "Perfil contratado", value: "Educativo", hint: "Universidades y colegios", icon: ShieldCheck },
-      ]} />
 
       <article className="panel configuration-panel">
         <Tabs items={tabs} active={activeTab} onChange={setActiveTab} />
@@ -113,7 +99,6 @@ export function ConfigurationCenter({ session }: Readonly<{ session?: UserSessio
             </>
           ) : null}
           {activeTab === "fields" ? <CustomFieldsManager /> : null}
-          {activeTab === "roles" ? <RolesTab /> : null}
         </div>
       </article>
       <Toast message={toastMessage} onClose={clearToast} />
@@ -254,23 +239,6 @@ function ProfileTab({ value, onLocked }: Readonly<{ value: LaboratoryProfileKey;
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-function RolesTab() {
-  return (
-    <div>
-      <div className="section-heading"><div><h2>Roles y permisos</h2><p>Usa permisos mínimos por función. La administración de usuarios conserva auditoría y aislamiento por laboratorio.</p></div></div>
-      <div className="role-grid">
-        {roleTemplates.map((role) => (
-          <article key={role.key} className="role-card">
-            <span><UsersRound size={16} /></span>
-            <div><h3>{role.name}</h3><p>{role.description}</p><small>{role.scope}</small></div>
-            <ul>{role.permissions.map((permission) => <li key={permission}><ShieldCheck size={13} /> {permission}</li>)}</ul>
-          </article>
-        ))}
       </div>
     </div>
   );

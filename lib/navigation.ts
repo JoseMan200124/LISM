@@ -246,6 +246,47 @@ export const educationalNavigationByRole: Partial<Record<string, EducationalNavG
       ],
     },
   ],
+  // Analista, Auxiliar y Consulta comparten el mismo alcance de solo lectura
+  // sobre recursos (inventory.view / equipment.view / purchasing.view), sin
+  // acceso a alertas, incidencias, usuarios, bitácora ni configuración — ver
+  // permissionsByRole en lib/authorization.ts. Antes de esta lista caían al
+  // menú de reserva educationalNavigationFallback, que no coincidía con lo
+  // que sus permisos realmente les permiten abrir.
+  ANALYST: [
+    {
+      title: "Analista",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+        { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
+      ],
+    },
+  ],
+  ASSISTANT: [
+    {
+      title: "Auxiliar",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+        { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+        { key: "purchasing", label: "Compras", icon: ShoppingCart, href: "/app/purchasing" },
+      ],
+    },
+  ],
+  CONSULTATION: [
+    {
+      title: "Consulta",
+      items: [
+        { key: "dashboard", label: "Inicio", icon: Gauge, href: "/app" },
+        { key: "education", label: "Programa", icon: CalendarDays, href: "/app/education" },
+        { key: "inventory", label: "Inventario", icon: Boxes, href: "/app/inventory" },
+        { key: "equipment", label: "Equipos", icon: Microscope, href: "/app/equipment" },
+      ],
+    },
+  ],
   AUDITOR: [
     {
       title: "Auditoría",

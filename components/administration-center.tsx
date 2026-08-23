@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { GraduationCap, KeyRound, Plus, RotateCcw, Save, ShieldCheck, UsersRound } from "lucide-react";
+import { KeyRound, Plus, RotateCcw, Save, UsersRound } from "lucide-react";
 import { qualityRecords } from "@/lib/compliance-data";
 import { ActionModal, CopyButton, Toast, useToast } from "@/components/action-kit";
-import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonTable, StatGrid, Tabs } from "@/components/lims-ui";
+import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonTable, Tabs } from "@/components/lims-ui";
 import { UserAvatar } from "@/components/user-avatar";
 import { permissionLabels, type PermissionKey } from "@/lib/authorization";
 import { roleLabels } from "@/lib/permissions";
@@ -121,11 +121,6 @@ export function AdministrationCenter() {
       <PageIntro eyebrow="ADMINISTRACIÓN SEGURA" title="Usuarios, roles y competencia" description="Controla quién puede consultar, registrar, revisar, aprobar, firmar o configurar cada proceso.">
         <button className="primary-button" onClick={() => setInviteOpen(true)}><Plus size={15} /> Invitar usuario</button>
       </PageIntro>
-      <StatGrid items={[
-        { label: "Usuarios visibles", value: String(users.length), hint: "Incluye acceso educativo", icon: UsersRound },
-        { label: "Roles configurables", value: String(INVITABLE_ROLES.length), hint: "Permisos editables por rol", icon: ShieldCheck },
-        { label: "Capacitaciones próximas", value: "1", hint: "Vence en 9 días", icon: GraduationCap },
-      ]} />
       <InlineNotice title="Principio de mínimo privilegio">Cada persona recibe únicamente el acceso necesario para su función. Los cambios de rol, bloqueos y restablecimientos quedan registrados en la bitácora.</InlineNotice>
       <article className="panel configuration-panel">
         <Tabs items={[{ key: "users", label: "Usuarios" }, { key: "roles", label: "Roles y permisos" }, { key: "training", label: "Competencia" }]} active={tab} onChange={setTab} />

@@ -200,7 +200,6 @@ export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserS
   const pendingRequests = requests.filter((request) => request.status === "PENDING");
   const usableRequests = requests.filter((request) => authorizationState(request) === "USABLE");
   const totalConsumptions = rows.reduce((sum, row) => sum + Number(row.consumption_count ?? 0), 0);
-  const activeCount = rows.filter((row) => row.status !== "ARCHIVED").length;
 
   function exportRequests() {
     downloadCsv(
@@ -255,7 +254,7 @@ export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserS
   );
 
   if (state === "loading") {
-    return <div className="page-stack">{intro}<SkeletonKpiGrid cols={4} /><SkeletonTable rows={5} cols={9} /><Toast message={message} type={toastType} onClose={clearToast} /></div>;
+    return <div className="page-stack">{intro}<SkeletonKpiGrid cols={3} /><SkeletonTable rows={5} cols={9} /><Toast message={message} type={toastType} onClose={clearToast} /></div>;
   }
   if (state === "error") {
     return <div className="page-stack">{intro}<ErrorState description="No se pudo cargar el registro de reactivos controlados. Verifica tu conexión e intenta de nuevo." onRetry={() => void load()} /><Toast message={message} type={toastType} onClose={clearToast} /></div>;
@@ -265,7 +264,6 @@ export function ControlledReagentsCenter({ session }: Readonly<{ session?: UserS
     <div className="page-stack">
       {intro}
       <StatGrid items={[
-        { label: "Reactivos controlados", value: String(rows.length), hint: `${activeCount} activos`, icon: Lock },
         { label: "Por autorizar", value: String(pendingRequests.length), hint: canAuthorize ? "Esperan tu autorización" : "Solicitudes en revisión", icon: Clock },
         { label: "Autorizaciones vigentes", value: String(usableRequests.length), hint: "Listas para consumir", icon: ClipboardCheck },
         { label: "Consumos registrados", value: String(totalConsumptions), hint: "Con trazabilidad completa", icon: PackageSearch },

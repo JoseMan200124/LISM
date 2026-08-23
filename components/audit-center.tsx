@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, CheckCircle2, ClipboardCheck, FileDown, RefreshCw, ShieldCheck, Undo2 } from "lucide-react";
+import { Archive, CheckCircle2, FileDown, RefreshCw, Undo2 } from "lucide-react";
 import { ActionModal, Toast, useToast } from "@/components/action-kit";
-import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonKpiGrid, SkeletonTable, StatGrid, Tabs, type TableRow } from "@/components/lims-ui";
+import { ErrorState, InlineNotice, PageIntro, SimpleTable, SkeletonTable, Tabs, type TableRow } from "@/components/lims-ui";
 import { formatDateTime } from "@/lib/dates";
 import { hasPermission } from "@/lib/authorization";
 import type { UserSession } from "@/lib/session";
@@ -179,7 +179,6 @@ export function AuditCenter({ session }: Readonly<{ session?: UserSession }>) {
     return (
       <div className="page-stack">
         <PageIntro eyebrow="TRAZABILIDAD INMUTABLE" title="Bitácora" description="Acciones reales del laboratorio: responsable, módulo, cambio, motivo y momento exacto." />
-        <SkeletonKpiGrid cols={3} />
         <SkeletonTable rows={6} cols={5} />
         <Toast message={message} type={toastType} onClose={clearToast} />
       </div>
@@ -203,11 +202,6 @@ export function AuditCenter({ session }: Readonly<{ session?: UserSession }>) {
           <FileDown size={15} /> {exporting ? "Generando…" : "Exportar a Excel"}
         </button>
       </PageIntro>
-      <StatGrid items={[
-        { label: "Eventos registrados", value: String(rows.length), hint: "Registro solo anexado", icon: ShieldCheck },
-        { label: "Módulos con actividad", value: String(modules.length), hint: modules.slice(0, 3).join(" · ") || "Sin actividad", icon: ClipboardCheck },
-        { label: "Recuperaciones pendientes", value: String(pendingRestores.length), hint: canReview ? "Requieren tu aprobación" : "En revisión", icon: Undo2 },
-      ]} />
       <InlineNotice title="Registro protegido">La bitácora no puede editarse ni borrarse. Cada fila indica el módulo donde ocurrió el cambio, el valor anterior, el nuevo y el motivo.</InlineNotice>
       <article className="panel configuration-panel">
         <Tabs items={[{ key: "log", label: "Bitácora" }, { key: "restores", label: `Recuperaciones${pendingRestores.length ? ` (${pendingRestores.length})` : ""}` }]} active={tab} onChange={setTab} />
