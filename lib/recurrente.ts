@@ -1,4 +1,4 @@
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import type { BillingStatus } from "@/lib/billing-plans";
 
 // ─── Recurrente API types ──────────────────────────────────────────────────────
@@ -408,13 +408,24 @@ export function verifyRecurrenteWebhookSignature(
   const expectedDigest = createHmac("sha256", secretBytes)
     .update(signedContent, "utf8")
     .digest("base64");
+  const expectedBuffer = Buffer.from(expectedDigest, "base64");
 
-  // svix-signature header contains space-separated "v1,{base64sig}" values
+  // svix-signature header contains space-separated "v1,{base64sig}" values.
+  // Comparación de tiempo constante (hallazgo #6 de la auditoría de
+  // seguridad): un "===" de JavaScript sale en cuanto encuentra la primera
+  // diferencia, lo que en teoría filtra información de la firma esperada por
+  // temporización. Buffers de igual longitud son requisito de
+  // crypto.timingSafeEqual, por eso se descartan antes los que no calzan.
   const signatures = svixSignature.split(" ");
   for (const sig of signatures) {
     if (!sig.startsWith("v1,")) continue;
-    const candidateDigest = sig.slice("v1,".length);
-    if (candidateDigest === expectedDigest) {
+    let candidateBuffer: Buffer;
+    try {
+      candidateBuffer = Buffer.from(sig.slice("v1,".length), "base64");
+    } catch {
+      continue;
+    }
+    if (candidateBuffer.length === expectedBuffer.length && timingSafeEqual(candidateBuffer, expectedBuffer)) {
       return true;
     }
   }

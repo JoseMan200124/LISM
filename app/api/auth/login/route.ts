@@ -61,6 +61,8 @@ export async function POST(request: Request) {
           u.full_name,
           u.email,
           u.password_hash,
+          u.failed_login_count,
+          u.locked_until,
           m.role,
           o.id          AS organization_id,
           l.id          AS laboratory_id,
@@ -80,6 +82,19 @@ export async function POST(request: Request) {
       `;
 
       const user = rows[0] as Record<string, string> | undefined;
+
+      // Bloqueo temporal por intentos fallidos (hallazgo #3 de la auditoría
+      // de seguridad): no se intenta siquiera comparar la contraseña mientras
+      // la cuenta está bloqueada, para no reiniciar el temporizador ni gastar
+      // el costo de bcrypt en balde.
+      if (user?.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+        const minutesLeft = Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60000);
+        return NextResponse.json(
+          { message: `Demasiados intentos fallidos. Vuelve a intentarlo en ${minutesLeft} minuto${minutesLeft === 1 ? "" : "s"}.` },
+          { status: 429 },
+        );
+      }
+
       if (user && await compare(password, user.password_hash)) {
         // Permisos efectivos: matriz base del rol + anulaciones que el
         // administrador haya definido para este laboratorio (migración 0017).
@@ -106,6 +121,16 @@ export async function POST(request: Request) {
           permissions,
         };
         authenticatedFromDatabase = true;
+      } else if (user) {
+        // Correo válido pero contraseña incorrecta: cuenta el intento y, al
+        // llegar a 5 seguidos, bloquea la cuenta 15 minutos.
+        const nextCount = Number(user.failed_login_count ?? 0) + 1;
+        await sql`
+          UPDATE users
+          SET failed_login_count = ${nextCount},
+              locked_until = CASE WHEN ${nextCount} >= 5 THEN now() + interval '15 minutes' ELSE locked_until END
+          WHERE id = ${user.user_id}
+        `;
       }
     } catch (dbError) {
       const message = dbError instanceof Error ? dbError.message : String(dbError);
@@ -129,7 +154,7 @@ export async function POST(request: Request) {
   if (authenticatedFromDatabase) {
     try {
       const sql = getSql();
-      await sql`UPDATE users SET last_login_at = now() WHERE id = ${session.userId}`;
+      await sql`UPDATE users SET last_login_at = now(), failed_login_count = 0, locked_until = NULL WHERE id = ${session.userId}`;
       await writeAuditEvent(session, {
         action: "USER_LOGIN",
         entityType: "user_session",

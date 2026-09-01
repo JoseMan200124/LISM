@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { JsonLd } from "@/components/structured-data";
 import { VersionWatcher } from "@/components/version-watcher";
@@ -92,13 +93,23 @@ const organizationJsonLd = {
   description: siteDescription,
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const appVersion = process.env.APP_VERSION ?? "dev";
+  // El proxy genera un nonce por solicitud y lo reenvía en esta cabecera; la
+  // CSP (script-src 'nonce-...') exige que el único <script> en línea real
+  // de la app lo declare para poder ejecutarse.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('nexalab.theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.dataset.themePreference=t}catch(e){document.documentElement.dataset.theme='light'}})();` }} />
+        {/* suppressHydrationWarning: los navegadores ocultan a propósito el
+            atributo nonce del DOM después de aplicarlo (para que un script
+            inyectado no pueda leerlo), así que React siempre ve un valor
+            vacío al hidratar aunque el nonce sí se haya aplicado
+            correctamente — es el falso positivo esperado y documentado por
+            Next.js para este patrón, no un error real. */}
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('nexalab.theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.dataset.themePreference=t}catch(e){document.documentElement.dataset.theme='light'}})();` }} />
       </head>
       <body>
         <JsonLd data={organizationJsonLd} />
