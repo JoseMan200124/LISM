@@ -3202,3 +3202,30 @@ html { scroll-behavior: smooth; }
 :root[data-theme="dark"] .error-state .empty-icon { color: var(--nexa-danger); background: var(--red-soft); }
 :root[data-theme="dark"] :is(.empty-state h3, .error-state h3) { color: var(--text); }
 :root[data-theme="dark"] .profile-card em { color: var(--primary-dark); background: var(--primary-soft); }
+
+/* Páginas públicas por sector y guías (/soluciones/*, /guia/*). Reutilizan las
+   clases de la landing; esto solo cubre lo que la portada no tiene. */
+.public-hero .landing-container { max-width: 820px; }
+.public-hero h1 { margin: 16px 0 0; color: #20343a; font-size: clamp(34px, 4.6vw, 54px); font-weight: 745; letter-spacing: -2.2px; line-height: 1.05; }
+.public-hero .landing-hero-description { max-width: 720px; }
+.public-breadcrumb { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; color: #6a7b7f; font-size: 13px; }
+.public-breadcrumb a { color: inherit; text-decoration: none; }
+.public-breadcrumb a:hover { color: #1d6b64; text-decoration: underline; }
+.public-breadcrumb [aria-current="page"] { color: #20343a; font-weight: 600; }
+.public-prose .landing-container { max-width: 760px; }
+.public-prose h2 { margin: 48px 0 14px; color: #20343a; font-size: clamp(24px, 2.6vw, 32px); font-weight: 720; letter-spacing: -1.2px; line-height: 1.15; }
+.public-prose h2:first-child { margin-top: 0; }
+.public-prose p, .public-prose li { color: #435359; font-size: 16px; line-height: 1.8; }
+.public-prose p { margin: 0 0 18px; }
+.public-prose ul, .public-prose ol { margin: 0 0 18px; padding-left: 22px; }
+.public-prose li { margin-bottom: 10px; }
+.public-prose a { color: #1d6b64; }
+.public-related { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 40px 0 0; padding: 0; list-style: none; }
+.public-related a { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 18px 20px; border: 1px solid #e3ebe8; border-radius: 14px; background: #fff; color: #20343a; text-decoration: none; transition: border-color 0.15s, transform 0.15s; }
+.public-related a:hover { border-color: #1d6b64; transform: translateY(-1px); }
+.public-related strong { font-size: 15px; font-weight: 650; }
+.public-related span { grid-column: 1; color: #6a7b7f; font-size: 13px; }
+.public-related svg { grid-column: 2; grid-row: 1 / span 2; color: #1d6b64; }
+:root[data-theme="dark"] .public-hero h1, :root[data-theme="dark"] .public-prose h2, :root[data-theme="dark"] .public-breadcrumb [aria-current="page"] { color: var(--text); }
+:root[data-theme="dark"] .public-prose p, :root[data-theme="dark"] .public-prose li, :root[data-theme="dark"] .public-breadcrumb { color: #b7c5c3; }
+:root[data-theme="dark"] .public-related a { border-color: #253a3e; background: var(--surface); color: var(--text); }
