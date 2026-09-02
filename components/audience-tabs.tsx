@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import {
+  ArrowRight,
   Beaker,
   Building2,
   CheckCircle2,
@@ -23,6 +25,8 @@ type Audience = {
   description: string;
   modules: string[];
   status: AudienceStatus;
+  /** Página completa del sector en /soluciones/<slug>. */
+  href: string;
 };
 
 // Los estados son deliberadamente honestos: el perfil clínico exige evaluación
@@ -37,6 +41,7 @@ const STATUS_LABEL: Record<AudienceStatus, string> = {
 const audiences: Audience[] = [
   {
     id: "educativo",
+    href: "/soluciones/laboratorio-educativo",
     icon: GraduationCap,
     label: "Educativo",
     context: "Colegios y universidades",
@@ -48,6 +53,7 @@ const audiences: Audience[] = [
   },
   {
     id: "investigacion",
+    href: "/soluciones/laboratorio-de-investigacion",
     icon: Microscope,
     label: "Investigación",
     context: "Universidades e institutos",
@@ -59,6 +65,7 @@ const audiences: Audience[] = [
   },
   {
     id: "salud",
+    href: "/soluciones/laboratorio-clinico",
     icon: Stethoscope,
     label: "Salud",
     context: "Clínicos y diagnósticos",
@@ -70,6 +77,7 @@ const audiences: Audience[] = [
   },
   {
     id: "calidad",
+    href: "/soluciones/control-de-calidad-farmaceutico",
     icon: FlaskConical,
     label: "Control de calidad",
     context: "Farmacéutico e industrial",
@@ -81,6 +89,7 @@ const audiences: Audience[] = [
   },
   {
     id: "industrial",
+    href: "/soluciones/laboratorio-industrial",
     icon: Building2,
     label: "Industrial",
     context: "Alimentos y manufactura",
@@ -174,6 +183,9 @@ export function AudienceTabs() {
             </li>
           ))}
         </ul>
+        <Link className="landing-text-link" href={current.href}>
+          Ver la solución completa <ArrowRight size={14} aria-hidden="true" />
+        </Link>
         {current.status === "EVALUATION" ? (
           <p className="landing-audience-footnote">
             <Beaker size={13} aria-hidden="true" /> Antes de operar con datos clínicos reales
