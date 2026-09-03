@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { JsonLd } from "@/components/structured-data";
 import { VersionWatcher } from "@/components/version-watcher";
+import { GoogleAnalytics } from "@/components/google-analytics";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://nexalaboratories.com";
 const siteName = "NexaLab";
@@ -94,6 +95,9 @@ const organizationJsonLd = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const appVersion = process.env.APP_VERSION ?? "dev";
+  // Igual que APP_VERSION: se lee por petición porque solo existe en la etapa
+  // runner. Sin la variable no se carga nada de Google.
+  const analyticsId = /^G-[A-Z0-9]+$/.test(process.env.GOOGLE_ANALYTICS_ID ?? "") ? process.env.GOOGLE_ANALYTICS_ID : undefined;
 
   return (
     <html lang="es" suppressHydrationWarning>
@@ -104,6 +108,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <JsonLd data={organizationJsonLd} />
         {children}
         <VersionWatcher initialVersion={appVersion} />
+        {analyticsId ? <GoogleAnalytics measurementId={analyticsId} /> : null}
       </body>
     </html>
   );
