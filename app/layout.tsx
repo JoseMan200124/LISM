@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { JsonLd } from "@/components/structured-data";
 import { VersionWatcher } from "@/components/version-watcher";
+import { GoogleAnalytics } from "@/components/google-analytics";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://nexalaboratories.com";
 const siteName = "NexaLab";
@@ -96,9 +97,12 @@ const organizationJsonLd = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const appVersion = process.env.APP_VERSION ?? "dev";
   // El proxy genera un nonce por solicitud y lo reenvía en esta cabecera; la
-  // CSP (script-src 'nonce-...') exige que el único <script> en línea real
-  // de la app lo declare para poder ejecutarse.
+  // CSP (script-src 'nonce-...') exige que todo <script> en línea de la app lo
+  // declare para poder ejecutarse.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  // Igual que APP_VERSION: se lee por petición porque solo existe en la etapa
+  // runner. Sin la variable no se carga nada de Google.
+  const analyticsId = /^G-[A-Z0-9]+$/.test(process.env.GOOGLE_ANALYTICS_ID ?? "") ? process.env.GOOGLE_ANALYTICS_ID : undefined;
 
   return (
     <html lang="es" suppressHydrationWarning>
@@ -115,6 +119,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <JsonLd data={organizationJsonLd} />
         {children}
         <VersionWatcher initialVersion={appVersion} />
+        {analyticsId ? <GoogleAnalytics measurementId={analyticsId} /> : null}
       </body>
     </html>
   );

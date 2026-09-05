@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SECTORS } from "@/lib/seo-sectors";
 
 // Igual que el layout raíz y por el mismo motivo: NEXT_PUBLIC_APP_URL solo
 // existe en la etapa `runner` del Dockerfile, después del `npm run build`. Un
@@ -24,6 +25,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8,
+    },
+    // Páginas de posicionamiento por tipo de laboratorio y la guía de fondo:
+    // son las que responden a las búsquedas concretas («software para
+    // laboratorio clínico»), no la portada.
+    ...SECTORS.map((sector) => ({
+      url: `${siteUrl}/soluciones/${sector.slug}`,
+      lastModified: new Date("2026-09-02"),
+      changeFrequency: "monthly" as const,
+      priority: 0.9,
+    })),
+    {
+      url: `${siteUrl}/guia/que-es-un-lims`,
+      lastModified: new Date("2026-09-02"),
+      changeFrequency: "monthly",
+      priority: 0.7,
     },
   ];
 }

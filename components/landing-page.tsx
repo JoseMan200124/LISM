@@ -37,6 +37,7 @@ import { JsonLd } from "@/components/structured-data";
 import { PublicThemeToggle } from "@/components/public-theme-toggle";
 import { DeveloperCredit } from "@/components/developer-credit";
 import { CONTACT_EMAIL, CONTACT_WHATSAPP_URL, CONTACT_PHONE_LABEL } from "@/lib/contact";
+import { SECTORS } from "@/lib/seo-sectors";
 
 const softwareApplicationJsonLd = {
   "@context": "https://schema.org",
@@ -605,11 +606,20 @@ export function LandingPage() {
             <p>Sistema integral de gestión de laboratorio. Operación clara y trazable.</p>
             <DeveloperCredit />
           </div>
+          <nav aria-label="Soluciones">
+            <h2>Soluciones</h2>
+            {SECTORS.map((sector) => (
+              <Link key={sector.slug} href={`/soluciones/${sector.slug}`}>
+                {sector.label}
+              </Link>
+            ))}
+          </nav>
           <nav aria-label="Producto">
             <h2>Producto</h2>
             <a href="#capacidades">Capacidades</a>
             <a href="#precios">Precios</a>
             <a href="#movil">App móvil</a>
+            <Link href="/guia/que-es-un-lims">Qué es un LIMS</Link>
             <Link href="/docs/api">Documentación de la API</Link>
           </nav>
           <nav aria-label="Empresa">

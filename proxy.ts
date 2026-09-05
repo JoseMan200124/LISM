@@ -13,10 +13,12 @@ import { NextResponse, type NextRequest } from "next/server";
 // generaría la advertencia de obsolescencia en cada build.
 //
 // La CSP usa un nonce por solicitud en vez de 'unsafe-inline' en script-src:
-// el único <script> en línea real de la app (el detector de tema en
+// el <script> en línea propio de la app (el detector de tema en
 // app/layout.tsx) recibe el nonce vía la cabecera `x-nonce` reenviada a la
 // solicitud. Los <script type="application/ld+json"> (datos estructurados)
-// no ejecutan JavaScript y no están sujetos a script-src.
+// no ejecutan JavaScript y no están sujetos a script-src. Los de next/script
+// (Google Analytics) los inserta el runtime de Next, que ya lleva nonce, y
+// 'strict-dynamic' los cubre.
 export function proxy(request: NextRequest) {
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const isProd = process.env.NODE_ENV === "production";
@@ -36,9 +38,17 @@ export function proxy(request: NextRequest) {
     // elementos <script>/<style>), así que 'unsafe-inline' es el costo
     // práctico ineludible para style-src en una app que usa ese patrón.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // Google Analytics: el hit de medición sale por fetch/beacon hacia
+    // *.google-analytics.com y, en el respaldo sin fetch, como pixel de
+    // imagen. Con `connect-src 'self'` a secas la analítica de la web pública
+    // (components/google-analytics.tsx) se rompe en silencio: no hay error
+    // visible, simplemente dejan de llegar datos. El script de gtag no se
+    // lista aquí porque lo inyecta el runtime de Next, que ya lleva el nonce,
+    // y 'strict-dynamic' hace que los navegadores ignoren las listas de host
+    // en script-src.
+    "img-src 'self' data: blob: https://www.google-analytics.com https://www.googletagmanager.com",
     "font-src 'self' data:",
-    "connect-src 'self'",
+    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
