@@ -383,6 +383,228 @@ export const SECTORS: Sector[] = [
       },
     ],
   },
+  {
+    slug: "laboratorio-de-aguas",
+    label: "Laboratorio de aguas",
+    context: "Ambiental y saneamiento",
+    title: "Software para laboratorios de aguas y análisis ambiental",
+    description:
+      "NexaLab lleva la muestra de agua desde el punto de muestreo hasta el informe: cadena de custodia, parámetros con su método, equipos calibrados y trazabilidad completa.",
+    h1: "Software de gestión para laboratorios de aguas y ambientales",
+    intro:
+      "Una muestra de agua vale por su trazabilidad: dónde se tomó, quién la tomó, a qué hora, cómo se conservó y con qué método se analizó. NexaLab registra esa cadena desde el campo y la conserva junto al resultado, para que el informe se sostenga cuando alguien lo cuestione.",
+    status: "AVAILABLE",
+    keywords: [
+      "software para laboratorio de aguas",
+      "LIMS ambiental",
+      "cadena de custodia de muestras de agua",
+      "sistema para análisis de agua potable y residual",
+    ],
+    problems: [
+      {
+        before: "La hoja de campo se llena a mano y se transcribe días después, cuando ya nadie recuerda el detalle.",
+        after: "El muestreo se registra en el punto, con hora, responsable, condiciones y fotografía si hace falta.",
+      },
+      {
+        before: "Nadie puede demostrar que la muestra se conservó como exige el método.",
+        after: "Cadena de custodia con cada traslado, quién la recibió y en qué condiciones llegó al laboratorio.",
+      },
+      {
+        before: "Los resultados se comparan con los límites a ojo, en una hoja de cálculo con fórmulas heredadas.",
+        after: "Cada parámetro se compara con la especificación vigente y se marca solo cuando queda fuera de límite.",
+      },
+      {
+        before: "El informe se arma copiando de tres archivos y una firma escaneada.",
+        after: "El informe sale del sistema con los resultados, los métodos y los equipos usados, firmado electrónicamente.",
+      },
+    ],
+    modules: [
+      { title: "Puntos de muestreo", text: "Cada punto con su ubicación, su frecuencia y los parámetros que le corresponden." },
+      { title: "Cadena de custodia", text: "Traslados, responsables y condiciones de conservación registrados sin posibilidad de sobrescribir." },
+      { title: "Métodos y especificaciones", text: "El parámetro se analiza con el método vigente y se compara con su límite normativo." },
+      { title: "Equipos y calibración", text: "Estado, calibración y próximo mantenimiento de cada equipo, ligados al resultado que produjo." },
+      { title: "Reactivos por lote", text: "Vencimientos, stock mínimo y qué lote se usó en cada ensayo." },
+      { title: "Informes firmados", text: "Resultado, método, equipo y responsable en un documento con firma electrónica y versión." },
+    ],
+    workflow: [
+      { title: "Se define la red de monitoreo", text: "Puntos, frecuencia, parámetros por punto y límites aplicables." },
+      { title: "Se muestrea en campo", text: "Registro desde el teléfono con hora, responsable y condiciones reales." },
+      { title: "Se analiza en laboratorio", text: "Cada parámetro con su método, su equipo y su reactivo, comparado contra el límite." },
+      { title: "Se emite el informe", text: "Con toda la trazabilidad detrás, listo para el cliente o para la autoridad." },
+    ],
+    compliance:
+      "NexaLab aporta estructuras alineadas a ISO/IEC 17025 en trazabilidad, control de equipos, métodos y registros. Los límites normativos aplicables a cada matriz de agua los define la reglamentación vigente de cada país, y la acreditación del laboratorio depende además de sus procedimientos, su personal y sus auditorías: es responsabilidad de cada organización.",
+    faqs: [
+      {
+        question: "¿Sirve para agua potable, residual y de proceso?",
+        answer:
+          "Sí. Lo que cambia entre una matriz y otra son los parámetros, los métodos y los límites, y los tres se configuran por tipo de muestra. El circuito de custodia, análisis e informe es el mismo.",
+      },
+      {
+        question: "¿Se puede registrar el muestreo sin señal en el campo?",
+        answer:
+          "La plataforma es web y la aplicación móvil acompaña el trabajo de campo. Para rutas de muestreo en zonas sin cobertura conviene revisarlo en la evaluación inicial, porque condiciona cómo se organiza la jornada.",
+      },
+      {
+        question: "¿Puede emitir el informe con la firma del responsable técnico?",
+        answer:
+          "Sí, con firma electrónica que exige reautenticación en el momento de firmar. Cada versión del informe queda registrada, así que una corrección posterior no borra lo que ya se entregó.",
+      },
+      {
+        question: "¿Se integra con los equipos del laboratorio?",
+        answer:
+          "Con la API documentada y los webhooks se pueden integrar sistemas y equipos que expongan una interfaz. Los equipos que solo imprimen ticket se registran manualmente; eso se revisa caso por caso en la evaluación.",
+      },
+    ],
+  },
+  {
+    slug: "laboratorio-de-suelos-y-agricola",
+    label: "Laboratorio de suelos",
+    context: "Agrícola y agroindustrial",
+    title: "Software para laboratorios de suelos y análisis agrícola",
+    description:
+      "NexaLab ordena el análisis de suelos y foliar: muestras por finca y lote, parámetros con su método, resultados trazables e informes con recomendación para el productor.",
+    h1: "Software de gestión para laboratorios de suelos y agrícolas",
+    intro:
+      "Un análisis de suelo solo sirve si se sabe exactamente de qué lote salió la muestra. NexaLab liga cada muestra a su finca, su lote y su fecha, conserva el método con el que se analizó y entrega el informe con la trazabilidad que el productor y el agrónomo necesitan para decidir la fertilización.",
+    status: "AVAILABLE",
+    keywords: [
+      "software para laboratorio de suelos",
+      "LIMS agrícola",
+      "sistema de análisis foliar",
+      "gestión de muestras de suelo por finca y lote",
+    ],
+    problems: [
+      {
+        before: "Las muestras llegan en bolsas rotuladas a mano y la identificación se pierde en la recepción.",
+        after: "Cada muestra entra con su finca, su lote, su profundidad y su fecha, y su etiqueta con código QR.",
+      },
+      {
+        before: "Los resultados se calculan en una hoja de cálculo que solo entiende quien la hizo.",
+        after: "Los parámetros se registran con su método y su equipo, y el cálculo queda documentado en el sistema.",
+      },
+      {
+        before: "El productor recibe una tabla de números sin contexto y llama para preguntar qué significa.",
+        after: "El informe sale con los resultados, el método y el espacio para la interpretación del agrónomo.",
+      },
+      {
+        before: "Nadie puede comparar la misma finca entre campañas sin buscar informes viejos en una carpeta.",
+        after: "El historial por finca y lote queda en el sistema, disponible para ver la evolución.",
+      },
+    ],
+    modules: [
+      { title: "Muestras por finca y lote", text: "Identificación con origen, profundidad, fecha y responsable del muestreo." },
+      { title: "Etiquetas con código QR", text: "Escanear la bolsa abre la ficha de la muestra con los permisos de quien escanea." },
+      { title: "Métodos y parámetros", text: "Cada determinación con su método vigente, su unidad y su rango de referencia." },
+      { title: "Equipos y calibración", text: "Estado y calibración de cada equipo, ligados al resultado que produjo." },
+      { title: "Reactivos por lote", text: "Vencimientos, stock mínimo y consumo real por corrida de análisis." },
+      { title: "Informes y historial", text: "Informe firmado por muestra y evolución por finca y lote entre campañas." },
+    ],
+    workflow: [
+      { title: "Se registra el muestreo", text: "Finca, lote, profundidad, fecha y responsable, desde el campo o en recepción." },
+      { title: "Se procesa la muestra", text: "Preparación y determinaciones con su método, su equipo y su reactivo." },
+      { title: "Se revisan los resultados", text: "Cada valor contra su rango de referencia, con revisión antes de liberar." },
+      { title: "Se entrega el informe", text: "Firmado, con la trazabilidad completa y disponible para el productor." },
+    ],
+    compliance:
+      "NexaLab aporta estructuras alineadas a ISO/IEC 17025 en trazabilidad de muestras, control de equipos, métodos y registros. La interpretación agronómica de los resultados y las recomendaciones de fertilización son responsabilidad del profesional que firma el informe.",
+    faqs: [
+      {
+        question: "¿Sirve para análisis foliar y de agua de riego, además de suelo?",
+        answer:
+          "Sí. Cada tipo de muestra tiene sus parámetros, sus métodos y sus rangos de referencia, y los tres se configuran por separado. El circuito de recepción, análisis, revisión e informe es el mismo.",
+      },
+      {
+        question: "¿Puede un cliente consultar sus propios resultados?",
+        answer:
+          "El acceso se controla por rol, así que se puede dar visibilidad limitada a resultados propios. El alcance exacto se define al configurar la cuenta, porque depende de cómo trabaje cada laboratorio con sus clientes.",
+      },
+      {
+        question: "¿Se puede conectar con una plataforma agrícola o de mapas?",
+        answer:
+          "Sí, mediante la API documentada y los webhooks. Haricode, la empresa detrás de NexaLab, opera además plataformas agrícolas y geoespaciales, así que esa integración es un terreno conocido.",
+      },
+      {
+        question: "¿Cómo se maneja la temporada alta de muestras?",
+        answer:
+          "El sistema no cambia con el volumen; lo que cambia es el plan contratado. Los planes van desde un laboratorio hasta la coordinación de varias sedes, y se puede subir de plan cuando llega la campaña.",
+      },
+    ],
+  },
+  {
+    slug: "laboratorio-veterinario",
+    label: "Laboratorio veterinario",
+    context: "Diagnóstico animal",
+    title: "Software para laboratorios veterinarios y de diagnóstico animal",
+    description:
+      "NexaLab ordena el diagnóstico veterinario: órdenes por paciente y propietario, muestras identificadas, resultados revisados antes de liberar e historial por animal o por hato.",
+    h1: "Software de gestión para laboratorios veterinarios",
+    intro:
+      "Un laboratorio veterinario recibe muestras de un paciente con nombre y de un hato con cientos de animales, y ambas deben quedar identificadas sin confusión. NexaLab lleva la orden desde el ingreso hasta la liberación del resultado, con la revisión como paso firmado y el historial disponible para la siguiente consulta.",
+    status: "EVALUATION",
+    keywords: [
+      "software para laboratorio veterinario",
+      "LIS veterinario",
+      "sistema de diagnóstico animal",
+      "gestión de muestras veterinarias",
+    ],
+    problems: [
+      {
+        before: "La orden llega por WhatsApp con el nombre del animal y el del propietario en el mismo mensaje.",
+        after: "Orden con paciente, especie, propietario y clínica remitente, cada uno en su campo.",
+      },
+      {
+        before: "Las muestras de un hato se rotulan con números correlativos que después nadie logra reconstruir.",
+        after: "Identificación por lote de muestreo con su origen, y etiqueta con código QR por muestra.",
+      },
+      {
+        before: "El resultado se manda apenas sale del equipo, sin que nadie lo revise.",
+        after: "Revisión y liberación como pasos separados y firmados, con reautenticación al firmar.",
+      },
+      {
+        before: "El historial del animal está en el correo de quien atendió esa vez.",
+        after: "Historial por paciente y por propietario, disponible para la clínica remitente según sus permisos.",
+      },
+    ],
+    modules: [
+      { title: "Órdenes por paciente", text: "Animal, especie, raza, edad, propietario y clínica remitente en la misma orden." },
+      { title: "Muestras identificadas", text: "Etiqueta con código QR por muestra, con su tipo, su fecha y su condición de llegada." },
+      { title: "Resultados y revisión", text: "Captura del resultado, revisión y liberación como pasos separados y firmados." },
+      { title: "Equipos y reactivos", text: "Calibración, mantenimiento, lotes y vencimientos ligados al resultado producido." },
+      { title: "Historial por paciente", text: "Estudios anteriores del mismo animal o del mismo hato, con control de acceso por rol." },
+      { title: "Auditoría", text: "Quién hizo qué y cuándo, sin posibilidad de sobrescribir el registro." },
+    ],
+    workflow: [
+      { title: "Ingresa la orden", text: "Con el paciente, el propietario, la clínica remitente y los estudios solicitados." },
+      { title: "Se reciben las muestras", text: "Identificación, condición de llegada y aceptación o rechazo con su motivo." },
+      { title: "Se procesan y se revisan", text: "Resultado por estudio, con revisión antes de que salga de la casa." },
+      { title: "Se libera el informe", text: "Firmado, disponible para la clínica remitente y guardado en el historial del paciente." },
+    ],
+    compliance:
+      "NexaLab aporta estructuras de trazabilidad, control de equipos, revisión y firma alineadas a la práctica de un laboratorio de diagnóstico. Este perfil requiere evaluación previa: antes de operar con datos reales revisamos contigo el alcance, la validación de los estudios y los procedimientos, porque las exigencias sanitarias varían según el país y el tipo de análisis.",
+    faqs: [
+      {
+        question: "¿Sirve para animales de compañía y para producción pecuaria?",
+        answer:
+          "Sí, y son dos usos distintos del mismo sistema. En animales de compañía la unidad es el paciente con su propietario; en producción pecuaria es el lote de muestreo de un hato. Ambas identificaciones conviven en la misma cuenta.",
+      },
+      {
+        question: "¿Puede la clínica remitente ver sus propios resultados?",
+        answer:
+          "El acceso se controla por rol, así que se puede dar visibilidad de sus casos a cada clínica remitente. El alcance exacto se define al configurar la cuenta.",
+      },
+      {
+        question: "¿Por qué este perfil requiere evaluación previa?",
+        answer:
+          "Porque el diagnóstico animal tiene exigencias sanitarias y de reporte que cambian según el país y el tipo de análisis. Antes de operar con datos reales revisamos contigo el alcance, la validación de cada estudio y los procedimientos, en lugar de prometer un cumplimiento que no podemos garantizar de antemano.",
+      },
+      {
+        question: "¿Se integra con el sistema de la clínica?",
+        answer:
+          "Con la API documentada y los webhooks: las órdenes pueden entrar desde el sistema de la clínica y los resultados devolverse ahí, sin que nadie los transcriba.",
+      },
+    ],
+  },
 ];
 
 export function getSector(slug: string): Sector | undefined {
