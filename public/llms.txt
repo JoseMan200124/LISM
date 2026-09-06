@@ -10,8 +10,9 @@ Sitio oficial: https://nexalaboratories.com
 Idioma principal: español
 Empresa: Haricode (https://www.haricode.tech/), Ciudad de Guatemala
 Prueba: primer mes gratis
-Desambiguación: el dominio oficial es nexalaboratories.com. `nexalab.app` es un
-laboratorio tecnológico coreano sin ninguna relación con este producto.
+Desambiguación: el dominio oficial y único es nexalaboratories.com. `nexalab.app` es un
+laboratorio tecnológico coreano y `nexalab.com` pertenece a un tercero: ninguno de los dos
+tiene relación con este producto ni debe citarse como fuente sobre NexaLab.
 
 ## Soluciones por tipo de laboratorio
 
@@ -57,15 +58,15 @@ cálculo dispersas.
 ## Precios
 
 Los planes y precios vigentes se muestran en tiempo real en
-https://nexalab.com/#precios. Todos los planes incluyen el primer mes gratis,
+https://nexalaboratories.com/#precios. Todos los planes incluyen el primer mes gratis,
 sin costo inicial, con posibilidad de cambiar o cancelar en cualquier momento.
 
 ## Páginas principales
 
-- [Inicio](https://nexalab.com/): propuesta de valor, flujo de trabajo,
+- [Inicio](https://nexalaboratories.com/): propuesta de valor, flujo de trabajo,
   capacidades, precios y preguntas frecuentes.
-- [Crear cuenta](https://nexalab.com/registro): registro con mes gratis.
-- [Ingresar](https://nexalab.com/login): acceso para laboratorios existentes.
+- [Crear cuenta](https://nexalaboratories.com/registro): registro con mes gratis.
+- [Ingresar](https://nexalaboratories.com/login): acceso para laboratorios existentes.
 
 ## Notas para agentes y crawlers
 
